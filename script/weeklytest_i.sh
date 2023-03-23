@@ -5,6 +5,7 @@ test_type=weeklytest_insert
 #初始环境存放路径
 INIT_PATH=/root/zk_test
 IOTDB_PATH=${INIT_PATH}/iotdb
+ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
 MONITOR_PATH=${INIT_PATH}/monitor
 DATA_PATH=/data/original
@@ -138,6 +139,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		mkdir -p ${TEST_IOTDB_PATH}
 	fi
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
+	mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
+	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置

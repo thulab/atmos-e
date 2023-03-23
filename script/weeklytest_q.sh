@@ -5,6 +5,7 @@ test_type=weeklytest_query
 #初始环境存放路径
 INIT_PATH=/root/zk_test
 IOTDB_PATH=${INIT_PATH}/iotdb
+ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
 MONITOR_PATH=${INIT_PATH}/monitor
 DATA_PATH=/data/original
