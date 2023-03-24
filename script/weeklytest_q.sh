@@ -30,10 +30,11 @@ DBNAME="QA_ATM"  #数据库名称
 TABLENAME="weeklytest_query" #数据库中表的名称
 SERVERTABLE="SERVER_MODE_weeklytest_query"
 
+sensor_type_list=(one more)
 insert_list=(seq_w unseq_w seq_rw unseq_rw)
-query_data_type=(no_overflow is_overflow)
-query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3 Q4-b1 Q4-b2 Q4-b3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q7-4 Q8 Q9 Q10)
-query_type=(PRECISE_POINT, TIME_RANGE, TIME_RANGE, TIME_RANGE, VALUE_RANGE, VALUE_RANGE, VALUE_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_VALUE, AGG_RANGE_VALUE, AGG_RANGE_VALUE, AGG_RANGE_VALUE, GROUP_BY, GROUP_BY, GROUP_BY, GROUP_BY, LATEST_POINT, RANGE_QUERY_DESC, VALUE_RANGE_QUERY_DESC,)
+query_data_type=(sequence unsequence)
+query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3 Q4-b1 Q4-b2 Q4-b3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q7-4 Q8 Q9-1 Q9-2 Q9-3 Q10)
+query_type_list=(PRECISE_POINT, TIME_RANGE, TIME_RANGE, TIME_RANGE, VALUE_RANGE, VALUE_RANGE, VALUE_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_VALUE, AGG_RANGE_VALUE, AGG_RANGE_VALUE, AGG_RANGE_VALUE, GROUP_BY, GROUP_BY, GROUP_BY, GROUP_BY, LATEST_POINT, RANGE_QUERY_DESC, RANGE_QUERY_DESC, RANGE_QUERY_DESC, VALUE_RANGE_QUERY_DESC,)
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 sendEmail() {
@@ -70,6 +71,10 @@ init_items() {
 ############定义监控采集项初始值##########################
 test_date_time=0
 ts_type=0
+data_type=0
+query_type=0
+sensor_type=0
+query_num=0
 okPoint=0
 okOperation=0
 failPoint=0
@@ -308,91 +313,99 @@ backup_test_data() { # 备份测试数据
 }
 mv_config_file() { # 移动配置文件
 	rm -rf ${BM_PATH}/conf/config.properties
-	cp -rf ${INIT_PATH}/conf/$1 ${BM_PATH}/conf/config.properties
+	cp -rf ${INIT_PATH}/conf/$1/$2 ${BM_PATH}/conf/config.properties
 }
 test_operation() {
 	protocol_class=$1
 	#查询测试	
 	for (( j = 0; j < ${#query_data_type[*]}; j++ ))
 	do
-	echo "开始${query_data_type[${j}]}查询！"
-	#清理环境，确保无就程序影响
-	check_monitor_pid
-	check_iotdb_pid
-	#复制当前程序到执行位置
-	copy_iotdb
-	#修改IoTDB的配置
-	modify_iotdb_config
-	if [ "${protocol_class}" = "111" ]; then
-		set_protocol_class 1 1 1
-	elif [ "${protocol_class}" = "222" ]; then
-		set_protocol_class 2 2 2
-	elif [ "${protocol_class}" = "223" ]; then
-		set_protocol_class 2 2 3
-	elif [ "${protocol_class}" = "211" ]; then
-		set_protocol_class 2 1 1
-	else
-		echo "协议设置错误！"
-		return
-	fi
-	#启动iotdb和monitor监控
-	#mkdir -p ${TEST_DATANODE_PATH}
-	cp -rf ${DATA_PATH}/${query_data_type[${j}]}/data ${TEST_DATANODE_PATH}/
-		for (( i = 0; i < ${#query_list[*]}; i++ ))
+		echo "开始${query_data_type[${j}]}查询！"
+		#清理环境，确保无就程序影响
+		check_monitor_pid
+		check_iotdb_pid
+		#复制当前程序到执行位置
+		copy_iotdb
+		#修改IoTDB的配置
+		modify_iotdb_config
+		if [ "${protocol_class}" = "111" ]; then
+			set_protocol_class 1 1 1
+		elif [ "${protocol_class}" = "222" ]; then
+			set_protocol_class 2 2 2
+		elif [ "${protocol_class}" = "223" ]; then
+			set_protocol_class 2 2 3
+		elif [ "${protocol_class}" = "211" ]; then
+			set_protocol_class 2 1 1
+		else
+			echo "协议设置错误！"
+			return
+		fi
+		#启动iotdb和monitor监控
+		#mkdir -p ${TEST_DATANODE_PATH}
+		cp -rf ${DATA_PATH}/${query_data_type[${j}]}/data ${TEST_DATANODE_PATH}/
+		for (( s = 0; s < ${#sensor_type_list[*]}; s++ ))
+		do
+			sensor_type=${sensor_type_list[${s}]}
+			for (( i = 0; i < ${#query_list[*]}; i++ ))
 			do
-			echo "开始${query_list[${i}]}查询！"
-			check_iotdb_pid
-			sleep 1
-			start_iotdb
-			#start_monitor
-			sleep 10
+				echo "开始${query_list[${i}]}查询！"
+				check_iotdb_pid
+				sleep 1
+				start_iotdb
+				#start_monitor
+				sleep 10
+					
+				####判断IoTDB是否正常启动
+				iotdb_state=$(${TEST_DATANODE_PATH}/sbin/start-cli.sh -e "show version" | grep 'Total line number = 1')
+				if [ "${iotdb_state}" = "Total line number = 1" ]; then
+					echo "IoTDB正常启动，准备开始测试"
+				else
+					echo "IoTDB未能正常启动，写入负值测试结果！"
+					cost_time=-3
+					insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,data_type,query_type,sensor_type,query_num,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${data_type}','${query_type}','${sensor_type}','${query_num}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${protocol_class}')"
+					mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+					e_update_sql="update commit_history set ${test_type} = 'RError' where commit_id = '${commit_id}'"
+					result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${e_update_sql}")
+					continue
+				fi
 				
-			####判断IoTDB是否正常启动
-			iotdb_state=$(${TEST_DATANODE_PATH}/sbin/start-cli.sh -e "show version" | grep 'Total line number = 1')
-			if [ "${iotdb_state}" = "Total line number = 1" ]; then
-				echo "IoTDB正常启动，准备开始测试"
-			else
-				echo "IoTDB未能正常启动，写入负值测试结果！"
-				cost_time=-3
-				insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${protocol_class}')"
+				#启动写入程序
+				echo "文件路径：" ${sensor_type_list[${s}]}
+				mv_config_file ${sensor_type_list[${s}]} ${query_list[${i}]}
+				for (( m = 1; m <= 2; m++ ))
+				do
+				ts_type=common
+				data_type=${query_data_type[${j}]}
+				query_num=${m}
+				query_type=${query_list[${i}]}
+				start_benchmark
+				start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+
+				#等待1分钟
+				sleep 10
+				
+				monitor_test_status
+				
+				#收集启动后基础监控数据
+				collect_monitor_data
+				#测试结果收集写入数据库
+				csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
+				read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^${query_type_list[${i}]} | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
+				read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^${query_type_list[${i}]} | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+
+				cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
+				insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,data_type,query_type,sensor_type,query_num,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${data_type}','${query_type}','${sensor_type}','${query_num}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${protocol_class}')"
+				echo ${commit_id}版本${ts_type}查询${okPoint}数据点的耗时为：${Latency}ms
 				mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
-				e_update_sql="update commit_history set ${test_type} = 'RError' where commit_id = '${commit_id}'"
-				result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${e_update_sql}")
-				continue
-			fi
-			
-			#启动写入程序
-			mv_config_file ${query_list[${i}]}
-			for (( m = 1; m <= 2; m++ ))
-			do
-			ts_type=${m}_${query_data_type[${j}]}_${query_list[${i}]}
-			start_benchmark
-			start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
-
-			#等待1分钟
-			sleep 10
-			
-			monitor_test_status
-			
-			#收集启动后基础监控数据
-			collect_monitor_data
-			#测试结果收集写入数据库
-			csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
-			read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^${query_type[${i}]} | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
-			read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^${query_type[${i}]} | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
-
-			cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-			insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${protocol_class}')"
-			echo ${commit_id}版本${ts_type}查询${okPoint}数据点的耗时为：${Latency}ms
-			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
-			
-			#备份本次测试
-			cp -rf ${BM_PATH}/data/csvOutput ${TEST_DATANODE_PATH}/logs/ 
-			mv ${TEST_DATANODE_PATH}/logs ${TEST_DATANODE_PATH}/logs_${query_list[${i}]}_${m}
+				
+				#备份本次测试
+				cp -rf ${BM_PATH}/data/csvOutput ${TEST_DATANODE_PATH}/logs/ 
+				mv ${TEST_DATANODE_PATH}/logs ${TEST_DATANODE_PATH}/logs_${query_list[${i}]}_${m}
+				done
+				#停止IoTDB程序和监控程序
+				check_monitor_pid
+				check_iotdb_pid
 			done
-			#停止IoTDB程序和监控程序
-			check_monitor_pid
-			check_iotdb_pid
 		done
 		echo "本轮${query_data_type[${j}]}时间序列查询测试已结束."
 		#备份本次测试
