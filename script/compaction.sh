@@ -411,6 +411,8 @@ test_operation() {
 	fi
 	#mkdir -p ${TEST_DATANODE_PATH}/data
 	cp -rf ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_DATANODE_PATH}/
+	mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
+	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
 	###############################seq_space合并###############################
 	comp_type=seq_space
 	#修改IoTDB的配置
