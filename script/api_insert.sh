@@ -28,7 +28,7 @@ PORT="13306"
 USERNAME="iotdbatm"
 PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
-TABLENAME="test_result_insert" #数据库中表的名称
+TABLENAME="test_result_api_insert" #数据库中表的名称
 SERVERTABLE="SERVER_MODE_test_api"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
