@@ -26,7 +26,7 @@ USERNAME="iotdbatm"
 PASSWORD="iotdb2019"
 DBNAME="QA_ATM"                   #数据库名称
 TABLENAME="ex_sql_coverage" #数据库中表的名称
-TASK_TABLENAME="ex_commit_history" #数据库中任务表的名称
+TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
