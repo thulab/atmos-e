@@ -1,7 +1,7 @@
 #!/bin/sh
 #登录用户名
 ACCOUNT=root
-test_type=api_test
+test_type=config_insert
 #初始环境存放路径
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
