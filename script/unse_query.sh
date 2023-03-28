@@ -6,7 +6,7 @@ test_type=unse_query
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
-DATA_PATH=/nasdata/se_query/DataSet
+DATA_PATH=/nasdata/unse_query/DataSet
 BUCKUP_PATH=/nasdata/repository/unse_query
 REPOS_PATH=/nasdata/repository/master
 #测试数据运行路径
@@ -288,7 +288,7 @@ test_operation() {
 			return
 		fi
 		#mkdir -p ${TEST_IOTDB_PATH}/data
-		mv ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_IOTDB_PATH}/
+		cp -rf ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_IOTDB_PATH}/
 		mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
 		cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
 		for (( i = 0; i < ${#query_list[*]}; i++ ))
@@ -353,9 +353,8 @@ test_operation() {
 			sleep 5
 		done
 		echo "${ts_type}时间序列查询测试已结束."
-		mv ${TEST_IOTDB_PATH}/data ${DATA_PATH}/${protocol_class}/${ts_type}/ 
 		#备份本次测试
-		#backup_test_data ${ts_type}
+		backup_test_data ${ts_type}
 	done
 }
 

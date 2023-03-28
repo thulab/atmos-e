@@ -288,7 +288,7 @@ test_operation() {
 			return
 		fi
 		#mkdir -p ${TEST_IOTDB_PATH}/data
-		mv ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_IOTDB_PATH}/
+		cp -rf  ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_IOTDB_PATH}/
 		mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
 		cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
 		for (( i = 0; i < ${#query_list[*]}; i++ ))
@@ -353,9 +353,8 @@ test_operation() {
 			sleep 5
 		done
 		echo "${ts_type}时间序列查询测试已结束."
-		mv ${TEST_IOTDB_PATH}/data ${DATA_PATH}/${protocol_class}/${ts_type}/ 
 		#备份本次测试
-		#backup_test_data ${ts_type}
+		backup_test_data ${ts_type}
 	done
 }
 
