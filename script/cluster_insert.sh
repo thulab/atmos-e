@@ -9,7 +9,7 @@ BM_PATH=${INIT_PATH}/iot-benchmark
 BUCKUP_PATH=/nasdata/repository/cluster_insert
 REPOS_PATH=/nasdata/repository/master
 #测试数据运行路径
-TEST_PATH=/root/zk_test/first-rest-test
+TEST_PATH=/data/cluster/first-rest-test
 TEST_DATANODE_PATH=${TEST_PATH}/DN/apache-iotdb
 TEST_CONFIGNODE_PATH=${TEST_PATH}/CN/apache-iotdb
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
@@ -19,15 +19,15 @@ protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.i
 protocol_list=(111 223)
 ts_list=(common aligned template tempaligned)
 
-IP_list=(0 11.101.17.131 11.101.17.132 11.101.17.133)
-D_IP_list=(0 11.101.17.131 11.101.17.132 11.101.17.133)
-C_IP_list=(0 11.101.17.131 11.101.17.132 11.101.17.133)
-B_IP_list=(0 11.101.17.130)
+IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
+D_IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
+C_IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
+B_IP_list=(0 172.20.31.44)
 config_schema_replication_factor=(0 3 3 3 3 3 3)
 config_data_replication_factor=(0 3 3 3 3 3 3)
-config_node_config_nodes=(0 11.101.17.131:10710 11.101.17.131:10710 11.101.17.131:10710)
-data_node_config_nodes=(0 11.101.17.131:10710 11.101.17.132:10710 11.101.17.133:10710)
-Control=11.101.17.130
+config_node_config_nodes=(0 172.20.31.41:10710 172.20.31.41:10710 172.20.31.41:10710)
+data_node_config_nodes=(0 172.20.31.41:10710 172.20.31.42:10710 172.20.31.43:10710)
+Control=172.20.31.44
 
 ############mysql信息##########################
 MYSQLHOSTNAME="111.202.73.147" #数据库信息
@@ -118,8 +118,14 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		mkdir -p ${TEST_PATH}/CN/apache-iotdb
 		mkdir -p ${TEST_PATH}/DN/apache-iotdb
 	fi
+	
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/CN/apache-iotdb/
+	mkdir -p ${TEST_PATH}/CN/apache-iotdb/data/datanode/system/license
+	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_PATH}/CN/apache-iotdb/data/datanode/system/license/active.license
+	
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/DN/apache-iotdb/
+	mkdir -p ${TEST_PATH}/DN/apache-iotdb/data/datanode/system/license
+	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_PATH}/DN/apache-iotdb/data/datanode/system/license/active.license
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
@@ -436,14 +442,40 @@ else
 	test_date_time=`date +%Y%m%d%H%M%S`
 	###############################普通时间序列###############################
 	echo "开始测试普通时间序列顺序写入！"
-	test_operation common noOverflow 223
+	test_operation common seq_w 223
 	echo "开始测试普通时间序列乱续写入！"
-	test_operation common isOverflow 223
+	test_operation common unseq_w 223
+	echo "开始测试普通时间序列顺序写入！"
+	test_operation common seq_rw 223
+	echo "开始测试普通时间序列乱续写入！"
+	test_operation common unseq_rw 223
 	###############################对齐时间序列###############################
 	echo "开始测试对齐时间序列顺序写入！"
-	test_operation aligned noOverflow 223
+	test_operation aligned seq_w 223
 	echo "开始测试对齐时间序列乱续写入！"
-	test_operation aligned isOverflow 223
+	test_operation aligned unseq_w 223
+	echo "开始测试对齐时间序列顺序写入！"
+	test_operation aligned seq_rw 223
+	echo "开始测试对齐时间序列乱续写入！"
+	test_operation aligned unseq_rw 223
+	###############################模板时间序列###############################
+	echo "开始测试模板时间序列顺序写入！"
+	test_operation template seq_w 223
+	echo "开始测试模板时间序列乱续写入！"
+	test_operation template unseq_w 223
+	echo "开始测试模板时间序列顺序写入！"
+	test_operation template seq_rw 223
+	echo "开始测试模板时间序列乱续写入！"
+	test_operation template unseq_rw 223
+	###############################对齐模板时间序列###############################
+	echo "开始测试对齐模板时间序列顺序写入！"
+	test_operation tempaligned seq_w 223
+	echo "开始测试对齐模板时间序列乱续写入！"
+	test_operation tempaligned unseq_w 223
+	echo "开始测试对齐模板时间序列顺序写入！"
+	test_operation tempaligned seq_rw 223
+	echo "开始测试对齐模板时间序列乱续写入！"
+	test_operation tempaligned unseq_rw 223
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
