@@ -319,6 +319,7 @@ test_operation() {
 	else
 		echo "IoTDB未能正常启动，写入负值测试结果！"
 		cost_time=-3
+		throughput=-3
 		insert_database load-tsfile
 		update_sql="update commit_history set ${test_type} = 'RError' where commit_id = '${commit_id}'"
 		result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}")
@@ -358,6 +359,7 @@ test_operation() {
 	else
 		echo "IoTDB未能正常启动，写入负值测试结果！"
 		cost_time=-3
+		throughput=-3
 		insert_database export-tsfile
 		update_sql="update commit_history set ${test_type} = 'RError' where commit_id = '${commit_id}'"
 		result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}")
