@@ -93,7 +93,7 @@ do
 				mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
 				echo $commit_date_time
 				echo $test_date_time
-				cp -rf ${IOTDB_PATH}/distribution/target/timecho-timechodb-*-all-bin/timecho-timechodb-*-all-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+				cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-bin/iotdb-enterprise-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
 				#获取本次更新的变更文件列表
 				git log -1 --name-only > $FILENAME
 				#按照文件夹名称排除不必要测试文件夹
