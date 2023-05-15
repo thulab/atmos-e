@@ -306,7 +306,7 @@ if [ "$check_config_num" == "$config_num" ] && [ "$check_data_num" == "$data_num
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/logs"
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/data"
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/conf/config.properties"
-			scp -rf ${ATMOS_PATH}/conf/${test_type}/$1/$2 ${ACCOUNT}@${B_IP_list[${j}]}:${BM_PATH}/conf/config.properties
+			scp -rf ${BM_PATH}/conf/config.properties ${ACCOUNT}@${B_IP_list[${j}]}:${BM_PATH}/conf/config.properties
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "sed -i \"s/^HOST=.*$/HOST=$${D_IP_list[${j}]}/g\" ${BM_PATH}/conf/config.properties"
 			#echo "启动BM： ${B_IP_list[${j}]} ..."
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH};${BM_PATH}/benchmark.sh > /dev/null 2>&1 &" &
