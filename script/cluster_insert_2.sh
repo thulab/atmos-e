@@ -280,7 +280,7 @@ do
 	for (( t_wait = 0; t_wait <= 100; t_wait++ ))
 	do
 	  str1=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_IP_list[1]} -p 6667 -u root -pw root -e \"show cluster\" | grep 'Total line number = ${total_nodes}'")
-	  if [ "$str1" = "Total line number = 6" ]; then
+	  if [ "$str1" = "Total line number = 8" ]; then
 		echo "All Nodes is ready"
 		flag=1
 		break
@@ -455,19 +455,19 @@ else
 	init_items
 	test_date_time=`date +%Y%m%d%H%M%S`
 	###############################普通时间序列###############################
-	echo "开始测试普通时间序列顺序写入！"
-	test_operation common seq_w 223
-	echo "开始测试普通时间序列乱续写入！"
-	test_operation common unseq_w 223
+	#echo "开始测试普通时间序列顺序写入！"
+	#test_operation common seq_w 223
+	#echo "开始测试普通时间序列乱续写入！"
+	#test_operation common unseq_w 223
 	echo "开始测试普通时间序列顺序写入！"
 	test_operation common seq_rw 223
 	echo "开始测试普通时间序列乱续写入！"
 	test_operation common unseq_rw 223
 	###############################对齐时间序列###############################
-	echo "开始测试对齐时间序列顺序写入！"
-	test_operation aligned seq_w 223
-	echo "开始测试对齐时间序列乱续写入！"
-	test_operation aligned unseq_w 223
+	#echo "开始测试对齐时间序列顺序写入！"
+	#test_operation aligned seq_w 223
+	#echo "开始测试对齐时间序列乱续写入！"
+	#test_operation aligned unseq_w 223
 	echo "开始测试对齐时间序列顺序写入！"
 	test_operation aligned seq_rw 223
 	echo "开始测试对齐时间序列乱续写入！"
