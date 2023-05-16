@@ -432,7 +432,7 @@ test_operation() {
 	monitor_test_status
 	#测试结果收集写入数据库
 	rm -rf ${BM_PATH}/data/csvOutput/*
-	scp -r ${ACCOUNT}@${B_IP_list[${1}]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/data/csvOutput/
+	scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/data/csvOutput/
 	for ((j = 1; j <= 5; j++)); do
 		#收集启动后基础监控数据
 		collect_monitor_data ${j}
