@@ -326,19 +326,19 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			temp_file_num_c=0
 			temp_thread_num_c=0
 		
-			iotdb_pid=$(jps | grep DataNode | awk '{print $1}')
-			if [ "${iotdb_pid}" = "" ]; then
+			dn_pid=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "jps | grep DataNode | awk '{print $1}'")
+			cn_pid=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "jps | grep ConfigNode | awk '{print $1}'")
+			if [ "$dn_pid" = "" ]; then
 				echo "无DataNode程序！"
 			else
-				temp_file_num_d=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-				temp_file_num_c=$(ssh ${ACCOUNT}@${C_IP_list[${j}]} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
+				temp_thread_num_c=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "pstree -p \$(ps -e | grep ConfigNode | awk '{print \$1}') | wc -l" 2>/dev/null)
+				temp_file_num_c=$(ssh ${ACCOUNT}@${C_IP_list[${j}]} "ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
 			fi
-			iotdb_pid=$(jps | grep ConfigNode | awk '{print $1}')
-			if [ "${iotdb_pid}" = "" ]; then
+			if [ "${cn_pid}" = "" ]; then
 				echo "无ConfigNode程序！"
 			else
-				temp_thread_num_d=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "pstree -p \$(ps -e | grep ConfigNode | awk '{print \$1}') | wc -l" 2>/dev/null)
-				temp_thread_num_c=$(ssh ${ACCOUNT}@${C_IP_list[${j}]} "pstree -p \$(ps -e | grep ConfigNode | awk '{print \$1}') | wc -l" 2>/dev/null)
+				temp_thread_num_d=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "pstree -p \$(ps -e | grep DataNode | awk '{print \$1}') | wc -l" 2>/dev/null)
+				temp_file_num_d=$(ssh ${ACCOUNT}@${D_IP_list[${j}]} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
 			fi				
 			#监控打开文件数量			
 			let temp_file_num=${temp_file_num_d}+${temp_file_num_c}
