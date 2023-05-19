@@ -154,7 +154,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	sed -i "s/^# dn_metric_level=.*$/dn_metric_level=ALL/g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
 	sed -i "s/^# dn_metric_prometheus_reporter_port=.*$/dn_metric_prometheus_reporter_port=9091/g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
 	#添加多路径
-	sed -i "s%^# dn_data_dirs=data/datanode/data.*$%dn_data_dirs=data/datanode/data,/data2/datanode/data%g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
+	#sed -i "s%^# dn_data_dirs=data/datanode/data.*$%dn_data_dirs=data/datanode/data,/data2/datanode/data%g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
 }
 set_protocol_class() { 
 	config_node=$1
@@ -479,18 +479,18 @@ else
 	test_date_time=`date +%Y%m%d%H%M%S`
 	###############################普通时间序列###############################
 	#echo "开始测试普通时间序列顺序写入！"
-	#test_operation common seq_w 223
+	test_operation common seq_w 223
 	#echo "开始测试普通时间序列乱续写入！"
-	#test_operation common unseq_w 223
+	test_operation common unseq_w 223
 	echo "开始测试普通时间序列顺序读写混合！"
 	test_operation common seq_rw 223
 	echo "开始测试普通时间序列乱续读写混合！"
 	test_operation common unseq_rw 223
 	###############################对齐时间序列###############################
 	#echo "开始测试对齐时间序列顺序写入！"
-	#test_operation aligned seq_w 223
+	test_operation aligned seq_w 223
 	#echo "开始测试对齐时间序列乱续写入！"
-	#test_operation aligned unseq_w 223
+	test_operation aligned unseq_w 223
 	echo "开始测试对齐时间序列顺序读写混合！"
 	test_operation aligned seq_rw 223
 	echo "开始测试对齐时间序列乱续写入！"
