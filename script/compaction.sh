@@ -481,7 +481,7 @@ test_operation() {
 	sed -i "s/^enable_seq_space_compaction=.*$/enable_seq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	sed -i "s/^enable_unseq_space_compaction=.*$/enable_unseq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	sed -i "s/^enable_cross_space_compaction=.*$/enable_cross_space_compaction=true/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
-	sed -i "s/^target_compaction_file_size=.*$/target_compaction_file_size=5368709120/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
+	sed -i "s/^target_compaction_file_size=.*$/target_compaction_file_size=2147483648/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#收集启动前基础监控数据
 	collect_data_before
 	#启动iotdb和monitor监控
