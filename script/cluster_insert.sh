@@ -22,7 +22,7 @@ ts_list=(common aligned template tempaligned)
 IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
 D_IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
 C_IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
-B_IP_list=(0 172.20.31.44)
+B_IP_list=(0 172.20.31.41)
 config_schema_replication_factor=(0 3 3 3 3 3 3)
 config_data_replication_factor=(0 3 3 3 3 3 3)
 config_node_config_nodes=(0 172.20.31.41:10710 172.20.31.41:10710 172.20.31.41:10710)
@@ -164,7 +164,7 @@ set_protocol_class() {
 	sed -i "s/^# schema_region_consensus_protocol_class=.*$/schema_region_consensus_protocol_class=${protocol_class[${schema_region}]}/g" ${TEST_CONFIGNODE_PATH}/conf/iotdb-common.properties
 	sed -i "s/^# data_region_consensus_protocol_class=.*$/data_region_consensus_protocol_class=${protocol_class[${data_region}]}/g" ${TEST_CONFIGNODE_PATH}/conf/iotdb-common.properties
 }
-setup_3C3D() {
+setup_nCmD() {
 while getopts 'c:d:t:' OPT; do
     case $OPT in
         c) config_num="$OPTARG";;
@@ -188,7 +188,7 @@ do
 		dcn_str=${dcn_str},${data_node_config_nodes[${j}]}
 	fi
 done
-
+echo "开始重置环境！"
 for (( i = 1; i < ${#IP_list[*]}; i++ ))
 do
 	#ssh ${ACCOUNT}@${IP_list[${i}]} "killall -u ${ACCOUNT} > /dev/null 2>&1 &"
@@ -201,6 +201,7 @@ do
 	#复制三项到客户机
 	scp -r ${TEST_PATH}/* ${ACCOUNT}@${IP_list[${i}]}:${TEST_PATH}/
 done
+echo "开始部署ConfigNode！"
 for (( i = 1; i <= $config_num; i++ ))
 do
 	#修改IoTDB ConfigNode的配置
@@ -209,6 +210,7 @@ do
 	ssh ${ACCOUNT}@${C_IP_list[${i}]} "sed -i \"s/^# schema_replication_factor.*$/schema_replication_factor=${config_schema_replication_factor[${i}]}/g\" ${TEST_CONFIGNODE_PATH}/conf/iotdb-common.properties"
 	ssh ${ACCOUNT}@${C_IP_list[${i}]} "sed -i \"s/^# data_replication_factor.*$/data_replication_factor=${config_data_replication_factor[${i}]}/g\" ${TEST_CONFIGNODE_PATH}/conf/iotdb-common.properties"
 done
+echo "开始部署DataNode！"
 for (( i = 1; i <= $data_num; i++ ))
 do
 	#修改IoTDB DataNode的配置
@@ -300,7 +302,8 @@ if [ "$check_config_num" == "$config_num" ] && [ "$check_data_num" == "$data_num
 		for ((j = 1; j <= $bm_num; j++)); do
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/logs"
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/data"
-			#ssh ${ACCOUNT}@${B_IP_list[${j}]} "sed -i \"s/^HOST=.*$/HOST=$${D_IP_list[${j}]}/g\" ${BM_PATH}/conf/config.properties"
+			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/conf/config.properties"
+			scp -r ${BM_PATH}/conf/config.properties ${ACCOUNT}@${B_IP_list[${j}]}:${BM_PATH}/conf/config.properties
 			#echo "启动BM： ${B_IP_list[${j}]} ..."
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH};${BM_PATH}/benchmark.sh > /dev/null 2>&1 &" &
 		done
@@ -343,7 +346,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				temp_file_num_c=$(ssh ${ACCOUNT}@${C_IP_list[${j}]} "ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
 			else
 				echo "无法计算！"
-			fi	
+			fi		
 			#监控打开文件数量			
 			let temp_file_num=${temp_file_num_d}+${temp_file_num_c}
 			if [ ${maxNumofOpenFiles[${j}]} -lt ${temp_file_num} ]; then
@@ -383,24 +386,41 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 }
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	TEST_IP=$1
-	dataFileSize=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "du -h -d0 ${TEST_DATANODE_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
-	UNIT=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "du -h -d0 ${TEST_DATANODE_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
+	dataFileSize=0
+	dataFileSize1=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "du -h -d0 /data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
+	UNIT=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "du -h -d0 /data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
 	if [ "$UNIT" = "M" ]; then
-		dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1024'}'`
+		dataFileSize1=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize1'/'1024'}'`
 	elif [ "$UNIT" = "K" ]; then
-		dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1048576'}'`
+		dataFileSize1=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize1'/'1048576'}'`
     elif [ "$UNIT" = "T" ]; then
-        dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'*'1024'}'`
+        dataFileSize1=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize1'*'1024'}'`
 	else
-		dataFileSize=${dataFileSize}
+		dataFileSize1=${dataFileSize1}
 	fi
-	numOfSe0Level=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find ${TEST_DATANODE_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
-	numOfUnse0Level=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find ${TEST_DATANODE_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
-	#if [ ! -d "${TEST_DATANODE_PATH}/data/datanode/data/unsequence" ]; then
-	#	numOfUnse0Level=0
-	#else
-	#	numOfUnse0Level=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find ${TEST_DATANODE_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
-	#fi
+	
+	dataFileSize2=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "du -h -d0 /data1/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
+	UNIT=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "du -h -d0 /data1/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
+	if [ "$UNIT" = "M" ]; then
+		dataFileSize2=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize2'/'1024'}'`
+	elif [ "$UNIT" = "K" ]; then
+		dataFileSize2=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize2'/'1048576'}'`
+    elif [ "$UNIT" = "T" ]; then
+        dataFileSize2=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize2'*'1024'}'`
+	else
+		dataFileSize2=${dataFileSize2}
+	fi
+	#let dataFileSize=${dataFileSize1}+${dataFileSize2}
+	dataFileSize=$(echo "$dataFileSize1 $dataFileSize2" | awk '{ printf "%.2f", $1+$2 }')
+	
+	numOfSe0Level=0
+	numOfUnse0Level=0
+	numOfSe0Level1=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find /data/datanode/data/sequence -name "*.tsfile" | wc -l")
+	numOfUnse0Level1=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find /data/datanode/data/unsequence -name "*.tsfile" | wc -l")
+	numOfSe0Level2=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find /data1/datanode/data/sequence -name "*.tsfile" | wc -l")
+	numOfUnse0Level2=$(ssh ${ACCOUNT}@${D_IP_list[${TEST_IP}]} "find /data1/datanode/data/unsequence -name "*.tsfile" | wc -l")
+	let numOfSe0Level=${numOfSe0Level1}+${numOfSe0Level2}
+	let numOfUnse0Level=${numOfUnse0Level1}+${numOfUnse0Level2}
 }
 backup_test_data() { # 备份测试数据
 	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
@@ -435,7 +455,7 @@ test_operation() {
 	
 	mv_config_file ${ts_type} ${data_type}
 	sed -i "s/^HOST=.*$/HOST=${D_IP_list[1]}/g" ${BM_PATH}/conf/config.properties
-	setup_3C3D -c3 -d3 -t1
+	setup_nCmD -c3 -d3 -t1
 		
 	echo "测试开始！"
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
@@ -444,10 +464,12 @@ test_operation() {
 	sleep 60
 	monitor_test_status
 	#测试结果收集写入数据库
-	for ((j = 1; j <= 3; j++)); do
+	rm -rf ${BM_PATH}/TestResult/csvOutput/*
+	scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/TestResult/csvOutput/
+	for ((j = 1; j <= 5; j++)); do
 		#收集启动后基础监控数据
 		collect_monitor_data ${j}
-		csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
+		csvOutputfile=${BM_PATH}/TestResult/csvOutput/*result.csv
 		read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
 		read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
 		#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
@@ -455,12 +477,12 @@ test_operation() {
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles[${j}]},${maxNumofThread[${j}]},'${data_type}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 		
-		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN
-		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
-		ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN"
-		ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN"
+		#sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN
+		#sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
+		#ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN"
+		#ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN"
 	done
-	sudo cp -rf ${BM_PATH}/data/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
+	sudo cp -rf ${BM_PATH}/TestResult/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
 }
 
 ##准备开始测试
