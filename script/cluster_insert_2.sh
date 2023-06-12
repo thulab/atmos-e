@@ -153,7 +153,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	sed -i "s/^# dn_metric_level=.*$/dn_metric_level=ALL/g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
 	sed -i "s/^# dn_metric_prometheus_reporter_port=.*$/dn_metric_prometheus_reporter_port=9091/g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
 	#添加多路径
-	sed -i "s%^# dn_data_dirs=data/datanode/data.*$%dn_data_dirs=data/datanode/data;OBJECT_STORAGE%g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
+	#sed -i "s%^# dn_data_dirs=data/datanode/data.*$%dn_data_dirs=data/datanode/data,/data2/datanode/data%g" ${TEST_DATANODE_PATH}/conf/iotdb-datanode.properties
 }
 set_protocol_class() { 
 	config_node=$1
