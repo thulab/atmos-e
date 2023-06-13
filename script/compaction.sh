@@ -413,10 +413,10 @@ test_operation() {
 	collect_data_after
 	insert_database ${protocol_class}
 	if [ -d "${TEST_IOTDB_PATH}/logs" ]; then
-	mkdir -p ${TEST_IOTDB_PATH}/${comp_type}
-	cp -rf ${TEST_IOTDB_PATH}/data ${TEST_IOTDB_PATH}/${comp_type}
-	cp -rf ${TEST_IOTDB_PATH}/conf ${TEST_IOTDB_PATH}/${comp_type}
-	mv ${TEST_IOTDB_PATH}/logs ${TEST_IOTDB_PATH}/${comp_type}	
+		mkdir -p ${TEST_IOTDB_PATH}/${comp_type}
+		#cp -rf ${TEST_IOTDB_PATH}/data ${TEST_IOTDB_PATH}/${comp_type}
+		cp -rf ${TEST_IOTDB_PATH}/conf ${TEST_IOTDB_PATH}/${comp_type}
+		mv ${TEST_IOTDB_PATH}/logs ${TEST_IOTDB_PATH}/${comp_type}	
 	fi
 	#同步服务器监控数据到统一的表内
 	#drop_monitor_table
@@ -471,10 +471,10 @@ test_operation() {
 	collect_data_after
 	insert_database ${protocol_class}
 	if [ -d "${TEST_IOTDB_PATH}/logs" ]; then
-	mkdir -p ${TEST_IOTDB_PATH}/${comp_type}
-	cp -rf ${TEST_IOTDB_PATH}/data ${TEST_IOTDB_PATH}/${comp_type}
-	cp -rf ${TEST_IOTDB_PATH}/conf ${TEST_IOTDB_PATH}/${comp_type}
-	mv ${TEST_IOTDB_PATH}/logs ${TEST_IOTDB_PATH}/${comp_type}	
+		mkdir -p ${TEST_IOTDB_PATH}/${comp_type}
+		#cp -rf ${TEST_IOTDB_PATH}/data ${TEST_IOTDB_PATH}/${comp_type}
+		cp -rf ${TEST_IOTDB_PATH}/conf ${TEST_IOTDB_PATH}/${comp_type}
+		mv ${TEST_IOTDB_PATH}/logs ${TEST_IOTDB_PATH}/${comp_type}	
 	fi
 	###############################cross_space合并###############################
 	comp_type=cross_space
@@ -527,7 +527,7 @@ test_operation() {
 	insert_database ${protocol_class}
 	if [ -d "${TEST_IOTDB_PATH}/logs" ]; then
 		mkdir -p ${TEST_IOTDB_PATH}/${comp_type}
-		cp -rf ${TEST_IOTDB_PATH}/data ${TEST_IOTDB_PATH}/${comp_type}
+		#cp -rf ${TEST_IOTDB_PATH}/data ${TEST_IOTDB_PATH}/${comp_type}
 		cp -rf ${TEST_IOTDB_PATH}/conf ${TEST_IOTDB_PATH}/${comp_type}
 		mv ${TEST_IOTDB_PATH}/logs ${TEST_IOTDB_PATH}/${comp_type}	
 	fi
