@@ -447,7 +447,7 @@ test_operation() {
 	#测试结果收集写入数据库
 	rm -rf ${BM_PATH}/TestResult/csvOutput/*
 	scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/TestResult/csvOutput/
-	for ((j = 1; j <= 5; j++)); do
+	for ((j = 1; j <= 3; j++)); do
 		#收集启动后基础监控数据
 		collect_monitor_data ${j}
 		csvOutputfile=${BM_PATH}/TestResult/csvOutput/*result.csv
@@ -460,10 +460,11 @@ test_operation() {
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN
 		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
-		ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN"
-		ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN"
+		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN
+		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
 	done
 	sudo cp -rf ${BM_PATH}/TestResult/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
+	sudo cp -rf ${BM_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
 }
 
 ##准备开始测试
