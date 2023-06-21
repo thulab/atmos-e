@@ -464,7 +464,6 @@ test_operation() {
 		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
 	done
 	sudo cp -rf ${BM_PATH}/TestResult/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
-	sudo cp -rf ${BM_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
 }
 
 ##准备开始测试
