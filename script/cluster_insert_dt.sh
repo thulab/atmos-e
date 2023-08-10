@@ -132,10 +132,10 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
 	sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"12G\"/g" ${TEST_DATANODE_PATH}/conf/datanode-env.sh
 	sed -i "s/^#HEAP_NEWSIZE=\"2G\".*$/HEAP_NEWSIZE=\"6G\"/g" ${TEST_DATANODE_PATH}/conf/datanode-env.sh
-	sed -i "s/^#MAX_DIRECT_MEMORY_SIZE=.*$/MAX_DIRECT_MEMORY_SIZE=\"4G\"/g" ${TEST_DATANODE_PATH}/conf/datanode-env.sh
+	sed -i "s/^MAX_DIRECT_MEMORY_SIZE=.*$/MAX_DIRECT_MEMORY_SIZE=\"4G\"/g" ${TEST_DATANODE_PATH}/conf/datanode-env.sh
 	sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh
 	sed -i "s/^#HEAP_NEWSIZE=\"2G\".*$/HEAP_NEWSIZE=\"1G\"/g" ${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh
-	sed -i "s/^#MAX_DIRECT_MEMORY_SIZE=.*$/MAX_DIRECT_MEMORY_SIZE=\"1G\"/g" ${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh
+	sed -i "s/^MAX_DIRECT_MEMORY_SIZE=.*$/MAX_DIRECT_MEMORY_SIZE=\"1G\"/g" ${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh
 	#关闭影响写入性能的其他功能
 	sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
 	sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
@@ -446,7 +446,7 @@ test_operation() {
 	
 	mv_config_file ${ts_type} ${data_type}
 	sed -i "s/^HOST=.*$/HOST=${D_IP_list[1]}/g" ${BM_PATH}/conf/config.properties
-	setup_nCmD -c3 -d3 -t1
+	setup_nCmD -c3 -d3 -t2
 		
 	echo "测试开始！"
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
@@ -455,14 +455,22 @@ test_operation() {
 	sleep 60
 	monitor_test_status
 	#测试结果收集写入数据库
-	rm -rf ${BM_PATH}/TestResult/csvOutput/*
-	scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/TestResult/csvOutput/
 	for ((j = 1; j <= 3; j++)); do
+		rm -rf ${BM_PATH}/TestResult/csvOutput/*
+		scp -r ${ACCOUNT}@${B_IP_list[${j}]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/TestResult/csvOutput/
 		#收集启动后基础监控数据
 		collect_monitor_data ${j}
 		csvOutputfile=${BM_PATH}/TestResult/csvOutput/*result.csv
-		read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
-		read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+		if [ ! -f $csvOutputfile ]; then
+			okOperation=0
+			okPoint=0
+			failOperation=0
+			failPoint=0
+			throughput=0
+		else
+			read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
+			read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+		fi
 		#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 		node_id=${j}
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles[${j}]},${maxNumofThread[${j}]},'${data_type}')"
@@ -472,8 +480,8 @@ test_operation() {
 		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
 		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/CN
 		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/${j}/DN
-	done
-	sudo cp -rf ${BM_PATH}/TestResult/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
+		sudo cp -rf ${BM_PATH}/TestResult/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}/
+	done	
 }
 
 ##准备开始测试
