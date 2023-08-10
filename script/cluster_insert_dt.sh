@@ -502,7 +502,7 @@ else
 	test_date_time=`date +%Y%m%d%H%M%S`
 	###############################普通时间序列###############################
 	echo "开始测试对齐时间序列顺序写入！"
-	test_operation aligned seq_w 223
+	test_operation common seq_w 223
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"

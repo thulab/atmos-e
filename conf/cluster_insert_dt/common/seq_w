@@ -125,7 +125,7 @@ TEMPLATE=false
 # template的名称
 TEMPLATE_NAME=BenchmarkTemplate2
 # 是否使用vector
-VECTOR=true
+VECTOR=false
 # 是否使用Debug模式，仅支持iotdb-0.13
 IOTDB_USE_DEBUG=false
 # 使用DEBUG查询的比率 [0, 1]
