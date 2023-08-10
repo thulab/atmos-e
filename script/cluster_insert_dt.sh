@@ -319,7 +319,6 @@ if [ "$check_config_num" == "$config_num" ] && [ "$check_data_num" == "$data_num
 			#echo "启动BM： ${B_IP_list[${j}]} ..."
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH};${BM_PATH}/benchmark.sh > /dev/null 2>&1 &"
 		done
-		wait
 		echo "All BMs have been started"
 	fi	
 fi
@@ -371,7 +370,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			fi
 		done
 		flag=0
-		for (( j = 1; j <= 1; j++ ))
+		for (( j = 1; j <= $bm_num; j++ ))
 		do
 			str1=$(ssh ${ACCOUNT}@${B_IP_list[${j}]} "jps | grep -w App | grep -v grep | wc -l" 2>/dev/null)
 			if [ "$str1" = "1" ]; then
@@ -389,7 +388,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			cost_time=-1
 			break
 		fi
-		if [ "$flag" = "1" ]; then
+		if [ "$flag" = "2" ]; then
 			end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 			cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 			break
