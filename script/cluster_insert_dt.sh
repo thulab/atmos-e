@@ -139,9 +139,9 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	sed -i "s/^#HEAP_NEWSIZE=\"2G\".*$/HEAP_NEWSIZE=\"1G\"/g" ${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh
 	sed -i "s/^MAX_DIRECT_MEMORY_SIZE=.*$/MAX_DIRECT_MEMORY_SIZE=\"1G\"/g" ${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh
 	#关闭影响写入性能的其他功能
-	sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
-	sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
-	sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
+	#sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
+	#sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
+	#sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
 	#修改集群名称
 	sed -i "s/^cluster_name=.*$/cluster_name=Da-Tang/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
 	sed -i "s/^cluster_name=.*$/cluster_name=Da-Tang/g" ${TEST_CONFIGNODE_PATH}/conf/iotdb-common.properties
