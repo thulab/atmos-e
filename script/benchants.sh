@@ -373,10 +373,10 @@ else
 	init_items
 	test_date_time=`date +%Y%m%d%H%M%S`
 	###############################普通时间序列###############################
-	echo "开始测试小型配置！"
-	test_operation small ${Small_IP} 223
 	echo "开始测试中等配置！"
 	test_operation medium ${Medium_IP} 223
+	echo "开始测试小型配置！"
+	test_operation small ${Small_IP} 223
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
