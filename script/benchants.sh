@@ -163,7 +163,7 @@ setup_env() {
 	sleep 60
 	for (( t_wait = 0; t_wait <= 100; t_wait++ ))
 	do
-	  str1=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${TEST_IP[1]} -p 6667 -u root -pw root -e \"show cluster\" | grep 'Total line number = 2'")
+	  str1=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${TEST_IP} -p 6667 -u root -pw root -e \"show cluster\" | grep 'Total line number = 2'")
 	  if [ "$str1" = "Total line number = 2" ]; then
 		echo "All Nodes is ready"
 		flag=1
