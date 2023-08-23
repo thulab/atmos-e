@@ -225,7 +225,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		fi
 		#确认是否测试已结束
 		flag=0
-		str1=$(ssh ${ACCOUNT}@${Control} "jps | grep -w tsbs | grep -v grep | wc -l" 2>/dev/null)
+		str1=$(ssh ${ACCOUNT}@${Control} "ps aux | grep tsbs_ |grep -v grep | wc -l" 2>/dev/null)
 		if [ "$str1" = "1" ]; then
 			echo "测试未结束:${Control}"  > /dev/null 2>&1 &
 		else
