@@ -267,9 +267,10 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	numOfUnse0Level=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
 }
 backup_test_data() { # 备份测试数据
+	TEST_IP=$2
 	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
-    sudo rm -rf ${TEST_IOTDB_PATH}/data
-	sudo mv ${TEST_IOTDB_PATH} ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
+	str1=$(ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_IOTDB_PATH}/data" 2>/dev/null)
+	scp -r ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH}/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 	sudo cp -rf ${BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 }
 mv_config_file() { # 移动配置文件
@@ -354,7 +355,7 @@ test_operation() {
 	echo "${insert_sql}"
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 	
-	backup_test_data ${server_kind}
+	backup_test_data ${server_kind} ${TEST_IP}
 }
 
 ##准备开始测试
