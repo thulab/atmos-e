@@ -62,7 +62,7 @@ sendEmail() {
 sendEmail=$(${TOOLS_PATH}/sendEmail.sh $1 >/dev/null 2>&1 &)
 }
 check_benchmark_pid() { # 检查benchmark的pid，有就停止
-	monitor_pid=$(jps | grep tsbs | awk '{print $1}')
+	monitor_pid=$(ps aux | grep tsbs | awk '{print $1}')
 	if [ "${monitor_pid}" = "" ]; then
 		echo "未检测到监控程序！"
 	else
