@@ -115,6 +115,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
 	#sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
 	#sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+	sed -i "s/^# query_timeout_threshold=.*$/query_timeout_threshold=6000000/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#关闭影响写入性能的其他功能
 	#sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
@@ -446,14 +447,14 @@ test_operation_q() {
 			round_num=${j}
 			echo "查询测试开始！"
 			start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
-			nohup cat ${BM_PATH}/iotdb-query-${query_list[${i}]}.txt | ${BM_PATH}/bin/tsbs_run_queries_iotdb --host="${TEST_IP}" --port="6667" --user="root" --password="root" --workers=100 --print-responses=false > ${BM_PATH}/TestResult/query_output_${query_list[${i}]}.log 2>&1 &
+			nohup cat ${BM_PATH}/iotdb-query-${query_list[${i}]}.txt | ${BM_PATH}/bin/tsbs_run_queries_iotdb --host="${TEST_IP}" --port="6667" --user="root" --password="root" --workers=100 --print-responses=false > ${BM_PATH}/TestResult/query_output_${query_list[${i}]}_${round_num}.log 2>&1 &
 			#等待1分钟
 			sleep 10
 			monitor_test_status ${TEST_IP}
 			#测试结果收集写入数据库
 			#收集启动后基础监控数据
 			collect_monitor_data ${TEST_IP}
-			Outputfile=${BM_PATH}/TestResult/query_output_${query_list[${i}]}.log
+			Outputfile=${BM_PATH}/TestResult/query_output_${query_list[${i}]}_${round_num}.log
 			read query_rate <<<$(cat ${Outputfile} | grep "complete"| sed -n '1,1p' | awk '{print $12}')
 			read MIN_NUM MED_NUM MEAN_NUM MAX_NUM STDDEV_NUM SUM_NUM COUNT_NUM <<<$(cat ${Outputfile} | grep "min"| sed 's/ms//g' | sed 's/sec//g' | sed 's/,//g' | sed '$!d' | awk '{print $2,$4,$6,$8,$10,$12,$14}')
 			insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark,round_num) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${query_list[${i}]}',${round_num})"
