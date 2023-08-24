@@ -57,7 +57,7 @@ dataFileSize=0
 maxNumofOpenFiles=0
 maxNumofThread=0
 errorLogSize=0
-round=0
+round_num=0
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
@@ -443,7 +443,7 @@ test_operation_q() {
 			maxNumofOpenFiles=0
 			maxNumofThread=0
 			errorLogSize=0
-			round=${j}
+			round_num=${j}
 			echo "查询测试开始！"
 			start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
 			nohup cat ${BM_PATH}/iotdb-query-${query_list[${i}]}.txt | ${BM_PATH}/bin/tsbs_run_queries_iotdb --host="${TEST_IP}" --port="6667" --user="root" --password="root" --workers=100 --print-responses=false > ${BM_PATH}/TestResult/query_output_${query_list[${i}]}.log 2>&1 &
@@ -456,7 +456,7 @@ test_operation_q() {
 			Outputfile=${BM_PATH}/TestResult/query_output_${query_list[${i}]}.log
 			read query_rate <<<$(cat ${Outputfile} | grep "complete"| sed -n '1,1p' | awk '{print $12}')
 			read MIN_NUM MED_NUM MEAN_NUM MAX_NUM STDDEV_NUM SUM_NUM COUNT_NUM <<<$(cat ${Outputfile} | grep "min"| sed 's/ms//g' | sed 's/sec//g' | sed 's/,//g' | sed '$!d' | awk '{print $2,$4,$6,$8,$10,$12,$14}')
-			insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark,round) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${query_list[${i}]}',${j})"
+			insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark,round_num) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${query_list[${i}]}',${round_num})"
 			echo "${insert_sql}"
 			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 			sleep 20
