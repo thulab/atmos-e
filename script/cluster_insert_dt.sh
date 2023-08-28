@@ -508,4 +508,6 @@ else
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
 	result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}")
 fi
-echo "${test_type}" > ${INIT_PATH}/test_type_file
+#echo "${test_type}" > ${INIT_PATH}/test_type_file
+#环境公用，所以大唐测试完毕转做普通3C3D测试
+echo "cluster_insert" > ${INIT_PATH}/test_type_file
