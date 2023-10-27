@@ -113,8 +113,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
-	#sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
-	#sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+	#sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
+	#sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
 	sed -i "s/^# query_timeout_threshold=.*$/query_timeout_threshold=6000000/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#关闭影响写入性能的其他功能
 	#sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
@@ -331,12 +331,12 @@ test_operation() {
 	modify_iotdb_config
 	if [ "${server_kind}" = "medium" ]; then
 		#修改IoTDB的配置
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
     elif [ "${server_kind}" = "small" ]; then
         #修改IoTDB的配置
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"4G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"4G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
 	else
 		echo "服务器类型错误！"
 		return
@@ -385,16 +385,16 @@ test_operation_q() {
 	modify_iotdb_config
 	if [ "${server_kind}" = "medium" ]; then
 		#修改IoTDB的配置
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"10G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
 		#关闭影响写入性能的其他功能
 		sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 		sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 		sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
     elif [ "${server_kind}" = "small" ]; then
         #修改IoTDB的配置
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"4G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
-		sed -i "s/^#MAX_HEAP_SIZE=\"2G\".*$/MAX_HEAP_SIZE=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"4G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
+		sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
 		#关闭影响写入性能的其他功能
 		sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 		sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
