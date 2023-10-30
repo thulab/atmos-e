@@ -142,6 +142,11 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
 	#sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
 	#sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
+	
+	#多分给合并300M内存
+	sed -i "s/^# storage_query_schema_consensus_free_memory_proportion=.*$/storage_query_schema_consensus_free_memory_proportion=6300:6000:2000:2000:3700/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
+	sed -i "s/^# storage_engine_memory_proportion=.*$/storage_engine_memory_proportion=76:24/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
+	
 	#修改集群名称
 	sed -i "s/^cluster_name=.*$/cluster_name=Da-Tang/g" ${TEST_DATANODE_PATH}/conf/iotdb-common.properties
 	sed -i "s/^cluster_name=.*$/cluster_name=Da-Tang/g" ${TEST_CONFIGNODE_PATH}/conf/iotdb-common.properties
