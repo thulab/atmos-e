@@ -195,7 +195,7 @@ setup_env_q() {
 	#复制三项到客户机
 	
 	mkdir -p ${TEST_PATH}/apache-iotdb/activation
-	cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_PATH}/CN/apache-iotdb/activation/license
+	cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_PATH}/apache-iotdb/activation/license
 	
 	scp -r ${TEST_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_PATH}/
 	ssh ${ACCOUNT}@${TEST_IP} "cp -rf ${DATA_PATH}/data ${TEST_IOTDB_PATH}/"
