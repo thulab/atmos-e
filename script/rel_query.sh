@@ -1,8 +1,10 @@
 #!/bin/sh
 #登录用户名
 ACCOUNT=root
+test_type=rel_query
 #初始环境存放路径
 INIT_PATH=/root/zk_test
+ATMOS_PATH=${INIT_PATH}/atmos-e
 IOTDB_PATH=${INIT_PATH}/timechodb
 BM_PATH=${INIT_PATH}/iotdb-benchmark
 MONITOR_PATH=${INIT_PATH}/monitor
@@ -129,7 +131,9 @@ copy_iotdb() { # 拷贝编译好的iotdb到测试路径
 		rm -rf ${TEST_IOTDB_PATH}
 		mkdir -p ${TEST_IOTDB_PATH}
 	fi
-	cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-bin/iotdb-enterprise-*-bin//* ${TEST_IOTDB_PATH}/
+	cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-bin/iotdb-enterprise-*-bin/* ${TEST_IOTDB_PATH}/
+	mkdir -p ${TEST_IOTDB_PATH}/activation
+	cp -rf ${ATMOS_PATH}/conf/${test_type}/license ${TEST_IOTDB_PATH}/activation/
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
