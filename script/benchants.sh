@@ -154,6 +154,8 @@ setup_env() {
 	ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_PATH}"
 	ssh ${ACCOUNT}@${TEST_IP} "mkdir -p ${TEST_PATH}"
 	#复制三项到客户机
+	mkdir -p ${TEST_PATH}/apache-iotdb/activation
+	cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_PATH}/apache-iotdb/activation/license
 	scp -r ${TEST_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_PATH}/
 	#启动ConfigNode节点
 	echo "starting IoTDB ConfigNode on ${TEST_IP} ..."
