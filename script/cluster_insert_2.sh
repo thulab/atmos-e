@@ -26,7 +26,7 @@ B_IP_list=(0 172.20.70.9)
 config_schema_replication_factor=(0 3 3 3 3 3 3)
 config_data_replication_factor=(0 3 3 3 3 3 3)
 config_node_config_nodes=(0 172.20.70.22:10710 172.20.70.22:10710 172.20.70.22:10710)
-data_node_config_nodes=(0 172.20.70.22:10710 172.20.70.23:10710:10710)
+data_node_config_nodes=(0 172.20.70.22:10710 172.20.70.23:10710 172.20.70.7:10710)
 Control=172.20.70.20
 
 ############mysql信息##########################
