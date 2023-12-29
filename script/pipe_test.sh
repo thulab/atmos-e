@@ -144,11 +144,10 @@ set_protocol_class() {
 	sed -i "s/^# data_region_consensus_protocol_class=.*$/data_region_consensus_protocol_class=${protocol_class[${data_region}]}/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 }
 setup_env() {
-
+	echo "开始重置环境！"
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}
-		echo "开始重置环境！"
 		ssh ${ACCOUNT}@${TEST_IP} "sudo reboot"
 	done
 	sleep 60
@@ -178,6 +177,7 @@ setup_env() {
 	sleep 3
 	for (( i = 1; i < ${#IP_list[*]}; i++ ))
 	do
+		TEST_IP=${IP_list[$i]}
 		#启动ConfigNode节点
 		echo "starting IoTDB ConfigNode on ${TEST_IP} ..."
 		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-confignode.sh  > /dev/null 2>&1 &")
