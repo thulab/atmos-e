@@ -18,10 +18,10 @@ TEST_BM_PATH=${TEST_INIT_PATH}/iot-benchmark
 protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
 protocol_list=(223)
 ts_list=(common aligned)
-IP_list=(0 172.20.70.10 172.20.70.12)
+IP_list=(0 172.20.31.45 172.20.31.58)
 Control=172.20.70.6
-config_node_config_nodes=(0 172.20.70.10:10710 172.20.70.12:10710)
-data_node_config_nodes=(0 172.20.70.10:10710 172.20.70.12:10710)
+config_node_config_nodes=(0 172.20.31.45:10710 172.20.31.58:10710)
+data_node_config_nodes=(0 172.20.31.45:10710 172.20.31.58:10710)
 ############mysql信息##########################
 MYSQLHOSTNAME="111.202.73.147" #数据库信息
 PORT="13306"
