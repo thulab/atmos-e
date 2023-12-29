@@ -17,7 +17,7 @@ TEST_BM_PATH=${TEST_INIT_PATH}/iot-benchmark
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
 protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
 protocol_list=(223)
-ts_list=(seq_w unseq_w)
+ts_list=(common aligned)
 IP_list=(0 172.20.70.10 172.20.70.12)
 Control=172.20.70.6
 config_node_config_nodes=(0 172.20.70.10:10710 172.20.70.12:10710)
@@ -104,6 +104,7 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		rm -rf ${TEST_IOTDB_PATH}
 		mkdir -p ${TEST_IOTDB_PATH}
 	fi
+	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
 	cp -rf ${BM_PATH} ${TEST_INIT_PATH}/
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
@@ -117,6 +118,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#修改集群名称
 	sed -i "s/^cluster_name=.*$/cluster_name=${test_type}/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
+	sed -i "s/^cluster_name=.*$/cluster_name=benchants/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#开启自动创建
 	sed -i "s/^# enable_auto_create_schema=.*$/enable_auto_create_schema=true/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	sed -i "s/^# default_storage_group_level=.*$/default_storage_group_level=2/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
@@ -144,14 +146,14 @@ set_protocol_class() {
 }
 setup_env() {
 
-	for (( j = 1; j <= ${#IP_list[*]}; j++ ))
+	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}
 		echo "开始重置环境！"
 		ssh ${ACCOUNT}@${TEST_IP} "sudo reboot"
 	done
 	sleep 60
-	for (( i = 1; i <= ${#IP_list[*]}; i++ ))
+	for (( i = 1; i < ${#IP_list[*]}; i++ ))
 	do
 		echo "开始部署${IP_list[$i]}！"
 		TEST_IP=${IP_list[$i]}
@@ -209,7 +211,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 	maxNumofOpenFilesB=0
 	maxNumofThreadB=0
 	while true; do
-		for (( j = 1; j <= ${#IP_list[*]}; j++ ))
+		for (( j = 1; j < ${#IP_list[*]}; j++ ))
 		do
 			TEST_IP=${IP_list[$j]}
 			temp_file_num_d=0

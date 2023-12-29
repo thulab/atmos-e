@@ -31,7 +31,7 @@ TOPIC_NAME=test-topic
 
 ################## Benchmark配置 #######################
 # 总操作次数：具体每种类型操作会按OPERATION_PROPORTION定义的比例划分，例如OPERATION_PROPORTION=1:1:1:1:1:1:1:1:1:1:1
-LOOP=10000
+LOOP=8640
 # 目前Benchmark支持多种运行模式，支持模式如下
 # testWithDefaultPath   常规测试模式，支持多种读和写操作的混合负载
 # generateDataMode      生成数据模式，生成Benchmark本身识别的数据
@@ -100,7 +100,7 @@ CLIENT_NUMBER=10
 # 存储组名称前缀
 GROUP_NAME_PREFIX=g_
 # 设备名称前缀
-DEVICE_NAME_PREFIX=unaligned_
+DEVICE_NAME_PREFIX=d_
 # 传感器名称前缀
 SENSOR_NAME_PREFIX=s_
 # 标签名的前缀
@@ -123,7 +123,7 @@ IOTDB_SESSION_POOL_SIZE=50
 # 是否使用template
 TEMPLATE=false
 # 是否使用vector
-VECTOR=false
+VECTOR=true
 # 是否使用Debug模式，仅支持iotdb-0.13
 IOTDB_USE_DEBUG=false
 # 使用DEBUG查询的比率 [0, 1]
@@ -230,11 +230,11 @@ READ_OPERATION_TIMEOUT_MS=300000
 
 ################## 操作信息：写入参数 ###################
 # 批写入数据行数，每行是某个设备所有传感器在某一时间戳的数据，每个Batch写入数据点数=SENSOR_NUMBER * BATCH_SIZE_PER_WRITE
-BATCH_SIZE_PER_WRITE=100
+BATCH_SIZE_PER_WRITE=10
 # 是否在写入数据前，创建SCHEMA
 CREATE_SCHEMA=true
 # 开始写入数据的时间戳
-START_TIME=2018-9-20T00:00:00+08:00
+START_TIME=2023-10-25T00:00:00+08:00
 
 ######### 复制的生成模式，是否添加异常，异常率和异常倍率 ############
 # verificationWriteMode模式下使用复制文件模式，此时必须将
