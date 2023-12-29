@@ -162,11 +162,11 @@ setup_env() {
 		ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_INIT_PATH}"
 		ssh ${ACCOUNT}@${TEST_IP} "mkdir -p ${TEST_INIT_PATH}"
 		#修改IoTDB的配置
-		sed -i "s/^dn_rpc_address.*$/dn_rpc_address={TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
-		sed -i "s/^dn_internal_address.*$/dn_internal_address={TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
-		sed -i "s/^dn_seed_config_node.*$/dn_seed_config_node={TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
-		sed -i "s/^cn_internal_address.*$/cn_internal_address={TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
-		sed -i "s/^cn_seed_config_node.*$/cn_seed_config_node={TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
+		sed -i "s/^dn_rpc_address.*$/dn_rpc_address=${TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
+		sed -i "s/^dn_internal_address.*$/dn_internal_address=${TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
+		sed -i "s/^dn_seed_config_node.*$/dn_seed_config_node=${TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
+		sed -i "s/^cn_internal_address.*$/cn_internal_address=${TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
+		sed -i "s/^cn_seed_config_node.*$/cn_seed_config_node=${TEST_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
 		#准备配置文件和license
 		mv_config_file ${ts_type} ${TEST_IP}
 		sed -i "s/^HOST=.*$/HOST={TEST_IP}/g" ${TEST_INIT_PATH}/iot-benchmark/conf/config.properties
