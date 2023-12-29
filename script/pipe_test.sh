@@ -109,13 +109,17 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
 	sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"20G\"/g" ${TEST_IOTDB_PATH}/conf/datanode-env.sh
-	sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"2G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+	sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"6G\"/g" ${TEST_IOTDB_PATH}/conf/confignode-env.sh
+	sed -i "s/^# query_timeout_threshold=.*$/query_timeout_threshold=6000000/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#关闭影响写入性能的其他功能
 	sed -i "s/^# enable_seq_space_compaction=true.*$/enable_seq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	sed -i "s/^# enable_unseq_space_compaction=true.*$/enable_unseq_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#修改集群名称
 	sed -i "s/^cluster_name=.*$/cluster_name=${test_type}/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
+	#开启自动创建
+	sed -i "s/^# enable_auto_create_schema=.*$/enable_auto_create_schema=true/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
+	sed -i "s/^# default_storage_group_level=.*$/default_storage_group_level=2/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#添加启动监控功能
 	sed -i "s/^# cn_enable_metric=.*$/cn_enable_metric=true/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
 	sed -i "s/^# cn_enable_performance_stat=.*$/cn_enable_performance_stat=true/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
@@ -263,8 +267,8 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		done
 		#确认是否测试已结束
 		flag=0
-		str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(*) from root.**\" | grep 'Total line number = 2'")
-		str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.**\" | grep 'Total line number = 2'")
+		str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(*) from root.**  align by device\" | grep 'Total line number = 2'")
+		str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.**  align by device\" | grep 'Total line number = 2'")
 		if [ "$str1" = "1" ]; then
 			echo "测试未结束:${Control}"  > /dev/null 2>&1 &
 		else
