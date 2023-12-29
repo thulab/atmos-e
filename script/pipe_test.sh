@@ -174,6 +174,10 @@ setup_env() {
 		cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_INIT_PATH}/apache-iotdb/activation/license
 		#复制三项到客户机
 		scp -r ${TEST_INIT_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_INIT_PATH}/
+	done	
+	sleep 3
+	for (( i = 1; i < ${#IP_list[*]}; i++ ))
+	do
 		#启动ConfigNode节点
 		echo "starting IoTDB ConfigNode on ${TEST_IP} ..."
 		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-confignode.sh  > /dev/null 2>&1 &")
