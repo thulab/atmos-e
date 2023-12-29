@@ -173,7 +173,7 @@ setup_env() {
 		mkdir -p ${TEST_INIT_PATH}/apache-iotdb/activation
 		cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_INIT_PATH}/apache-iotdb/activation/license
 		#复制三项到客户机
-		scp -r ${TEST_INIT_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_INIT_PATH}/
+		scp -r ${TEST_INIT_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_INIT_PATH}/  > /dev/null 2>&1 &
 	done	
 	sleep 3
 	for (( i = 1; i < ${#IP_list[*]}; i++ ))
@@ -211,7 +211,16 @@ setup_env() {
 		  echo "All Nodes is not ready!"
 		  exit -1
 		fi
-	done	
+	done
+	sleep 3
+	for (( i = 1; i < ${#IP_list[*]}; i++ ))
+	do
+		TEST_IP=${IP_list[$i]}
+		str1=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${TEST_IP} -p 6667 -u root -pw root -e \"create pipe test with source ('source.pattern'='root', 'source.realtime.mode'='stream','source.realtime.enable'='true','source.forwarding-pipe-requests'='false','source.batch.enable'='true','source.history.enable'='true') with sink ('sink'='iotdb-thrift-sink', 'sink.node-urls'='${PIPE_list[$i]}:6667');\"")
+		echo $str1
+		str1=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${TEST_IP} -p 6667 -u root -pw root -e \"start pipe test;\"")
+		echo $str1
+	done		
 }
 monitor_test_status() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
 	TEST_IP=$1
