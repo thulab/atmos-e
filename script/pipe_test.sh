@@ -118,7 +118,6 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	sed -i "s/^# enable_cross_space_compaction=true.*$/enable_cross_space_compaction=false/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#修改集群名称
 	sed -i "s/^cluster_name=.*$/cluster_name=${test_type}/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
-	sed -i "s/^cluster_name=.*$/cluster_name=benchants/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#开启自动创建
 	sed -i "s/^# enable_auto_create_schema=.*$/enable_auto_create_schema=true/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	sed -i "s/^# default_storage_group_level=.*$/default_storage_group_level=2/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
