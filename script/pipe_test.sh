@@ -167,7 +167,7 @@ setup_env() {
 		sed -i "s/^cn_seed_config_node.*$/cn_seed_config_node=${config_node_config_nodes[$i]}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
 		#准备配置文件和license
 		mv_config_file ${ts_type} ${TEST_IP}
-		sed -i "s/^HOST=.*$/HOST={TEST_IP}/g" ${TEST_INIT_PATH}/iot-benchmark/conf/config.properties
+		sed -i "s/^HOST=.*$/HOST=${TEST_IP}/g" ${TEST_INIT_PATH}/iot-benchmark/conf/config.properties
 		rm -rf ${TEST_INIT_PATH}/apache-iotdb/activation
 		mkdir -p ${TEST_INIT_PATH}/apache-iotdb/activation
 		cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_INIT_PATH}/apache-iotdb/activation/license
@@ -352,7 +352,7 @@ test_operation() {
 	setup_env
 	sleep 10
 	#启动写入程序
-	for (( j = 1; j <= ${#IP_list[*]}; j++ ))
+	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}
 		echo "开始写入！"
