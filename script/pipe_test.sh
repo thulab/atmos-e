@@ -294,17 +294,17 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				else
 					echo "同步未结束:${Control}"  > /dev/null 2>&1 &
 				fi
+				now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
+				if [ $t_time -ge 7200 ]; then
+					echo "测试失败"  #倒序输入形成负数结果
+					end_time=-1
+					cost_time=-1
+					break
+				fi
 			done
 		done
-		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
-		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-		if [ $t_time -ge 7200 ]; then
-			echo "测试失败"  #倒序输入形成负数结果
-			end_time=-1
-			cost_time=-1
-			break
-		fi
-		if [ "$flag" = "1" ]; then
+		if [ "$flag" = "25000" ]; then
 			end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 			cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 			break
@@ -312,23 +312,45 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 	done
 }
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
-	TEST_IP=$1
-	dataFileSize=0
-	dataFileSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
-	UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
-	if [ "$UNIT" = "M" ]; then
-		dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1024'}'`
-	elif [ "$UNIT" = "K" ]; then
-		dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1048576'}'`
-    elif [ "$UNIT" = "T" ]; then
-        dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'*'1024'}'`
-	else
-		dataFileSize=${dataFileSize}
-	fi	
-	numOfSe0Level=0
-	numOfUnse0Level=0
-	numOfSe0Level=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
-	numOfUnse0Level=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
+	for (( j = 1; j < ${#IP_list[*]}; j++ ))
+	do
+		TEST_IP=${IP_list[$j]}	
+		dataFileSizeA=0
+		numOfSe0LevelA=0
+		numOfUnse0LevelA=0
+		dataFileSizeB=0
+		numOfSe0LevelB=0
+		numOfUnse0LevelB=0
+		if [ "${TEST_IP}" = "${IP_list[1]}" ]; then
+			dataFileSizeA=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
+			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
+			if [ "$UNIT" = "M" ]; then
+				dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'/'1024'}'`
+			elif [ "$UNIT" = "K" ]; then
+				dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'/'1048576'}'`
+			elif [ "$UNIT" = "T" ]; then
+				dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'*'1024'}'`
+			else
+				dataFileSizeA=${dataFileSizeA}
+			fi	
+			numOfSe0LevelA=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
+			numOfUnse0LevelA=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
+		else
+			dataFileSizeB=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
+			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
+			if [ "$UNIT" = "M" ]; then
+				dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'/'1024'}'`
+			elif [ "$UNIT" = "K" ]; then
+				dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'/'1048576'}'`
+			elif [ "$UNIT" = "T" ]; then
+				dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'*'1024'}'`
+			else
+				dataFileSizeB=${dataFileSizeB}
+			fi	
+			numOfSe0LevelB=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
+			numOfUnse0LevelB=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
+		fi
+	done
 }
 backup_test_data() { # 备份测试数据
 	TEST_IP=$2
@@ -387,7 +409,7 @@ test_operation() {
 	read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
 
 	cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${protocol_class})"
+	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,start_time,end_time,cost_time,wait_time,failPointA,throughputA,LatencyA,numOfSe0LevelA,numOfUnse0LevelA,dataFileSizeA,maxNumofOpenFilesA,maxNumofThreadA,errorLogSizeA,failPointB,throughputB,LatencyB,numOfSe0LevelB,numOfUnse0LevelB,dataFileSizeB,maxNumofOpenFilesB,maxNumofThreadB,errorLogSizeB,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${start_time}','${end_time}',${cost_time},${wait_time},${failPointA},${throughputA},${LatencyA},${numOfSe0LevelA},${numOfUnse0LevelA},${dataFileSizeA},${maxNumofOpenFilesA},${maxNumofThreadA},${errorLogSizeA},${failPointB},${throughputB},${LatencyB},${numOfSe0LevelB},${numOfUnse0LevelB},${dataFileSizeB},${maxNumofOpenFilesB},${maxNumofThreadB},${errorLogSizeB},${protocol_class})"
 
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 
