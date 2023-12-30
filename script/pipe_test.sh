@@ -283,14 +283,14 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		done
 		#确认是否测试已结束
 		flag=0
-		for (( j = 0; j < 500; j++ ))
+		for (( s = 0; s < 500; s++ ))
 		do
-			for (( i = 0; i < 50; i++ ))
+			for (( d = 0; d < 50; d++ ))
 			do
-				str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(s_${j}) from root.test.g_0.d_${i}\" | grep '172800' | wc -l ")
-				str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(s_${j}) from root.test.g_0.d_${i}\" | grep '172800' | wc -l ")
+				str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(s_${s}) from root.test.g_0.d_${d}\" | grep '172800' | wc -l ")
+				str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(s_${s}) from root.test.g_0.d_${d}\" | grep '172800' | wc -l ")
 				if [ "$str1" = "1" ] && [ "$str2" = "1" ]; then
-					echo "root.test.g_0.d_${i}.s_${j}同步已结束"
+					echo "root.test.g_0.d_${d}.s_${s}同步已结束"
 					flag=$[${flag}+1]
 				else
 					#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
