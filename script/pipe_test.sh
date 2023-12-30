@@ -286,13 +286,14 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		do
 			for (( i = 0; i < 50; i++ ))
 			do
-				str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(s_${j}) from root.test.g_0.d_${i}\" | grep '172800'")
-				str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(s_${j}) from root.test.g_0.d_${i}\" | grep '172800'")
+				str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(s_${j}) from root.test.g_0.d_${i}\" | grep '172800' | wc -l ")
+				str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(s_${j}) from root.test.g_0.d_${i}\" | grep '172800' | wc -l ")
 				if [ "$str1" = "1" ] && [ "$str2" = "1" ]; then
 					echo "同步已结束:${Control}"
 					flag=$[${flag}+1]
 				else
 					echo "同步未结束:${Control}"  > /dev/null 2>&1 &
+					
 				fi
 				now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
