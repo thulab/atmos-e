@@ -99,10 +99,10 @@ check_iotdb_pid() { # 检查iotdb的pid，有就停止
 	echo "程序检测和清理操作已完成！"
 }
 set_env() { # 拷贝编译好的iotdb到测试路径
-	if [ ! -d "${TEST_IOTDB_PATH}" ]; then
-		mkdir -p ${TEST_IOTDB_PATH}
+	if [ ! -d "${TEST_INIT_PATH}" ]; then
+		mkdir -p ${TEST_INIT_PATH}
 	else
-		rm -rf ${TEST_IOTDB_PATH}
+		rm -rf ${TEST_INIT_PATH}
 		mkdir -p ${TEST_IOTDB_PATH}
 	fi
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
@@ -173,7 +173,8 @@ setup_env() {
 		mkdir -p ${TEST_INIT_PATH}/apache-iotdb/activation
 		cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_INIT_PATH}/apache-iotdb/activation/license
 		#复制三项到客户机
-		scp -r ${TEST_INIT_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_INIT_PATH}/  > /dev/null 2>&1 &
+		scp -r ${TEST_INIT_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_INIT_PATH}/
+		#scp -r ${TEST_INIT_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_INIT_PATH}/  > /dev/null 2>&1 &
 	done	
 	sleep 3
 	for (( i = 1; i < ${#IP_list[*]}; i++ ))
