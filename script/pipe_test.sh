@@ -281,31 +281,34 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				fi
 			fi
 		done
+		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
+		if [ $t_time -le 600 ]; then
+			#前半小时不进行判定
+			break
+		fi
 		#确认是否测试已结束
 		flag=0
-		for (( s = 0; s < 500; s++ ))
+		for (( d = 0; d < 50; d++ ))
 		do
-			for (( d = 0; d < 50; d++ ))
-			do
-				str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(s_${s}) from root.test.g_0.d_${d}\" | grep '172800' | wc -l ")
-				str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(s_${s}) from root.test.g_0.d_${d}\" | grep '172800' | wc -l ")
-				if [ "$str1" = "1" ] && [ "$str2" = "1" ]; then
-					echo "root.test.g_0.d_${d}.s_${s}同步已结束"
-					flag=$[${flag}+1]
-				else
-					#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
-					echo "同步未结束:${Control}"
-				fi
-				now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
-				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-				if [ $t_time -ge 7200 ]; then
-					echo "测试失败"  #倒序输入形成负数结果
-					end_time=-1
-					cost_time=-1
-					flag=0
-					break [2]
-				fi
-			done
+			str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.d_${d}\" | grep -o '172800' | wc -l ")
+			str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.d_${d}\" | grep -o '172800' | wc -l ")
+			if [ "$str1" = "1" ] && [ "$str2" = "1" ]; then
+				echo "root.test.g_0.d_${d}.s_${s}同步已结束"
+				flag=$[${flag}+1]
+			else
+				#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
+				echo "同步未结束:${Control}"
+			fi
+			now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+			t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
+			if [ $t_time -ge 7200 ]; then
+				echo "测试失败"  #倒序输入形成负数结果
+				end_time=-1
+				cost_time=-1
+				flag=0
+				break [1]
+			fi
 		done
 		echo $flag
 		if [ "$flag" = "25000" ]; then
