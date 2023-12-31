@@ -304,8 +304,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 					echo "测试失败"  #倒序输入形成负数结果
 					end_time=-1
 					cost_time=-1
-					flag=0
-					break [1]
+					break [2]
 				fi
 			done
 			echo $flag
@@ -314,7 +313,6 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 				break
 			fi
-		
 		fi
 	done
 }
