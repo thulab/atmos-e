@@ -287,31 +287,29 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			#前半小时不进行判定
 			#确认是否测试已结束
 			flag=0
-			for (( d = 0; d < 50; d++ ))
-			do
-				str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.d_${d}\" | grep -o '172800' | wc -l ")
-				str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.d_${d}\" | grep -o '172800' | wc -l ")
-				if [ "$str1" = "500" ] && [ "$str2" = "500" ]; then
-					echo "root.test.g_0.d_${d}同步已结束"
-					flag=$[${flag}+1]
-				else
-					#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
-					echo "同步未结束:${Control}"
-				fi
-				now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
-				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-				if [ $t_time -ge 7200 ]; then
-					echo "测试失败"  #倒序输入形成负数结果
-					end_time=-1
-					cost_time=-1
-					break [2]
-				fi
-			done
+			str1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.*\" | grep -o '172800' | wc -l ")
+			str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.*\" | grep -o '172800' | wc -l ")
+			#str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.d_${d}\" | grep -o '172800' | wc -l ")
+			if [ "$str1" = "25000" ] && [ "$str2" = "25000" ]; then
+				echo "root.test.g_0.d_${d}同步已结束"
+				flag=$[${flag}+1]
+			else
+				#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
+				echo "同步未结束:${Control}"
+			fi
+			now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+			t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
+			if [ $t_time -ge 7200 ]; then
+				echo "测试失败"  #倒序输入形成负数结果
+				end_time=-1
+				cost_time=-1
+				break [2]
+			fi
 			echo $flag
-			if [ "$flag" = "50" ]; then
+			if [ "$flag" = "1" ]; then
 				end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 				cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-				break
+				break [1]
 			fi
 		fi
 	done
@@ -409,10 +407,27 @@ test_operation() {
 	#收集启动后基础监控数据
 	collect_monitor_data
 	#测试结果收集写入数据库
-	csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
-	read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
-	read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
-
+	for ((j = 1; j < ${#IP_list[*]}; j++)); do
+		rm -rf ${TEST_BM_PATH}/TestResult/csvOutput/*
+		scp -r ${ACCOUNT}@${IP_list[${j}]}:${TEST_BM_PATH}/data/csvOutput/*result.csv ${TEST_BM_PATH}/TestResult/csvOutput/
+		#收集启动后基础监控数据
+		csvOutputfile=${TEST_BM_PATH}/TestResult/csvOutput/*result.csv
+		if [ ! -f $csvOutputfile ]; then
+			okOperation=0
+			okPoint=0
+			failOperation=0
+			failPoint=0
+			throughput=0
+		else
+			if [ j -eq 1 ]; then
+				read okOperationA okPointA failOperationA failPointA throughputA <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
+				read LatencyA MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+			else
+				read okOperationB okPointB failOperationB failPointB throughputB <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
+				read LatencyB MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+			fi
+		fi
+	done	
 	cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,start_time,end_time,cost_time,wait_time,failPointA,throughputA,LatencyA,numOfSe0LevelA,numOfUnse0LevelA,dataFileSizeA,maxNumofOpenFilesA,maxNumofThreadA,errorLogSizeA,failPointB,throughputB,LatencyB,numOfSe0LevelB,numOfUnse0LevelB,dataFileSizeB,maxNumofOpenFilesB,maxNumofThreadB,errorLogSizeB,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${start_time}','${end_time}',${cost_time},${wait_time},${failPointA},${throughputA},${LatencyA},${numOfSe0LevelA},${numOfUnse0LevelA},${dataFileSizeA},${maxNumofOpenFilesA},${maxNumofThreadA},${errorLogSizeA},${failPointB},${throughputB},${LatencyB},${numOfSe0LevelB},${numOfUnse0LevelB},${dataFileSizeB},${maxNumofOpenFilesB},${maxNumofThreadB},${errorLogSizeB},${protocol_class})"
 
