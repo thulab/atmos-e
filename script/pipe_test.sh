@@ -291,7 +291,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.*\" | grep -o '172800' | wc -l ")
 			#str2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"select count(*) from root.test.g_0.d_${d}\" | grep -o '172800' | wc -l ")
 			if [ "$str1" = "25000" ] && [ "$str2" = "25000" ]; then
-				echo "root.test.g_0.d_${d}同步已结束"
+				echo "root.test.g_0同步已结束"
 				flag=$[${flag}+1]
 			else
 				#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
@@ -309,7 +309,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			if [ "$flag" = "1" ]; then
 				end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 				cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-				break [1]
+				break
 			fi
 		fi
 	done
