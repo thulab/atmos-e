@@ -302,7 +302,8 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 					echo "测试失败"  #倒序输入形成负数结果
 					end_time=-1
 					cost_time=-1
-					break
+					flag=0
+					break [2]
 				fi
 			done
 		done
