@@ -384,7 +384,7 @@ backup_test_data() { # 备份测试数据
 	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
 	str1=$(ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_IOTDB_PATH}/data" 2>/dev/null)
 	scp -r ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH}/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
-	sudo cp -rf ${BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
+	sudo cp -rf ${TEST_BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
 }
 mv_config_file() { # 移动配置文件
 	rm -rf ${TEST_BM_PATH}/conf/config.properties
@@ -476,14 +476,10 @@ else
 	echo "当前版本${commit_id}未执行过测试，即将编译后启动"
 	init_items
 	test_date_time=`date +%Y%m%d%H%M%S`	
-	for (( j = 0; j < ${#protocol_list[*]}; j++ ))
-	do
-		for (( i = 0; i < ${#ts_list[*]}; i++ ))
-		do
-			echo "开始测试${protocol_list[$j]}协议下的${ts_list[$i]}时间序列！"
-			test_operation ${protocol_list[$j]} ${ts_list[$i]}
-		done
-	done	
+	echo "开始测试223协议下的common时间序列！"
+	test_operation 223 common
+	echo "开始测试223协议下的aligned时间序列！"
+	test_operation 223 aligned
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
