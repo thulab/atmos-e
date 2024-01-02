@@ -329,15 +329,15 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 	done
 }
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
+	dataFileSizeA=0
+	numOfSe0LevelA=0
+	numOfUnse0LevelA=0
+	dataFileSizeB=0
+	numOfSe0LevelB=0
+	numOfUnse0LevelB=0
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}	
-		dataFileSizeA=0
-		numOfSe0LevelA=0
-		numOfUnse0LevelA=0
-		dataFileSizeB=0
-		numOfSe0LevelB=0
-		numOfUnse0LevelB=0
 		D_errorLogSize=0
 		C_errorLogSize=0
 		if [ $j -eq 1 ]; then
