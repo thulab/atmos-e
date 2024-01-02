@@ -421,7 +421,7 @@ test_operation() {
 	do
 		TEST_IP=${IP_list[$j]}
 		echo "开始写入！"
-		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_BM_PATH}/benchmark.sh > /dev/null 2>&1 &")
+		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "cd ${TEST_BM_PATH};${TEST_BM_PATH}/benchmark.sh > /dev/null 2>&1 &")
 	done
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
 
