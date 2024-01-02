@@ -439,7 +439,8 @@ test_operation() {
 	#收集启动后基础监控数据
 	collect_monitor_data
 	#测试结果收集写入数据库
-	for ((j = 1; j < ${#IP_list[*]}; j++)); do
+	for (( j = 1; j < ${#IP_list[*]}; j++ ))
+	do
 		rm -rf ${TEST_BM_PATH}/TestResult/csvOutput/*
 		mkdir -p ${TEST_BM_PATH}/TestResult/csvOutput/
 		scp -r ${ACCOUNT}@${IP_list[${j}]}:${TEST_BM_PATH}/data/csvOutput/*result.csv ${TEST_BM_PATH}/TestResult/csvOutput/
