@@ -305,7 +305,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 					echo "测试失败"  #倒序输入形成负数结果
 					end_time=-1
 					cost_time=-1
-					break 1
+					break
 				fi
 				echo $flag
 				if [ "$flag" = "1" ]; then
@@ -330,6 +330,8 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 		dataFileSizeB=0
 		numOfSe0LevelB=0
 		numOfUnse0LevelB=0
+		D_errorLogSize=0
+		C_errorLogSize=0
 		if [ "${TEST_IP}" = "${IP_list[1]}" ]; then
 			dataFileSizeA=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
 			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
@@ -344,6 +346,14 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 			fi	
 			numOfSe0LevelA=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
 			numOfUnse0LevelA=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
+			
+			D_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_datanode_error.log | awk {'print $1'}")
+			C_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_confignode_error.log | awk {'print $1'}")
+			if [ "${D_errorLogSize}" = "0" ] && [ "${C_errorLogSize}" = "0" ]; then
+				errorLogSizeA=0
+			else
+				errorLogSizeA=1
+			fi
 		else
 			dataFileSizeB=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
 			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
@@ -358,6 +368,14 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 			fi	
 			numOfSe0LevelB=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
 			numOfUnse0LevelB=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
+			
+			D_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_datanode_error.log | awk {'print $1'}")
+			C_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_confignode_error.log | awk {'print $1'}")
+			if [ "${D_errorLogSize}" = "0" ] && [ "${C_errorLogSize}" = "0" ]; then
+				errorLogSizeB=0
+			else
+				errorLogSizeB=1
+			fi
 		fi
 	done
 }
