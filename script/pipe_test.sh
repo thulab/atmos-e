@@ -305,7 +305,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 					echo "测试失败"  #倒序输入形成负数结果
 					end_time=-1
 					cost_time=-1
-					break [2]
+					break 1
 				fi
 				echo $flag
 				if [ "$flag" = "1" ]; then
@@ -415,6 +415,7 @@ test_operation() {
 	#测试结果收集写入数据库
 	for ((j = 1; j < ${#IP_list[*]}; j++)); do
 		rm -rf ${TEST_BM_PATH}/TestResult/csvOutput/*
+		mkdir -p ${TEST_BM_PATH}/TestResult/csvOutput/
 		scp -r ${ACCOUNT}@${IP_list[${j}]}:${TEST_BM_PATH}/data/csvOutput/*result.csv ${TEST_BM_PATH}/TestResult/csvOutput/
 		#收集启动后基础监控数据
 		csvOutputfile=${TEST_BM_PATH}/TestResult/csvOutput/*result.csv
@@ -440,7 +441,7 @@ test_operation() {
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 
 	#备份本次测试
-	backup_test_data ${ts_type}
+	backup_test_data ${ts_type} ${TEST_IP}
 }
 ##准备开始测试
 echo "ontesting" > ${INIT_PATH}/test_type_file
