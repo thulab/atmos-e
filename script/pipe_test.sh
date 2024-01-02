@@ -257,7 +257,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			else
 				echo "无法计算！"
 			fi
-			if [ "${TEST_IP}" = "${IP_list[1]}" ]; then
+			if [ $j -eq 1 ]; then
 				#监控打开文件数量			
 				let temp_file_num=${temp_file_num_d}+${temp_file_num_c}
 				if [ ${maxNumofOpenFilesA} -lt ${temp_file_num} ]; then
@@ -340,7 +340,7 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 		numOfUnse0LevelB=0
 		D_errorLogSize=0
 		C_errorLogSize=0
-		if [ "${TEST_IP}" = "${IP_list[1]}" ]; then
+		if [ $j -eq 1 ]; then
 			dataFileSizeA=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
 			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
 			if [ "$UNIT" = "M" ]; then
@@ -453,7 +453,7 @@ test_operation() {
 			failPoint=0
 			throughput=0
 		else
-			if [ j -eq 1 ]; then
+			if [ $j -eq 1 ]; then
 				read okOperationA okPointA failOperationA failPointA throughputA <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
 				read LatencyA MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
 			else
