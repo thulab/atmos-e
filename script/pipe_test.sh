@@ -283,7 +283,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		done
 		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-		if [ $t_time -ge 600 ]; then
+		if [ $t_time -ge 900 ]; then
 			#前半小时不进行判定
 			#确认是否测试已结束
 			flag=0
@@ -303,7 +303,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 				if [ $t_time -ge 7200 ]; then
 					echo "测试失败"  #倒序输入形成负数结果
-					end_time=-1
+					end_time=$(($(date +%s -d "${start_time}") - 1))
 					cost_time=-1
 					break
 				fi
@@ -320,7 +320,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 				if [ $t_time -ge 7200 ]; then
 					echo "测试失败"  #倒序输入形成负数结果
-					end_time=-1
+					end_time=$(($(date +%s -d "${start_time}") - 1))
 					cost_time=-1
 					break
 				fi
