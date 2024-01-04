@@ -303,7 +303,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 				if [ $t_time -ge 7200 ]; then
 					echo "测试失败"  #倒序输入形成负数结果
-					end_time=$(($(date +%s -d "${start_time}") - 1))
+					end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 					cost_time=-1
 					break
 				fi
@@ -320,7 +320,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 				if [ $t_time -ge 7200 ]; then
 					echo "测试失败"  #倒序输入形成负数结果
-					end_time=$(($(date +%s -d "${start_time}") - 1))
+					end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 					cost_time=-1
 					break
 				fi
@@ -462,7 +462,7 @@ test_operation() {
 			fi
 		fi
 	done	
-	cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
+	#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,start_time,end_time,cost_time,wait_time,failPointA,throughputA,LatencyA,numOfSe0LevelA,numOfUnse0LevelA,dataFileSizeA,maxNumofOpenFilesA,maxNumofThreadA,errorLogSizeA,failPointB,throughputB,LatencyB,numOfSe0LevelB,numOfUnse0LevelB,dataFileSizeB,maxNumofOpenFilesB,maxNumofThreadB,errorLogSizeB,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${start_time}','${end_time}',${cost_time},${wait_time},${failPointA},${throughputA},${LatencyA},${numOfSe0LevelA},${numOfUnse0LevelA},${dataFileSizeA},${maxNumofOpenFilesA},${maxNumofThreadA},${errorLogSizeA},${failPointB},${throughputB},${LatencyB},${numOfSe0LevelB},${numOfUnse0LevelB},${dataFileSizeB},${maxNumofOpenFilesB},${maxNumofThreadB},${errorLogSizeB},${protocol_class})"
 
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
