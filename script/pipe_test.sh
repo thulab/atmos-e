@@ -283,8 +283,21 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		done
 		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-		if [ $t_time -ge 900 ]; then
-			#前半小时不进行判定
+		flagB=0
+		for (( m = 1; m <= 2; m++ ))
+		do
+			str1=$(ssh ${ACCOUNT}@${IP_list[${m}]} "jps | grep -w App | grep -v grep | wc -l" 2>/dev/null)
+			if [ "$str1" = "1" ]; then
+				echo "BM写入未结束:${IP_list[${m}]}"  > /dev/null 2>&1 &
+			else
+				echo "BM写入已结束:${IP_list[${m}]}"
+				flagB=$[${flagB}+1]
+			fi
+		done
+		if [ $flagB -ge 2 ]; then
+			fstr1=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"flush\"")
+			fstr2=$(ssh ${ACCOUNT}@${IP_list[2]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[2]} -p 6667 -u root -pw root -e \"flush\"")
+			#BM写入结束前不进行判定
 			#确认是否测试已结束
 			flag=0
 			str0=$(ssh ${ACCOUNT}@${IP_list[1]} "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${IP_list[1]} -p 6667 -u root -pw root -e \"select count(s_0) from root.test.g_0.d_0\" | grep -o '172800' | wc -l ")
