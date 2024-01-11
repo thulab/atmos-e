@@ -6,7 +6,7 @@ test_type=ts_performance
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
-DATA_PATH=/dataset
+DATA_PATH=/nasdata/ts_performance/DataSet
 BUCKUP_PATH=/nasdata/repository/ts_performance
 REPOS_PATH=/nasdata/repository/master
 #测试数据运行路径
