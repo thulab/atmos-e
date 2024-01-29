@@ -175,7 +175,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 	start_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 	maxNumofOpenFiles=0
 	maxNumofThread=0
-	for (( t_wait = 0; t_wait <= 100; ))
+	for (( t_wait = 0; t_wait <= 20; ))
 	do
 		#监控打开文件数量
 		pid=$(jps | grep DataNode | awk '{print $1}')
@@ -382,7 +382,7 @@ test_operation() {
 	start_iotdb
 	sleep 10	
 	####判断IoTDB是否正常启动
-	for (( t_wait = 0; t_wait <= 100; t_wait++ ))
+	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
 	do
 	  iotdb_state=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "show cluster" | grep 'Total line number = 2')
 	  if [ "${iotdb_state}" = "Total line number = 2" ]; then
@@ -440,7 +440,7 @@ test_operation() {
 	start_iotdb
 	sleep 10	
 	####判断IoTDB是否正常启动
-	for (( t_wait = 0; t_wait <= 100; t_wait++ ))
+	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
 	do
 	  iotdb_state=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "show cluster" | grep 'Total line number = 2')
 	  if [ "${iotdb_state}" = "Total line number = 2" ]; then
@@ -497,7 +497,7 @@ test_operation() {
 	start_iotdb
 	sleep 10	
 	####判断IoTDB是否正常启动
-	for (( t_wait = 0; t_wait <= 100; t_wait++ ))
+	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
 	do
 	  iotdb_state=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "show cluster" | grep 'Total line number = 2')
 	  if [ "${iotdb_state}" = "Total line number = 2" ]; then
