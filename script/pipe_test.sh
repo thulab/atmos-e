@@ -401,11 +401,15 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	done
 }
 backup_test_data() { # 备份测试数据
-	TEST_IP=$2
-	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
-	str1=$(ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_IOTDB_PATH}/data" 2>/dev/null)
-	scp -r ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH}/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
-	sudo cp -rf ${TEST_BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/$3
+	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/
+	for (( j = 1; j < ${#IP_list[*]}; j++ ))
+	do
+		TEST_IP=${IP_list[$j]}
+		sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/${TEST_IP}/
+		str1=$(ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_IOTDB_PATH}/data" 2>/dev/null)
+		scp -r ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH}/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/${TEST_IP}/
+	done
+	sudo cp -rf ${TEST_BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/
 }
 mv_config_file() { # 移动配置文件
 	rm -rf ${TEST_BM_PATH}/conf/config.properties
@@ -481,7 +485,7 @@ test_operation() {
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 
 	#备份本次测试
-	backup_test_data ${ts_type} ${TEST_IP}
+	backup_test_data ${ts_type}
 }
 ##准备开始测试
 echo "ontesting" > ${INIT_PATH}/test_type_file
