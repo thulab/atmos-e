@@ -25,7 +25,7 @@ Control=172.20.70.6
 #query_list=(single-groupby-1-8-1 single-groupby-5-1-1 single-groupby-5-1-12 single-groupby-5-8-1 cpu-max-all-1 cpu-max-all-8 double-groupby-1 double-groupby-5 double-groupby-all high-cpu-all high-cpu-1 lastpoint groupby-orderby-limit)
 query_list=(single-groupby-1-1-1 single-groupby-5-1-1)
 ############mysql信息##########################
-MYSQLHOSTNAME="111.202.73.147" #数据库信息
+MYSQLHOSTNAME="111.200.37.158" #数据库信息
 PORT="13306"
 USERNAME="iotdbatm"
 PASSWORD="iotdb2019"

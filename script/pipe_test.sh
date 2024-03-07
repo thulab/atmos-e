@@ -24,7 +24,7 @@ Control=172.20.31.51
 config_node_config_nodes=(0 172.20.31.45:10710 172.20.31.58:10710)
 data_node_config_nodes=(0 172.20.31.45:10710 172.20.31.58:10710)
 ############mysql信息##########################
-MYSQLHOSTNAME="111.202.73.147" #数据库信息
+MYSQLHOSTNAME="111.200.37.158" #数据库信息
 PORT="13306"
 USERNAME="iotdbatm"
 PASSWORD="iotdb2019"
