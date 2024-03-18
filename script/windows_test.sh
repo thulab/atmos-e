@@ -4,11 +4,13 @@ ACCOUNT=Administrator
 test_type=windows_test
 #初始环境存放路径
 INIT_PATH=/root/zk_test
+ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
+BUCKUP_PATH=/nasdata/repository/windows_test
+REPOS_PATH=/nasdata/repository/master
 TEST_PATH=${INIT_PATH}/first-rest-test
 TEST_IOTDB_PATH=${TEST_PATH}/apache-iotdb
 TEST_IOTDB_PATH_W="D:\\first-rest-test"
-REPOS_PATH=/nasdata/repository/master
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
