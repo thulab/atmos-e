@@ -8,6 +8,7 @@ BM_PATH=${INIT_PATH}/iot-benchmark
 TEST_PATH=${INIT_PATH}/first-rest-test
 TEST_IOTDB_PATH=${TEST_PATH}/apache-iotdb
 TEST_IOTDB_PATH_W="D:\\first-rest-test"
+REPOS_PATH=/nasdata/repository/master
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
