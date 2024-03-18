@@ -15,7 +15,7 @@ TEST_IOTDB_PATH_W="D:\\first-rest-test"
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
 protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
-IoTDB_IP=172.20.31.22
+IoTDB_IP=172.20.31.26
 Control=172.20.31.25
 insert_list=(seq_w unseq_w seq_rw unseq_rw)
 ############mysql信息##########################
