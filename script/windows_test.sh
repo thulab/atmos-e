@@ -16,7 +16,7 @@ IoTDB_IP=172.20.31.22
 Control=172.20.31.25
 insert_list=(seq_w unseq_w seq_rw unseq_rw)
 ############mysql信息##########################
-MYSQLHOSTNAME="111.202.73.147" #数据库信息
+MYSQLHOSTNAME="111.200.37.158" #数据库信息
 PORT="13306"
 USERNAME="iotdbatm"
 PASSWORD="iotdb2019"
