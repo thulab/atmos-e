@@ -248,10 +248,6 @@ else
 	echo "当前版本${commit_id}未执行过测试，即将编译后启动"
 	init_items
 	test_date_time=`date +%Y%m%d%H%M%S`
-	p_index=$(($RANDOM % ${#protocol_list[*]}))
-	t_index=$(($RANDOM % ${#ts_list[*]}))	
-	#echo "开始测试${protocol_list[$p_index]}协议下的${ts_list[$t_index]}时间序列！"
-	#test_operation ${protocol_list[$p_index]} ${ts_list[$t_index]}
 	test_operation ${IoTDB_IP} 223 
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
