@@ -119,7 +119,17 @@ setup_env() {
 	TEST_IP=$1
 	echo "开始重置环境！"
 	ssh ${ACCOUNT}@${TEST_IP} "shutdown /r"
-	sleep 300
+	sleep 60
+	while true; do
+		ssh ${ACCOUNT}@${TEST_IP} "dir D:" >/dev/null 2>&1
+		if [ $? -eq 0 ];then
+			echo "${TEST_IP}已启动"
+			break
+		else
+			echo "${TEST_IP}未启动"
+			sleep 30
+		fi
+	done
 	echo "setting env to ${TEST_IP} ..."
 	#删除原有路径下所有
 	ssh ${ACCOUNT}@${TEST_IP} "rmdir /s /q ${TEST_IOTDB_PATH_W}"
