@@ -120,7 +120,7 @@ setup_env() {
 	echo "开始重置环境！"
 	ssh ${ACCOUNT}@${TEST_IP} "shutdown /f /r /t 0"
 	sleep 120
-	rflag = 0
+	rflag=0
 	while true; do
 		echo "当前连接：${ACCOUNT}@${TEST_IP}"
 		ssh ${ACCOUNT}@${TEST_IP} "dir D:" >/dev/null 2>&1
@@ -129,9 +129,11 @@ setup_env() {
 			break
 		else
 			echo "${TEST_IP}未启动"
-			if [ "$rflag" = "0" ]; then
-			  ssh ${ACCOUNT}@${TEST_IP} "shutdown /f /r /t 0"
-			  rflag=1
+			if [ $rflag -ge 5 ]; then
+				break
+			else
+				ssh ${ACCOUNT}@${TEST_IP} "shutdown /f /r /t 0"
+				rflag=$[${rflag}+1]
 			fi
 			sleep 180
 		fi
@@ -178,7 +180,6 @@ start_benchmark() { # 启动benchmark
 	cd ~/
 }
 monitor_test_status() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
-	TEST_IP=$1
 	maxNumofOpenFiles=0
 	maxNumofThread=0
 	while true; do
