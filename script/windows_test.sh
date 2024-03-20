@@ -118,16 +118,22 @@ set_protocol_class() {
 setup_env() {
 	TEST_IP=$1
 	echo "开始重置环境！"
-	ssh ${ACCOUNT}@${TEST_IP} "shutdown /r"
-	sleep 60
+	ssh ${ACCOUNT}@${TEST_IP} "shutdown /f /r /t 0"
+	sleep 120
+	rflag = 0
 	while true; do
 		ssh ${ACCOUNT}@${TEST_IP} "dir D:" >/dev/null 2>&1
+		echo "当前连接：${ACCOUNT}@${TEST_IP}"
 		if [ $? -eq 0 ];then
 			echo "${TEST_IP}已启动"
 			break
 		else
 			echo "${TEST_IP}未启动"
-			sleep 30
+			if [ "$rflag" = "0" ]; then
+			  ssh ${ACCOUNT}@${TEST_IP} "shutdown /f /r /t 0"
+			  rflag=1
+			fi
+			sleep 180
 		fi
 	done
 	echo "setting env to ${TEST_IP} ..."
