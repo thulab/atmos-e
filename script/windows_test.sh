@@ -122,8 +122,8 @@ setup_env() {
 	sleep 120
 	rflag = 0
 	while true; do
-		ssh ${ACCOUNT}@${TEST_IP} "dir D:" >/dev/null 2>&1
 		echo "当前连接：${ACCOUNT}@${TEST_IP}"
+		ssh ${ACCOUNT}@${TEST_IP} "dir D:" >/dev/null 2>&1
 		if [ $? -eq 0 ];then
 			echo "${TEST_IP}已启动"
 			break
