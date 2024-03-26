@@ -218,7 +218,7 @@ function get_single_index() {
     local url="http://${metric_server}:9090/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
-	return ${index_value}
+	echo ${index_value}
 }
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	dataFileSize=0
