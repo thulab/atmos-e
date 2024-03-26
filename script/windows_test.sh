@@ -28,6 +28,8 @@ PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_windows_test" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
+############prometheus##########################
+metric_server="172.20.70.11"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
@@ -209,6 +211,34 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		fi
 	done
 }
+function get_single_index() {
+    # 获取 prometheus 单个指标的值
+    local end=$2
+    local index_key=$3
+    local url="http://${metric_server}:9090/api/v1/query"
+    local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
+    index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
+	return ${index_value}
+}
+collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
+	dataFileSize=0
+	numOfSe0Level=0
+	numOfUnse0Level=0
+	maxNumofOpenFiles=0
+	maxNumofThread_C=0
+	maxNumofThread_D=0
+	maxNumofThread=0
+	#调用监控获取数值
+	dataFileSize=$(get_single_index "sum(file_global_size{instance=~\"${IoTDB_IP}:9091\"})" $m_end_time dataFileSize)
+	dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1073741824'}'`
+	numOfSe0Level=$(sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"seq\"}) $m_end_time dataFileSize)
+	numOfUnse0Level=$(sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"unseq\"}) $m_end_time dataFileSize)
+	maxNumofThread_C=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9081\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_C)
+	maxNumofThread_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_D)
+	maxNumofThread=${maxNumofThread_C}+${maxNumofThread_D}
+	maxNumofOpenFiles=$(get_single_index "max_over_time(file_count{instance=~\"${IoTDB_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFiles)
+	
+}
 mv_config_file() { # 移动配置文件
 	rm -rf ${BM_PATH}/conf/config.properties
 	cp -rf ${ATMOS_PATH}/conf/${test_type}/$1 ${BM_PATH}/conf/config.properties
@@ -239,11 +269,14 @@ test_operation() {
 		setup_env ${TEST_IP}	
 		echo "写入测试开始！"
 		start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+		m_start_time=$(date +%s)
 		mv_config_file ${data_type}
 		start_benchmark 
 		#等待1分钟
 		sleep 60
 		monitor_test_status ${TEST_IP}
+		m_end_time=$(date +%s)
+		collect_monitor_data
 		#测试结果收集写入数据库
 		csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
 		read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
