@@ -236,8 +236,8 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	numOfUnse0Level=$(get_single_index "sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"unseq\"})" $m_end_time dataFileSize)
 	maxNumofThread_C=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9081\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_C)
 	maxNumofThread_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_D)
-	maxNumofThread=${maxNumofThread_C}+${maxNumofThread_D}
-	maxNumofOpenFiles=$(get_single_index "max_over_time(file_count{instance=~\"${IoTDB_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFiles)
+	let maxNumofThread=${maxNumofThread_C}+${maxNumofThread_D}
+	#maxNumofOpenFiles=$(get_single_index "max_over_time(file_count{instance=~\"${IoTDB_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFiles)
 	
 }
 mv_config_file() { # 移动配置文件
