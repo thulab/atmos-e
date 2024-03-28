@@ -1,5 +1,6 @@
 #!/bin/bash
 #登录用户名
+TEST_IP=172.20.31.30
 ACCOUNT=root
 test_type=sql_coverage
 #初始环境存放路径

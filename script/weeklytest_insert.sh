@@ -1,5 +1,6 @@
 #!/bin/sh
 #登录用户名
+TEST_IP=172.20.31.32
 ACCOUNT=root
 test_type=weeklytest_insert
 #初始环境存放路径
