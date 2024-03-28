@@ -229,6 +229,7 @@ else
 	#javac -encoding gbk -cp '${TEST_TOOL_PATH}/user/driver/iotdb/*:${TEST_TOOL_PATH}/lib/*:${TEST_TOOL_PATH}/user/driver/POI/*:.' ${TEST_TOOL_PATH}/src/*.java -d ${TEST_TOOL_PATH}/bin
 	compile=$(./compile.sh)
 	start_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+	m_start_time=$(date +%s)
 	start_test=$(./test.sh >/dev/null 2>&1 &)
 	for (( t_wait = 0; t_wait <= 20; ))
 	do
@@ -249,6 +250,7 @@ else
 		fi
 	done
 	end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+	m_end_time=$(date +%s)
 	#停止IoTDB程序
 	stop_iotdb
 	sleep 30

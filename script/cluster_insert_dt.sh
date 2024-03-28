@@ -465,10 +465,12 @@ test_operation() {
 		
 	echo "测试开始！"
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+	m_start_time=$(date +%s)
 
 	#等待1分钟
 	sleep 60
 	monitor_test_status
+	m_end_time=$(date +%s)
 	#测试结果收集写入数据库
 	for ((j = 1; j <= 3; j++)); do
 		rm -rf ${BM_PATH}/TestResult/csvOutput/*

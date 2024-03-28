@@ -330,11 +330,13 @@ test_operation() {
 			ts_type=${m}_${query_data_type[${j}]}_${query_list[${i}]}
 			start_benchmark
 			start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+			m_start_time=$(date +%s)
 
 			#等待1分钟
 			sleep 10
 			
 			monitor_test_status
+			m_end_time=$(date +%s)
 			
 			#收集启动后基础监控数据
 			collect_monitor_data

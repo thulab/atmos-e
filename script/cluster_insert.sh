@@ -453,10 +453,11 @@ test_operation() {
 		
 	echo "测试开始！"
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
-
+	m_start_time=$(date +%s)
 	#等待1分钟
 	sleep 60
 	monitor_test_status
+	m_end_time=$(date +%s)
 	#测试结果收集写入数据库
 	rm -rf ${BM_PATH}/TestResult/csvOutput/*
 	scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/data/csvOutput/*result.csv ${BM_PATH}/TestResult/csvOutput/

@@ -348,11 +348,13 @@ test_operation() {
 
 			start_benchmark
 			start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+			m_start_time=$(date +%s)
 
 			#等待1分钟
 			sleep 2
 			
 			monitor_test_status
+			m_end_time=$(date +%s)
 			
 			#收集启动后基础监控数据
 			collect_monitor_data

@@ -322,15 +322,13 @@ test_operation() {
 		
 		#启动写入程序
 		mv_config_file ${insert_list[${i}]}
-
-		start_benchmark
 		start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
-
+		m_start_time=$(date +%s)
+		start_benchmark
 		#等待1分钟
 		sleep 10
-		
 		monitor_test_status
-		
+		m_end_time=$(date +%s)
 		#停止IoTDB程序和监控程序
 		pid=$(${TEST_DATANODE_PATH}/sbin/start-cli.sh -h 127.0.0.1 -p 6667 -u root -pw root -e "flush")
 		check_monitor_pid

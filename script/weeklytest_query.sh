@@ -353,14 +353,15 @@ test_operation() {
 					data_type=${query_data_type[${j}]}
 					query_num=${m}
 					query_type=${query_list[${i}]}
-					start_benchmark
+					m_start_time=$(date +%s)
 					start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+					start_benchmark
 
 					#等待1分钟
 					sleep 10
 					
 					monitor_test_status
-					
+					m_end_time=$(date +%s)
 					#收集启动后基础监控数据
 					collect_monitor_data
 					#测试结果收集写入数据库
