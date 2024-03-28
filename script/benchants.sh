@@ -432,12 +432,14 @@ test_operation() {
 	rm -rf ${BM_PATH}/TestResult/*
 	echo "写入测试开始！"
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+	m_start_time=$(date +%s)
 	nohup cat ${BM_PATH}/iotdb-1000hosts-3days-10s.gz | gunzip | ${BM_PATH}/bin/tsbs_load_iotdb --host="${TEST_IP}" --port="6667" --user="root" --password="root" --timeout=1000 --workers=100 --batch-size=1000 --tablet-size=0 > ${BM_PATH}/TestResult/write_output.log 2>&1 &
 	#等待1分钟
 	sleep 60
 	monitor_test_status ${TEST_IP}
 	#测试结果收集写入数据库
 	#收集启动后基础监控数据
+	m_end_time=$(date +%s)
 	collect_monitor_data ${TEST_IP}
 	Outputfile=${BM_PATH}/TestResult/write_output.log
 	read throughput_metrics <<<$(cat ${Outputfile} | grep "metrics/sec" | sed -n '1,1p' | awk '{print $11}')
@@ -520,12 +522,14 @@ test_operation_q() {
 			round_num=${j}
 			echo "查询测试开始！"
 			start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
+			m_start_time=$(date +%s)
 			nohup cat ${BM_PATH}/iotdb-query-${query_list[${i}]}.txt | ${BM_PATH}/bin/tsbs_run_queries_iotdb --host="${TEST_IP}" --port="6667" --user="root" --password="root" --workers=100 --print-responses=false > ${BM_PATH}/TestResult/query_output_${query_list[${i}]}_${round_num}.log 2>&1 &
 			#等待1分钟
 			sleep 10
 			monitor_test_status ${TEST_IP}
 			#测试结果收集写入数据库
 			#收集启动后基础监控数据
+			m_end_time=$(date +%s)
 			collect_monitor_data ${TEST_IP}
 			Outputfile=${BM_PATH}/TestResult/query_output_${query_list[${i}]}_${round_num}.log
 			read query_rate <<<$(cat ${Outputfile} | grep "complete"| sed -n '1,1p' | awk '{print $12}')
