@@ -259,74 +259,6 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		fi
 	done
 }
-monitor_test_status1() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
-	TEST_IP=$1
-	maxNumofOpenFiles=0
-	maxNumofThread=0
-	while true; do
-		temp_file_num_d=0
-		temp_thread_num_d=0
-		temp_file_num_c=0
-		temp_thread_num_c=0
-		dn_pid=$(ssh ${ACCOUNT}@${TEST_IP} "jps | grep DataNode | awk '{print $1}'")
-		cn_pid=$(ssh ${ACCOUNT}@${TEST_IP} "jps | grep ConfigNode | awk '{print $1}'")
-		if [ "$dn_pid" = "" ] && [ "${cn_pid}" = "" ]; then
-			temp_file_num_d=0
-			temp_thread_num_d=0
-			temp_file_num_c=0
-			temp_thread_num_c=0
-		elif [ "$dn_pid" = "" ] && [ "${cn_pid}" != "" ]; then
-			temp_file_num_d=0
-			temp_thread_num_d=0
-			temp_thread_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-			temp_file_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-		elif [ "$dn_pid" != "" ] && [ "${cn_pid}" = "" ]; then
-			temp_thread_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep DataNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-			temp_file_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-			temp_file_num_c=0
-			temp_thread_num_c=0
-		elif [ "$dn_pid" != "" ] && [ "${cn_pid}" != "" ]; then
-			temp_thread_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep DataNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-			temp_file_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-			temp_thread_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-			temp_file_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-		else
-			echo "无法计算！"
-		fi		
-		#监控打开文件数量			
-		let temp_file_num=${temp_file_num_d}+${temp_file_num_c}
-		if [ ${maxNumofOpenFiles} -lt ${temp_file_num} ]; then
-			maxNumofOpenFiles=${temp_file_num}
-		fi
-		#监控线程数
-		let temp_thread_num=${temp_thread_num_d}+${temp_thread_num_c}
-		if [ ${maxNumofThread} -lt ${temp_thread_num} ]; then
-			maxNumofThread=${temp_thread_num}
-		fi
-		#确认是否测试已结束
-		flag=0
-		str1=$(ssh ${ACCOUNT}@${Control} "ps aux | grep tsbs_ |grep -v grep | wc -l" 2>/dev/null)
-		if [ "$str1" = "1" ]; then
-			echo "测试未结束:${Control}"  > /dev/null 2>&1 &
-		else
-			echo "测试已结束:${Control}"
-			flag=$[${flag}+1]
-		fi
-		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
-		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-		if [ $t_time -ge 7200 ]; then
-			echo "测试失败"  #倒序输入形成负数结果
-			end_time=-1
-			cost_time=-1
-			break
-		fi
-		if [ "$flag" = "1" ]; then
-			end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
-			cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-			break
-		fi
-	done
-}
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
@@ -359,29 +291,9 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	maxNumofThread_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${TEST_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_D)
 	let maxNumofThread=${maxNumofThread_C}+${maxNumofThread_D}
 	maxNumofOpenFiles=$(get_single_index "max_over_time(file_count{instance=~\"${TEST_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFiles)
-	walFileSize=$(get_single_index "max_over_time(file_size{instance=~\"${IoTDB_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time walFileSize)
+	walFileSize=$(get_single_index "max_over_time(file_size{instance=~\"${TEST_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time walFileSize)
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1048576'}'`
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1024'}'`
-}
-
-collect_monitor_data1() { # 收集iotdb数据大小，顺、乱序文件数量
-	TEST_IP=$1
-	dataFileSize=0
-	dataFileSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
-	UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
-	if [ "$UNIT" = "M" ]; then
-		dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1024'}'`
-	elif [ "$UNIT" = "K" ]; then
-		dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1048576'}'`
-    elif [ "$UNIT" = "T" ]; then
-        dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'*'1024'}'`
-	else
-		dataFileSize=${dataFileSize}
-	fi	
-	numOfSe0Level=0
-	numOfUnse0Level=0
-	numOfSe0Level=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
-	numOfUnse0Level=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
 }
 backup_test_data() { # 备份测试数据
 	TEST_IP=$2
