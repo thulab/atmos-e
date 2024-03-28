@@ -26,7 +26,8 @@ PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="weeklytest_query_rel10" #数据库中表的名称
 SERVERTABLE="SERVER_MODE_weeklytest_query"
-
+############prometheus##########################
+metric_server="172.20.70.11"
 insert_list=(seq_w unseq_w seq_rw unseq_rw)
 query_data_type=(no_overflow is_overflow)
 query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3 Q4-b1 Q4-b2 Q4-b3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q7-4 Q8 Q9 Q10)

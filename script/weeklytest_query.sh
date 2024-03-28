@@ -26,7 +26,8 @@ PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="weeklytest_query" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
-
+############prometheus##########################
+metric_server="172.20.70.11"
 sensor_type_list=(one more)
 insert_list=(seq_w unseq_w seq_rw unseq_rw)
 query_data_type=(sequence unsequence)

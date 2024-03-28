@@ -26,6 +26,8 @@ DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_se_insert" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############公用函数##########################
+############prometheus##########################
+metric_server="172.20.70.11"
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
 ############定义监控采集项初始值##########################
