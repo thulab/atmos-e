@@ -50,6 +50,7 @@ dataFileSize_after=0
 maxNumofOpenFiles=0
 maxNumofThread=0
 errorLogSize=0
+walFileSize=0
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
