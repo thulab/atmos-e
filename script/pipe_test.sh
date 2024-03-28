@@ -31,6 +31,8 @@ PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_pipe_test" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
+############prometheus##########################
+metric_server="172.20.70.11"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
@@ -49,6 +51,7 @@ numOfUnse0LevelA=0
 dataFileSizeA=0
 maxNumofOpenFilesA=0
 maxNumofThreadA=0
+walFileSizeA=0
 errorLogSizeA=0
 failPointB=0
 throughputB=0
@@ -58,6 +61,7 @@ numOfUnse0LevelB=0
 dataFileSizeB=0
 maxNumofOpenFilesB=0
 maxNumofThreadB=0
+walFileSizeB=0
 errorLogSizeB=0
 ############定义监控采集项初始值##########################
 }
@@ -220,67 +224,7 @@ setup_env() {
 }
 monitor_test_status() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
 	TEST_IP=$1
-	maxNumofOpenFilesA=0
-	maxNumofThreadA=0
-	maxNumofOpenFilesB=0
-	maxNumofThreadB=0
 	while true; do
-		for (( j = 1; j < ${#IP_list[*]}; j++ ))
-		do
-			TEST_IP=${IP_list[$j]}
-			temp_file_num_d=0
-			temp_thread_num_d=0
-			temp_file_num_c=0
-			temp_thread_num_c=0
-			dn_pid=$(ssh ${ACCOUNT}@${TEST_IP} "jps | grep DataNode | awk '{print $1}'")
-			cn_pid=$(ssh ${ACCOUNT}@${TEST_IP} "jps | grep ConfigNode | awk '{print $1}'")
-			if [ "$dn_pid" = "" ] && [ "${cn_pid}" = "" ]; then
-				temp_file_num_d=0
-				temp_thread_num_d=0
-				temp_file_num_c=0
-				temp_thread_num_c=0
-			elif [ "$dn_pid" = "" ] && [ "${cn_pid}" != "" ]; then
-				temp_file_num_d=0
-				temp_thread_num_d=0
-				temp_thread_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-				temp_file_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-			elif [ "$dn_pid" != "" ] && [ "${cn_pid}" = "" ]; then
-				temp_thread_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep DataNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-				temp_file_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-				temp_file_num_c=0
-				temp_thread_num_c=0
-			elif [ "$dn_pid" != "" ] && [ "${cn_pid}" != "" ]; then
-				temp_thread_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep DataNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-				temp_file_num_d=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep DataNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-				temp_thread_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "pstree -p \$(ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}') | wc -l" 2>/dev/null)
-				temp_file_num_c=$(ssh ${ACCOUNT}@${TEST_IP} "ps aux | grep -v grep | grep ConfigNode | awk '{print \$2}' | xargs /usr/sbin/lsof -p | wc -l" 2>/dev/null)
-			else
-				echo "无法计算！"
-			fi
-			if [ $j -eq 1 ]; then
-				#监控打开文件数量			
-				let temp_file_num=${temp_file_num_d}+${temp_file_num_c}
-				if [ ${maxNumofOpenFilesA} -lt ${temp_file_num} ]; then
-					maxNumofOpenFilesA=${temp_file_num}
-				fi
-				#监控线程数
-				let temp_thread_num=${temp_thread_num_d}+${temp_thread_num_c}
-				if [ ${maxNumofThreadA} -lt ${temp_thread_num} ]; then
-					maxNumofThreadA=${temp_thread_num}
-				fi
-			else
-				#监控打开文件数量			
-				let temp_file_num=${temp_file_num_d}+${temp_file_num_c}
-				if [ ${maxNumofOpenFilesB} -lt ${temp_file_num} ]; then
-					maxNumofOpenFilesB=${temp_file_num}
-				fi
-				#监控线程数
-				let temp_thread_num=${temp_thread_num_d}+${temp_thread_num_c}
-				if [ ${maxNumofThreadB} -lt ${temp_thread_num} ]; then
-					maxNumofThreadB=${temp_thread_num}
-				fi
-			fi
-		done
 		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 		flagB=0
@@ -348,55 +292,42 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	dataFileSizeB=0
 	numOfSe0LevelB=0
 	numOfUnse0LevelB=0
+	maxNumofOpenFilesA=0
+	maxNumofThreadA=0
+	maxNumofOpenFilesB=0
+	maxNumofThreadB=0
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}	
-		D_errorLogSize=0
-		C_errorLogSize=0
 		if [ $j -eq 1 ]; then
-			dataFileSizeA=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
-			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
-			if [ "$UNIT" = "M" ]; then
-				dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'/'1024'}'`
-			elif [ "$UNIT" = "K" ]; then
-				dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'/'1048576'}'`
-			elif [ "$UNIT" = "T" ]; then
-				dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'*'1024'}'`
-			else
-				dataFileSizeA=${dataFileSizeA}
-			fi	
-			numOfSe0LevelA=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
-			numOfUnse0LevelA=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
-			
-			D_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_datanode_error.log | awk {'print $1'}")
-			C_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_confignode_error.log | awk {'print $1'}")
-			if [ "${D_errorLogSize}" = "0" ] && [ "${C_errorLogSize}" = "0" ]; then
-				errorLogSizeA=0
-			else
-				errorLogSizeA=1
-			fi
+			#调用监控获取数值
+			dataFileSizeA=$(get_single_index "sum(file_global_size{instance=~\"${TEST_IP}:9091\"})" $m_end_time dataFileSizeA)
+			dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'/'1048576'}'`
+			dataFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeA'/'1024'}'`
+			numOfSe0LevelA=$(get_single_index "sum(file_global_count{instance=~\"${TEST_IP}:9091\",name=\"seq\"})" $m_end_time dataFileSizeA)
+			numOfUnse0LevelA=$(get_single_index "sum(file_global_count{instance=~\"${TEST_IP}:9091\",name=\"unseq\"})" $m_end_time dataFileSizeA)
+			maxNumofThreadA_C=$(get_single_index "max_over_time(process_threads_count{instance=~\"${TEST_IP}:9081\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThreadA_C)
+			maxNumofThreadA_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${TEST_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThreadA_D)
+			let maxNumofThreadA=${maxNumofThreadA_C}+${maxNumofThreadA_D}
+			maxNumofOpenFilesA=$(get_single_index "max_over_time(file_count{instance=~\"${TEST_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFilesA)
+			walFileSizeA=$(get_single_index "max_over_time(file_size{instance=~\"${TEST_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time walFileSizeA)
+			walFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$walFileSizeA'/'1048576'}'`
+			walFileSizeA=`awk 'BEGIN{printf "%.2f\n",'$walFileSizeA'/'1024'}'`
 		else
-			dataFileSizeB=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk '{sub(/.$/,\"\")}1'")
-			UNIT=$(ssh ${ACCOUNT}@${TEST_IP} "du -h -d0 ${TEST_IOTDB_PATH}/data/datanode/data | awk {'print \$1'} | awk -F '' '\$0=\$NF'")
-			if [ "$UNIT" = "M" ]; then
-				dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'/'1024'}'`
-			elif [ "$UNIT" = "K" ]; then
-				dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'/'1048576'}'`
-			elif [ "$UNIT" = "T" ]; then
-				dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'*'1024'}'`
-			else
-				dataFileSizeB=${dataFileSizeB}
-			fi	
-			numOfSe0LevelB=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/sequence -name "*.tsfile" | wc -l")
-			numOfUnse0LevelB=$(ssh ${ACCOUNT}@${TEST_IP} "find ${TEST_IOTDB_PATH}/data/datanode/data/unsequence -name "*.tsfile" | wc -l")
-			
-			D_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_datanode_error.log | awk {'print $1'}")
-			C_errorLogSize=$(ssh ${ACCOUNT}@${TEST_IP} "du -sh ${TEST_IOTDB_PATH}/logs/log_confignode_error.log | awk {'print $1'}")
-			if [ "${D_errorLogSize}" = "0" ] && [ "${C_errorLogSize}" = "0" ]; then
-				errorLogSizeB=0
-			else
-				errorLogSizeB=1
-			fi
+			#调用监控获取数值
+			dataFileSizeB=$(get_single_index "sum(file_global_size{instance=~\"${TEST_IP}:9091\"})" $m_end_time dataFileSizeB)
+			dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'/'1048576'}'`
+			dataFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$dataFileSizeB'/'1024'}'`
+			numOfSe0LevelB=$(get_single_index "sum(file_global_count{instance=~\"${TEST_IP}:9091\",name=\"seq\"})" $m_end_time dataFileSizeB)
+			numOfUnse0LevelB=$(get_single_index "sum(file_global_count{instance=~\"${TEST_IP}:9091\",name=\"unseq\"})" $m_end_time dataFileSizeB)
+			maxNumofThreadB_C=$(get_single_index "max_over_time(process_threads_count{instance=~\"${TEST_IP}:9081\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThreadB_C)
+			maxNumofThreadB_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${TEST_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThreadB_D)
+			let maxNumofThreadB=${maxNumofThreadB_C}+${maxNumofThreadB_D}
+			maxNumofOpenFilesB=$(get_single_index "max_over_time(file_count{instance=~\"${TEST_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFilesB)
+			walFileSizeB=$(get_single_index "max_over_time(file_size{instance=~\"${TEST_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time walFileSizeB)
+			walFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$walFileSizeB'/'1048576'}'`
+			walFileSizeB=`awk 'BEGIN{printf "%.2f\n",'$walFileSizeB'/'1024'}'`
+
 		fi
 	done
 }
@@ -449,11 +380,12 @@ test_operation() {
 		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "cd ${TEST_BM_PATH};${TEST_BM_PATH}/benchmark.sh > /dev/null 2>&1 &")
 	done
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
-
+	m_start_time=$(date +%s)
 	#等待1分钟
 	sleep 60
 	monitor_test_status
 	#收集启动后基础监控数据
+	m_end_time=$(date +%s)
 	collect_monitor_data
 	#测试结果收集写入数据库
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
@@ -480,7 +412,7 @@ test_operation() {
 		fi
 	done	
 	#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,start_time,end_time,cost_time,wait_time,failPointA,throughputA,LatencyA,numOfSe0LevelA,numOfUnse0LevelA,dataFileSizeA,maxNumofOpenFilesA,maxNumofThreadA,errorLogSizeA,failPointB,throughputB,LatencyB,numOfSe0LevelB,numOfUnse0LevelB,dataFileSizeB,maxNumofOpenFilesB,maxNumofThreadB,errorLogSizeB,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${start_time}','${end_time}',${cost_time},${wait_time},${failPointA},${throughputA},${LatencyA},${numOfSe0LevelA},${numOfUnse0LevelA},${dataFileSizeA},${maxNumofOpenFilesA},${maxNumofThreadA},${errorLogSizeA},${failPointB},${throughputB},${LatencyB},${numOfSe0LevelB},${numOfUnse0LevelB},${dataFileSizeB},${maxNumofOpenFilesB},${maxNumofThreadB},${errorLogSizeB},${protocol_class})"
+	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,start_time,end_time,cost_time,wait_time,failPointA,throughputA,LatencyA,numOfSe0LevelA,numOfUnse0LevelA,dataFileSizeA,maxNumofOpenFilesA,maxNumofThreadA,walFileSizeA,errorLogSizeA,failPointB,throughputB,LatencyB,numOfSe0LevelB,numOfUnse0LevelB,dataFileSizeB,maxNumofOpenFilesB,maxNumofThreadB,walFileSizeB,errorLogSizeB,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${start_time}','${end_time}',${cost_time},${wait_time},${failPointA},${throughputA},${LatencyA},${numOfSe0LevelA},${numOfUnse0LevelA},${dataFileSizeA},${maxNumofOpenFilesA},${maxNumofThreadA},${walFileSizeA},${errorLogSizeA},${failPointB},${throughputB},${LatencyB},${numOfSe0LevelB},${numOfUnse0LevelB},${dataFileSizeB},${maxNumofOpenFilesB},${maxNumofThreadB},${walFileSizeB},${errorLogSizeB},${protocol_class})"
 
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 
