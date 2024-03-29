@@ -205,6 +205,7 @@ else
 		cost_time=${F_t_time}
 		pass_num=0
 		fail_num=0
+		F_str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "drop database root.**")
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,pass_num,fail_num,start_time,end_time,cost_time,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${pass_num},${fail_num},'${F_start_time}','${F_now_time}',${cost_time},'FirstInsertSQL')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 	else
