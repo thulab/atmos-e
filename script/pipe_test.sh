@@ -285,6 +285,18 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		fi
 	done
 }
+function get_single_index() {
+    # 获取 prometheus 单个指标的值
+    local end=$2
+    local index_key=$3
+    local url="http://${metric_server}:9090/api/v1/query"
+    local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
+    index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
+	if [[ "$index_value" == "null" || -z "$index_value" ]]; then 
+		index_value=0
+	fi
+	echo ${index_value}
+}
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	dataFileSizeA=0
 	numOfSe0LevelA=0
