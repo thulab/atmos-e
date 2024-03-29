@@ -213,7 +213,6 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
-    local index_key=$3
     local url="http://${metric_server}:9090/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
@@ -232,16 +231,16 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	maxNumofThread_D=0
 	maxNumofThread=0
 	#调用监控获取数值
-	dataFileSize=$(get_single_index "sum(file_global_size{instance=~\"${IoTDB_IP}:9091\"})" $m_end_time dataFileSize)
+	dataFileSize=$(get_single_index "sum(file_global_size{instance=~\"${IoTDB_IP}:9091\"})" $m_end_time)
 	dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1048576'}'`
 	dataFileSize=`awk 'BEGIN{printf "%.2f\n",'$dataFileSize'/'1024'}'`
-	numOfSe0Level=$(get_single_index "sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"seq\"})" $m_end_time numOfSe0Level)
-	numOfUnse0Level=$(get_single_index "sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"unseq\"})" $m_end_time numOfUnse0Level)
-	maxNumofThread_C=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9081\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_C)
-	maxNumofThread_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofThread_D)
+	numOfSe0Level=$(get_single_index "sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"seq\"})" $m_end_time)
+	numOfUnse0Level=$(get_single_index "sum(file_global_count{instance=~\"${IoTDB_IP}:9091\",name=\"unseq\"})" $m_end_time)
+	maxNumofThread_C=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9081\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxNumofThread_D=$(get_single_index "max_over_time(process_threads_count{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	let maxNumofThread=${maxNumofThread_C}+${maxNumofThread_D}
-	maxNumofOpenFiles=$(get_single_index "max_over_time(file_count{instance=~\"${IoTDB_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time maxNumofOpenFiles)
-	walFileSize=$(get_single_index "max_over_time(file_size{instance=~\"${IoTDB_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time walFileSize)
+	maxNumofOpenFiles=$(get_single_index "max_over_time(file_count{instance=~\"${IoTDB_IP}:9091\",name=\"open_file_handlers\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	walFileSize=$(get_single_index "max_over_time(file_size{instance=~\"${IoTDB_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1048576'}'`
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1024'}'`
 }
