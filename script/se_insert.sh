@@ -204,6 +204,7 @@ function get_single_index() {
     local url="http://${metric_server}:9090/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
+	echo "curl -G -s $url ${data_param}"
 	if [[ "$index_value" == "null" || -z "$index_value" ]]; then 
 		index_value=0
 	fi
@@ -221,6 +222,7 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	maxNumofThread=0
 	#调用监控获取数值
 	dataFileSize=$(get_single_index "sum(file_global_size{instance=~\"${TEST_IP}:9091\"})" $m_end_time)
+	echo "get_single_index \"sum(file_global_size{instance=~\"${TEST_IP}:9091\"})\" $m_end_time"
 	echo ${dataFileSize}
 	dataFileSize=`awk 'BEGIN{printf "%.2f\n",'${dataFileSize}'/'1048576'}'`
 	dataFileSize=`awk 'BEGIN{printf "%.2f\n",'${dataFileSize}'/'1024'}'`
