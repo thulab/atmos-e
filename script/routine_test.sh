@@ -1,6 +1,6 @@
 #!/bin/sh
 #登录用户名
-TEST_IP=172.20.31.64
+TEST_IP="172.20.31.64"
 ACCOUNT=root
 test_type=routine_test
 #初始环境存放路径

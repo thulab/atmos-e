@@ -1,6 +1,6 @@
 #!/bin/sh
 #登录用户名
-TEST_IP=172.20.31.12
+TEST_IP="172.20.31.12"
 ACCOUNT=root
 test_type=se_query
 #初始环境存放路径

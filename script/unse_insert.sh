@@ -1,6 +1,6 @@
 #!/bin/sh
 #登录用户名
-TEST_IP=172.20.31.13
+TEST_IP="172.20.31.13"
 ACCOUNT=root
 test_type=unse_insert
 #初始环境存放路径

@@ -1,6 +1,6 @@
 #!/bin/sh
 #登录用户名
-TEST_IP=172.20.31.00
+TEST_IP="172.20.31.00"
 ACCOUNT=root
 test_type=rel_insert
 #初始环境存放路径

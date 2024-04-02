@@ -1,6 +1,6 @@
 #!/bin/sh
 #登录用户名
-TEST_IP=172.20.31.8
+TEST_IP="172.20.31.8"
 ACCOUNT=root
 test_type=ts_performance
 #初始环境存放路径
