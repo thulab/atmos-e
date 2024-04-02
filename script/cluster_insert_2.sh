@@ -38,7 +38,7 @@ DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_cluster_insert_2" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
-metric_server="172.20.70.11"
+metric_server="172.20.70.11:9090"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
@@ -358,7 +358,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
-    local url="http://${metric_server}:9090/api/v1/query"
+    local url="http://${metric_server}/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
 	if [[ "$index_value" == "null" || -z "$index_value" ]]; then 

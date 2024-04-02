@@ -27,7 +27,7 @@ DBNAME="QA_ATM"  #数据库名称
 TABLENAME="weeklytest_insert" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
-metric_server="172.20.70.11"
+metric_server="172.20.70.11:9090"
 insert_list=(seq_w unseq_w seq_rw unseq_rw)
 query_data_type=(no_overflow is_overflow)
 query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3 Q4-b1 Q4-b2 Q4-b3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q7-4 Q8 Q9 Q10)
@@ -205,7 +205,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
-    local url="http://${metric_server}:9090/api/v1/query"
+    local url="http://${metric_server}/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
 	if [[ "$index_value" == "null" || -z "$index_value" ]]; then 

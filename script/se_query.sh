@@ -28,7 +28,7 @@ DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_se_query" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
-metric_server="172.20.70.11"
+metric_server="172.20.70.11:9090"
 #query_data_type=(common)
 query_data_type=(common aligned template tempaligned)
 query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4a-1 Q4a-2 Q4a-3 Q4b-1 Q4b-2 Q4b-3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q8 Q9-1 Q9-2 Q9-3 Q10)
@@ -209,7 +209,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
-    local url="http://${metric_server}:9090/api/v1/query"
+    local url="http://${metric_server}/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
 	if [[ "$index_value" == "null" || -z "$index_value" ]]; then 

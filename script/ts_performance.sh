@@ -30,7 +30,7 @@ DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_ts_performance" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
-metric_server="172.20.70.11"
+metric_server="172.20.70.11:9090"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
