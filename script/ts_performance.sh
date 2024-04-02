@@ -1,6 +1,5 @@
 #!/bin/sh
 #登录用户名
-TEST_IP="172.20.31.8"
 ACCOUNT=root
 test_type=ts_performance
 #初始环境存放路径
@@ -29,8 +28,6 @@ PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_ts_performance" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
-############prometheus##########################
-metric_server="172.20.70.11:9090"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
@@ -322,7 +319,6 @@ test_operation() {
 	collect_data_before ${DATA_PATH}/${data_type}/${ts_type}
 	#启动iotdb
 	start_iotdb
-	m_start_time=$(date +%s)
 	sleep 10	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
@@ -355,7 +351,6 @@ test_operation() {
 	start_time=`date`
 	ts_state=$(${TEST_IOTDB_PATH}/tools/load-tsfile.sh -f ${DATA_PATH}/${data_type}/${ts_type} -h 127.0.0.1 -p 6667 -u root -pw root --sgLevel 2 --verify true --onSuccess none >${TEST_IOTDB_PATH}/tools/log.txt &)
 	monitor_test_status
-	m_end_time=$(date +%s)
 	#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 	ts_numOfPoints=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh  -h 127.0.0.1 -p 6667 -u root -pw root -e "select count(s_0) from root.test.g_0.d_0" | sed -n '4p' | sed s/\|//g | sed 's/[[:space:]]//g')
 	
@@ -374,7 +369,6 @@ test_operation() {
 	sed -i "s/^# query_timeout_threshold=60000.*$/query_timeout_threshold=600000/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#启动iotdb
 	start_iotdb
-	m_start_time=$(date +%s)
 	sleep 10	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
@@ -408,7 +402,6 @@ test_operation() {
 	mkdir -p ${TEST_IOTDB_PATH}/tools/data/datanode/data/sequence
 	ts_state=$(${TEST_IOTDB_PATH}/tools/export-tsfile.sh -h 127.0.0.1 -p 6667 -u root -pw root -td ${TEST_IOTDB_PATH}/tools/data/datanode/data/sequence -f export_tsfile -q "select * from root.test.g_0.d_0" >${TEST_IOTDB_PATH}/tools/log.txt &)
 	monitor_test_status
-	m_end_time=$(date +%s)
 	#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 	ts_numOfPoints=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh  -h 127.0.0.1 -p 6667 -u root -pw root -e "select count(s_0) from root.test.g_0.d_0" | sed -n '4p' | sed s/\|//g | sed 's/[[:space:]]//g')
 	
@@ -427,7 +420,6 @@ test_operation() {
 	sed -i "s/^# query_timeout_threshold=60000.*$/query_timeout_threshold=600000/g" ${TEST_IOTDB_PATH}/conf/iotdb-common.properties
 	#启动iotdb
 	start_iotdb
-	m_start_time=$(date +%s)
 	sleep 10	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
@@ -466,7 +458,6 @@ test_operation() {
 		ts_state=$(${TEST_IOTDB_PATH}/tools/export-data.sh -h 127.0.0.1 -p 6667 -u root -pw root -td ${TEST_IOTDB_PATH}/tools/data/datanode/data/sequence -f export_csv -q "select * from root.test.g_0.d_0" >${TEST_IOTDB_PATH}/tools/log.txt &)
 	fi
 	monitor_test_status
-	m_end_time=$(date +%s)
 	#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 	ts_numOfPoints=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh  -h 127.0.0.1 -p 6667 -u root -pw root -e "select count(s_0) from root.test.g_0.d_0" | sed -n '4p' | sed s/\|//g | sed 's/[[:space:]]//g')
 	

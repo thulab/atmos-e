@@ -1,6 +1,5 @@
 #!/bin/sh
 #登录用户名
-TEST_IP="172.20.31.28"
 ACCOUNT=root
 test_type=compaction
 #初始环境存放路径
@@ -28,8 +27,6 @@ PASSWORD="iotdb2019"
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_compaction" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
-############prometheus##########################
-metric_server="172.20.70.11:9090"
 ############公用函数##########################
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
@@ -384,7 +381,6 @@ test_operation() {
 	collect_data_before
 	#启动iotdb和monitor监控
 	start_iotdb
-	m_start_time=$(date +%s)
 	sleep 10	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
@@ -415,7 +411,6 @@ test_operation() {
 	#等待30分钟
 	sleep 30
 	monitor_test_status
-	m_end_time=$(date +%s)
 	#停止IoTDB程序和监控程序
 	stop_iotdb
 	sleep 30
@@ -444,7 +439,6 @@ test_operation() {
 	collect_data_before
 	#启动iotdb和monitor监控
 	start_iotdb
-	m_start_time=$(date +%s)
 	sleep 10	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
@@ -475,7 +469,6 @@ test_operation() {
 	#等待30分钟
 	sleep 30
 	monitor_test_status
-	m_end_time=$(date +%s)
 	#停止IoTDB程序和监控程序
 	stop_iotdb
 	sleep 30
@@ -503,7 +496,6 @@ test_operation() {
 	collect_data_before
 	#启动iotdb和monitor监控
 	start_iotdb
-	m_start_time=$(date +%s)
 	sleep 10	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 20; t_wait++ ))
@@ -532,7 +524,6 @@ test_operation() {
 	#等待30分钟
 	sleep 30
 	monitor_test_status
-	m_end_time=$(date +%s)
 	#停止IoTDB程序和监控程序
 	stop_iotdb
 	sleep 30
