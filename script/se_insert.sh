@@ -210,7 +210,7 @@ function get_single_index() {
 	echo ${index_value}
 }
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
-	#TEST_IP=$1
+	TEST_IP=$1
 	dataFileSize=0
 	walFileSize=0
 	numOfSe0Level=0
@@ -320,7 +320,7 @@ test_operation() {
 	check_iotdb_pid
 
 	#收集启动后基础监控数据
-	collect_monitor_data
+	collect_monitor_data ${TEST_IP}
 	#测试结果收集写入数据库
 	csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
 	read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
