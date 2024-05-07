@@ -22,7 +22,7 @@ end if
 
 WScript.Sleep(3000)
 set ws=WScript.CreateObject("WScript.Shell")
-ws.Run "cmd /c D:\first-rest-test\iotdbtest\iotdbtest.exe 127.0.0.1:6667 1 1 43200 1 10000 0 1000",1
+ws.Run "cmd /c D:\first-rest-test\iotdbtest\iotdbtest.exe 172.20.31.7:6667 1 1 43200 1 10000 0 1000",1
 ws.AppActivate "C:\Windows\System32\cmd.exe"
 WScript.Sleep(3000)
 
