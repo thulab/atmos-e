@@ -115,11 +115,11 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	sed -i "s/^# dn_metric_level=.*$/dn_metric_level=ALL/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
 	sed -i "s/^dn_metric_prometheus_reporter_port=.*$/dn_metric_prometheus_reporter_port=9091/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
 	
-	sed -i "s/^cn_internal_address.*$/cn_internal_address=${IoTDB_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
-	sed -i "s/^cn_seed_config_node.*$/cn_seed_config_node=${IoTDB_IP}:10710/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
-	sed -i "s/^dn_rpc_address.*$/dn_rpc_address=${IoTDB_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
-	sed -i "s/^dn_internal_address.*$/dn_internal_address=${IoTDB_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
-	sed -i "s/^dn_seed_config_node.*$/dn_seed_config_node=${IoTDB_IP}:10710/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties	
+	#sed -i "s/^cn_internal_address.*$/cn_internal_address=${IoTDB_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
+	#sed -i "s/^cn_seed_config_node.*$/cn_seed_config_node=${IoTDB_IP}:10710/g" ${TEST_IOTDB_PATH}/conf/iotdb-confignode.properties
+	#sed -i "s/^dn_rpc_address.*$/dn_rpc_address=${IoTDB_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
+	#sed -i "s/^dn_internal_address.*$/dn_internal_address=${IoTDB_IP}/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties
+	#sed -i "s/^dn_seed_config_node.*$/dn_seed_config_node=${IoTDB_IP}:10710/g" ${TEST_IOTDB_PATH}/conf/iotdb-datanode.properties	
 }
 set_protocol_class() { 
 	config_node=$1
