@@ -1,0 +1,61 @@
+dim a
+a=Array(0,0,0,0,0,0,0,0,0,0)
+dim numa
+numa=0
+
+dim b
+b=Array(0,0,0,0,0,0,0,0,0,0)
+dim numb
+numb=0
+
+
+Set w = GetObject("winmgmts:")
+Set p = w.ExecQuery("select * from win32_process where name='cmd.exe'")
+if p.Count = 0 then
+msgbox "指定进程未运行或用户权限不足以获得其信息。"
+else
+For Each i In p
+a(num)=i.ProcessId
+numa=numa+1
+Next
+end if
+
+WScript.Sleep(3000)
+set ws=WScript.CreateObject("WScript.Shell")
+ws.Run "cmd /c D:\first-rest-test\iotdbtest\iotdbtest.exe 127.0.0.1:6667 1 5 43200 1 10000 0 1000",1
+ws.AppActivate "C:\Windows\System32\cmd.exe"
+WScript.Sleep(3000)
+
+Set w = GetObject("winmgmts:")
+Set p = w.ExecQuery("select * from win32_process where name='cmd.exe'")
+if p.Count = 0 then
+msgbox "指定进程未运行或用户权限不足以获得其信息。"
+else
+For Each i In p
+b(num)=i.ProcessId
+numb=numb+1
+Next
+end if
+
+
+For j = 0 To numb-1
+For m = 0 To numa-1
+If b(j) = a(m) Then 
+    b(j)=0
+    Exit For
+End If
+Next
+Next
+
+For j = 0 To numb-1
+If b(j) =0 Then 
+b(j) =0
+Else
+WScript.Sleep(3000)
+ws.SendKeys "run"
+WScript.Sleep 1*1000
+ws.SendKeys "{ENTER}"
+End If
+Next
+
+

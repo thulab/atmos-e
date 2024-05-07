@@ -3,7 +3,7 @@
 ACCOUNT=Administrator
 test_type=helishi_test
 #初始环境存放路径
-INIT_PATH=/root/zk_test
+INIT_PATH=/root/zk_test_helishi
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
 BUCKUP_PATH=/nasdata/repository/helishi_test
@@ -11,6 +11,7 @@ REPOS_PATH=/nasdata/repository/master
 TEST_PATH=${INIT_PATH}/first-rest-test
 TEST_IOTDB_PATH=${TEST_PATH}/apache-iotdb
 TEST_IOTDB_PATH_W="D:\\first-rest-test"
+TEST_File_PATH_W="C:\\run_test.vbs"
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
@@ -74,7 +75,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		mkdir -p ${TEST_PATH}
 		mkdir -p ${TEST_PATH}/apache-iotdb
 	fi
-	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
+	#cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
+	cp -rf /root/zk_test_helishi/apache-iotdb/* ${TEST_IOTDB_PATH}/
 	mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
 	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
 	mkdir -p ${TEST_IOTDB_PATH}/activation
@@ -129,6 +131,7 @@ setup_env() {
 	TEST_IP=$1
 	echo "开始重置环境！"
 	#ssh ${ACCOUNT}@${TEST_IP} "shutdown /f /r /t 0"
+	pid3=$(ssh ${ACCOUNT}@${TEST_IP} "schtasks /Run /TN  run_clean")
 	sleep 120
 	rflag=0
 	while true; do
@@ -253,8 +256,8 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	#DiskIO无法获取 - windows环境限制
 }
 mv_config_file() { # 移动配置文件
-	rm -rf ${BM_PATH}/conf/config.properties
-	cp -rf ${ATMOS_PATH}/conf/${test_type}/$1 ${BM_PATH}/conf/config.properties
+	ssh ${ACCOUNT}@${TEST_IP} "del ${TEST_File_PATH_W}"
+	scp ${ATMOS_PATH}/conf/${test_type}/$1 ${ACCOUNT}@${TEST_IP}:${TEST_File_PATH_W}
 }
 test_operation() {
 	TEST_IP=$1
@@ -290,11 +293,6 @@ test_operation() {
 		monitor_test_status ${TEST_IP}
 		m_end_time=$(date +%s)
 		collect_monitor_data
-		#测试结果收集写入数据库
-		#csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
-		#read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
-		#read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
-
 		cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,maxCPULoad,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${data_type}','INGESTION',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${walFileSize},${maxCPULoad},'${protocol_class}')"
 		echo ${insert_sql}
