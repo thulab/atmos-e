@@ -206,6 +206,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 			t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 			if [ $t_time -ge 720 ]; then
 				echo "测试2小时终止结束"
+				end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 				mkdir -p ${BM_PATH}/data/csvOutput
 				cd ${BM_PATH}/data/csvOutput
 				touch Stuck_result.csv
@@ -301,6 +302,7 @@ test_operation() {
 		echo ${insert_sql}
 		echo ${commit_id}版本${ts_type}写入${data_type}数据的${okPoint}点平均耗时${Latency}毫秒。吞吐率为：${throughput} 点/秒
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "schtasks /Run /TN  run_clean")
 		#查询测试 TODO
 	done
 }
