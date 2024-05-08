@@ -77,8 +77,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		mkdir -p ${TEST_PATH}/apache-iotdb
 		mkdir -p ${TEST_PATH}/iotdbtest
 	fi
-	#cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
-	cp -rf /root/zk_test_helishi/apache-iotdb/* ${TEST_IOTDB_PATH}/
+	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_IOTDB_PATH}/
+	#cp -rf /root/zk_test_helishi/apache-iotdb/* ${TEST_IOTDB_PATH}/
 	cp -rf /root/zk_test_helishi/iotdbtest/iotdbtest.exe ${TEST_PATH}/iotdbtest/iotdbtest.exe
 	mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
 	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
