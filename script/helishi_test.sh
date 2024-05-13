@@ -204,7 +204,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		if [ ! -d "$csvOutput" ]; then
 			now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 			t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-			if [ $t_time -ge 720 ]; then
+			if [ $t_time -ge 7200 ]; then
 				echo "测试2小时终止结束"
 				end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 				mkdir -p ${BM_PATH}/data/csvOutput
