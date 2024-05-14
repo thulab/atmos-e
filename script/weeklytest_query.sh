@@ -7,7 +7,7 @@ test_type=weeklytest_query
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
-DATA_PATH=/data/original
+DATA_PATH=/nasdata/weeklytest_query/original
 BUCKUP_PATH=/nasdata/repository/weeklytest_query
 REPOS_PATH=/nasdata/repository/master
 #测试数据运行路径
