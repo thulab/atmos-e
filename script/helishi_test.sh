@@ -64,6 +64,7 @@ maxNumofThread=0
 errorLogSize=0
 walFileSize=0
 maxCPULoad=0
+avgCPULoad=0
 ############定义监控采集项初始值##########################
 }
 set_env() { # 拷贝编译好的iotdb到测试路径
@@ -257,6 +258,7 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1024'}'`
 	throughput=$(get_single_index "sum(rate(quantity_total{instance=~\"${TEST_IP}:9091\",database!=\"root.__system\"}[1m])) by (database)" $m_end_time)
 	maxCPULoad=$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	avgCPULoad=$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	#DiskIO无法获取 - windows环境限制
 }
 mv_config_file() { # 移动配置文件
@@ -298,7 +300,7 @@ test_operation() {
 		m_end_time=$(date +%s)
 		collect_monitor_data
 		cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,maxCPULoad,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${data_type}','INGESTION',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${walFileSize},${maxCPULoad},'${protocol_class}')"
+		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,maxCPULoad,avgCPULoad,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}','${data_type}','INGESTION',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${walFileSize},${maxCPULoad},${avgCPULoad},'${protocol_class}')"
 		echo ${insert_sql}
 		echo ${commit_id}版本${ts_type}写入${data_type}数据的${okPoint}点平均耗时${Latency}毫秒。吞吐率为：${throughput} 点/秒
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
