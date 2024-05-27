@@ -63,12 +63,18 @@ maxNumofOpenFilesB=0
 maxNumofThreadB=0
 walFileSizeB=0
 errorLogSizeB=0
-maxCPULoad=0
-avgCPULoad=0
-maxDiskIOOpsRead=0
-maxDiskIOOpsWrite=0
-maxDiskIOSizeRead=0
-maxDiskIOSizeWrite=0
+maxCPULoadA=0
+avgCPULoadA=0
+maxDiskIOOpsReadA=0
+maxDiskIOOpsWriteA=0
+maxDiskIOSizeReadA=0
+maxDiskIOSizeWriteA=0
+maxCPULoadB=0
+avgCPULoadB=0
+maxDiskIOOpsReadB=0
+maxDiskIOOpsWriteB=0
+maxDiskIOSizeReadB=0
+maxDiskIOSizeWriteB=0
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
