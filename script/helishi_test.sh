@@ -260,14 +260,14 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	walFileSize=$(get_single_index "max_over_time(file_size{instance=~\"${IoTDB_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1048576'}'`
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1024'}'`
-	throughput=$(get_single_index "sum(rate(quantity_total{instance=~\"${TEST_IP}:9091\",database!=\"root.__system\"}[1m])) by (database)" $m_end_time)
+	throughput=$(get_single_index "sum(rate(quantity_total{instance=~\"${IoTDB_IP}:9091\",database!=\"root.__system\"}[1m])) by (database)" $m_end_time)
 	maxCPULoad=$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	avgCPULoad=$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	#DiskIO无法获取 - windows环境限制
-	maxDiskIOOpsRead=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
-	maxDiskIOOpsWrite=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
-	maxDiskIOSizeRead=$(get_single_index "max_over_time(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
-	maxDiskIOSizeWrite=$(get_single_index "max_over_time(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOOpsRead=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${IoTDB_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOOpsWrite=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${IoTDB_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOSizeRead=$(get_single_index "max_over_time(disk_io_size{instance=~\"${IoTDB_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOSizeWrite=$(get_single_index "max_over_time(disk_io_size{instance=~\"${IoTDB_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 }
 mv_config_file() { # 移动配置文件
 	ssh ${ACCOUNT}@${TEST_IP} "del ${TEST_File_PATH_W}"
