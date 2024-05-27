@@ -65,6 +65,10 @@ errorLogSize=0
 walFileSize=0
 maxCPULoad=0
 avgCPULoad=0
+maxDiskIOOpsRead=0
+maxDiskIOOpsWrite=0
+maxDiskIOSizeRead=0
+maxDiskIOSizeWrite=0
 ############定义监控采集项初始值##########################
 }
 set_env() { # 拷贝编译好的iotdb到测试路径
@@ -260,6 +264,10 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	maxCPULoad=$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	avgCPULoad=$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${IoTDB_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	#DiskIO无法获取 - windows环境限制
+	maxDiskIOOpsRead=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOOpsWrite=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOSizeRead=$(get_single_index "max_over_time(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOSizeWrite=$(get_single_index "max_over_time(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 }
 mv_config_file() { # 移动配置文件
 	ssh ${ACCOUNT}@${TEST_IP} "del ${TEST_File_PATH_W}"
