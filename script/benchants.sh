@@ -61,6 +61,12 @@ maxNumofThread=0
 errorLogSize=0
 walFileSize=0
 round_num=0
+maxCPULoad=0
+avgCPULoad=0
+maxDiskIOOpsRead=0
+maxDiskIOOpsWrite=0
+maxDiskIOSizeRead=0
+maxDiskIOSizeWrite=0
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
@@ -293,6 +299,12 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	walFileSize=$(get_single_index "max_over_time(file_size{instance=~\"${TEST_IP}:9091\",name=~\"wal\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1048576'}'`
 	walFileSize=`awk 'BEGIN{printf "%.2f\n",'$walFileSize'/'1024'}'`
+	maxCPULoad=$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${TEST_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	avgCPULoad=$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${TEST_IP}:9091\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOOpsRead=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOOpsWrite=$(get_single_index "max_over_time(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOSizeRead=$(get_single_index "max_over_time(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
+	maxDiskIOSizeWrite=$(get_single_index "max_over_time(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 }
 backup_test_data() { # 备份测试数据
 	TEST_IP=$2
@@ -364,7 +376,7 @@ test_operation() {
 		throughput_metrics=-3
 		throughput_rows=-3
 	fi
-	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${walFileSize},'write')"
+	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'write')"
 	echo "${insert_sql}"
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 	backup_test_data ${server_kind} ${TEST_IP} write
@@ -453,7 +465,7 @@ test_operation_q() {
 			Outputfile=${BM_PATH}/TestResult/query_output_${query_list[${i}]}_${round_num}.log
 			read query_rate <<<$(cat ${Outputfile} | grep "complete"| sed -n '1,1p' | awk '{print $12}')
 			read MIN_NUM MED_NUM MEAN_NUM MAX_NUM STDDEV_NUM SUM_NUM COUNT_NUM <<<$(cat ${Outputfile} | grep "min"| sed 's/ms//g' | sed 's/sec//g' | sed 's/,//g' | sed '$!d' | awk '{print $2,$4,$6,$8,$10,$12,$14}')
-			insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark,walFileSize,round_num) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${query_list[${i}]}',${walFileSize},${round_num})"
+			insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,server_kind,throughput_metrics,throughput_rows,query_rate,MIN_NUM,MEAN_NUM,MED_NUM,MAX_NUM,STDDEV_NUM,SUM_NUM,COUNT_NUM,numOfSe0Level,numOfUnse0Level,start_time,end_time,cost_time,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,round_num) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${server_kind}',${throughput_metrics},${throughput_rows},${query_rate},${MIN_NUM},${MEAN_NUM},${MED_NUM},${MAX_NUM},${STDDEV_NUM},${SUM_NUM},${COUNT_NUM},${numOfSe0Level},${numOfUnse0Level},'${start_time}','${end_time}',${cost_time},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},'${query_list[${i}]}',${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},${round_num})"
 			echo "${insert_sql}"
 			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 			sleep 20
