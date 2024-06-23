@@ -121,11 +121,11 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	echo "dn_metric_level=ALL" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 	echo "dn_metric_prometheus_reporter_port=9091" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 	
-	echo "cn_internal_address=${IoTDB_IP}" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
-	echo "cn_seed_config_node=${IoTDB_IP}:10710" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
-	echo "dn_rpc_address.*$/dn_rpc_address=${IoTDB_IP}" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
-	echo "dn_internal_address=${IoTDB_IP}" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
-	echo "dn_seed_config_node=${IoTDB_IP}:10710" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	#echo "cn_internal_address=${IoTDB_IP}" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	#echo "cn_seed_config_node=${IoTDB_IP}:10710" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	#echo "dn_rpc_address=${IoTDB_IP}" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	#echo "dn_internal_address=${IoTDB_IP}" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	#echo "dn_seed_config_node=${IoTDB_IP}:10710" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 }
 set_protocol_class() { 
 	config_node=$1
