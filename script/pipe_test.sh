@@ -297,7 +297,9 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 					fi
 
 				done
-				
+				if [ "$flag" = "50" ]; then
+					break
+				fi
 			else
 				#echo "同步未结束:${Control}"  > /dev/null 2>&1 &
 				echo "同步未结束:${Control}"
