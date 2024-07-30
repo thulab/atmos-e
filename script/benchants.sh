@@ -115,10 +115,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		mkdir -p ${TEST_PATH}
 		mkdir -p ${TEST_PATH}/apache-iotdb
 	fi
-		
+	
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/apache-iotdb/
-	mkdir -p ${TEST_PATH}/apache-iotdb/data/datanode/system/license
-	cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_PATH}/apache-iotdb/data/datanode/system/license/active.license
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置

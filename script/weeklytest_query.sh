@@ -281,8 +281,6 @@ test_operation() {
 		fi
 		#启动iotdb和monitor监控
 		cp -rf ${DATA_PATH}/${protocol_class}/${query_data_type[${j}]}/data ${TEST_IOTDB_PATH}/
-		mkdir -p ${TEST_IOTDB_PATH}/data/datanode/system/license
-		cp -rf ${ATMOS_PATH}/conf/license/active.license ${TEST_IOTDB_PATH}/data/datanode/system/license/active.license
 		for (( s = 0; s < ${#sensor_type_list[*]}; s++ ))
 		do
 			sensor_type=${sensor_type_list[${s}]}
