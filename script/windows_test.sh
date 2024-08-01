@@ -294,7 +294,7 @@ test_operation() {
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 		#查询测试
 		for (( j = 0; j < ${#query_list[*]}; j++ ))
-			do
+		do
 			echo "开始${query_list[${j}]}查询！"
 			op_type=${query_list[${j}]}
 			mv_config_file ${op_type}

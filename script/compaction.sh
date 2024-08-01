@@ -255,7 +255,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 					t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 					if [ $t_time -ge 7200 ]; then
 						echo "测试失败"  #倒序输入形成负数结果
-						 str1="2022-11-27 16:36:57,753 [pool-21-IoTDB-Compaction-1] INFO  o.a.i.d.e.c.c.CrossSpaceCompactionTask:207 - root.test.g_0-1 [Compaction] CrossSpaceCompaction task finishes successfully, time cost is -1 s, compaction speed is 1.9099134471928962 MB/s"
+						str1="2022-11-27 16:36:57,753 [pool-21-IoTDB-Compaction-1] INFO  o.a.i.d.e.c.c.CrossSpaceCompactionTask:207 - root.test.g_0-1 [Compaction] CrossSpaceCompaction task finishes successfully, time cost is -1 s, compaction speed is 1.9099134471928962 MB/s"
 						str2="2022-11-27 15:54:50,568 [pool-21-IoTDB-Compaction-1] INFO  o.a.i.d.e.c.i.InnerSpaceCompactionTask:239 - root.test.g_0-1 [Compaction] InnerSpaceCompaction task finishes successfully, target file is 1668674556813-1-1-0.tsfile,time cost is -1 s, compaction speed is 16.47907336936178 MB/s"
 						echo ${str1} >>$log_compaction
 						echo ${str2} >>$log_compaction						
@@ -337,8 +337,7 @@ collect_data_after() { # 收集iotdb数据大小，顺、乱序文件数量
 		#cost_time=$(find ./* -name log_datanode_compaction.log | xargs grep "CrossSpaceCompaction task finishes successfully" | awk '{print $16}')
 		var=$(find ./* -name log_datanode_compaction.log | xargs grep "CrossSpaceCompaction task finishes successfully")
 		substring="time cost is"
-        	cost_time=$(echo ${var#*${substring}*} | awk -F" " '{print $1}')
-
+        cost_time=$(echo ${var#*${substring}*} | awk -F" " '{print $1}')
 	fi
 	D_ErrorLogSize=$(du -sh ${TEST_IOTDB_PATH}/logs/log_datanode_error.log | awk {'print $1'})
 	C_ErrorLogSize=$(du -sh ${TEST_IOTDB_PATH}/logs/log_confignode_error.log | awk {'print $1'})
@@ -416,7 +415,6 @@ test_operation() {
 	  iotdb_state=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "show cluster" | grep 'Total line number = 2')
 	  if [ "${iotdb_state}" = "Total line number = 2" ]; then
 		break
-		
 	  else
 		sleep 30
 		continue
@@ -482,7 +480,6 @@ test_operation() {
 	  iotdb_state=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "show cluster" | grep 'Total line number = 2')
 	  if [ "${iotdb_state}" = "Total line number = 2" ]; then
 		break
-		
 	  else
 		sleep 30
 		continue

@@ -18,7 +18,6 @@ TEST_IOTDB_PATH=${TEST_PATH}/apache-iotdb
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
 protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
-
 Small_IP=172.20.70.12
 Medium_IP=172.20.70.10
 Control=172.20.70.6
@@ -115,7 +114,6 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 		mkdir -p ${TEST_PATH}
 		mkdir -p ${TEST_PATH}/apache-iotdb
 	fi
-	
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/apache-iotdb/
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
@@ -367,7 +365,6 @@ test_operation() {
 	test_result_status=$(grep -n 'error' ${Outputfile} | wc -l)
 	echo ${test_result_status}
 	if [ "${test_result_status}" = "0" ]; then
-		
 		Outputfile=${BM_PATH}/TestResult/write_output.log
 		read throughput_metrics <<<$(cat ${Outputfile} | grep "metrics/sec" | sed -n '1,1p' | awk '{print $11}')
 		read throughput_rows <<<$(cat ${Outputfile} | grep "rows/sec" | sed -n '1,1p' | awk '{print $11}')
