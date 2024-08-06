@@ -137,7 +137,7 @@ do
 				echo "编译失败！"
 				str_err='CError'
 				insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,routine_test,config_insert,ts_performance,cluster_insert,cluster_insert_2,cluster_insert_dt,benchants,pipe_test,windows_test,helishi_test) values(${commit_date_time},'${commit_id}','${author}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}')"
-                		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+                mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 				sendEmail 2
 			fi
 		else
