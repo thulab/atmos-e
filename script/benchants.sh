@@ -363,7 +363,7 @@ test_operation() {
 	m_end_time=$(date +%s)
 	collect_monitor_data ${TEST_IP}
 	test_result_status=0
-	test_result_status=$(grep -n 'error' ${Outputfile} | wc -l)
+	test_result_status=$(grep -n 'error:' ${Outputfile} | wc -l)
 	echo ${test_result_status}
 	if [ "${test_result_status}" = "0" ]; then
 		Outputfile=${BM_PATH}/TestResult/write_output.log
