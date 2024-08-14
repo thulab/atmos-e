@@ -362,11 +362,11 @@ test_operation() {
 	#收集启动后基础监控数据
 	m_end_time=$(date +%s)
 	collect_monitor_data ${TEST_IP}
+	Outputfile=${BM_PATH}/TestResult/write_output.log
 	test_result_status=0
 	test_result_status=$(grep -n 'error:' ${Outputfile} | wc -l)
 	echo ${test_result_status}
 	if [ "${test_result_status}" = "0" ]; then
-		Outputfile=${BM_PATH}/TestResult/write_output.log
 		read throughput_metrics <<<$(cat ${Outputfile} | grep "metrics/sec" | sed -n '1,1p' | awk '{print $11}')
 		read throughput_rows <<<$(cat ${Outputfile} | grep "rows/sec" | sed -n '1,1p' | awk '{print $11}')
 	else
