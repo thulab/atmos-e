@@ -30,6 +30,9 @@ TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="172.20.70.11:9090"
 ############公用函数##########################
+if [ "${PASSWORD}" = "" ]; then
+echo "需要关注密码设置！"
+fi
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
 ############定义监控采集项初始值##########################
