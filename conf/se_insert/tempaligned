@@ -6,8 +6,10 @@
 # 被测试的数据库，目前的格式为{name}{-version}{-insert mode}(注意-号)其全部参考值参见README文件，注意版本需要匹配
 DB_SWITCH=IoTDB-130-SESSION_BY_TABLET
 
-# 是否使用 iotdb 表模型。iotdb-140 支持树模型与表模型。默认值为 false。
-# IoTDB_ENABLE_TABLE=false
+# IoTDB需指定sql_dialect, 并且一个IoTDB只能指定一种。支持tree、table,默认值为tree。
+# sql_dialect等于table时，要满足：device数量 >= table数量 >= database数量
+# sql_dialect等于tree时，要满足：device数量 >= database数量
+# IoTDB_DIALECT_MODE=tree
 
 # 主机列表，如果有多个主机则使用英文逗号进行分割
 # HOST=127.0.0.1
@@ -73,6 +75,10 @@ LOOP=86400
 # 如果 BENCHMARK_CLUSTER=true, 则为当前Benchmark的编号
 # BENCHMARK_INDEX=0
 
+# 在集群模式下：是否所有数据库都可见，如果可见则可以向其他数据库节点发送数据
+# iotdb 在1.3版本后（不包括1.3）不再支持本参数。
+# IS_ALL_NODES_VISIBLE=false
+
 ################ Benchmark：双写模式 ####################
 # 双写模式仅支持不同数据库之间进行比较，不支持同一个数据库不同版本进行双写
 # IS_DOUBLE_WRITE=false
@@ -80,8 +86,10 @@ LOOP=86400
 # 另一个写入的数据库，目前的格式为{name}{-version}{-insert mode}(注意-号)其全部参考值参见README文件
 # ANOTHER_DB_SWITCH=IoTDB-130-SESSION_BY_TABLET
 
-# 若是 iotdb,是否使用 iotdb 表模型。iotdb-140 支持树模型与表模型。默认值为 false。
-# ANOTHER_IoTDB_ENABLE_TABLE=false
+# 另一个写入数据库的sql_dialect, IoTDB 需指定 sql_dialect, 并且一个 IoTDB 只能指定一种。支持 tree、table,默认值为 tree。
+# another_sql_dialect等于table时，要满足：device数量 >= table数量 >= database数量
+# another_sql_dialect等于tree时，要满足：device数量 >= database数量
+# ANOTHER_IoTDB_DIALECT_MODE=tree
 
 # 另一个写入的数据库的主机
 # ANOTHER_HOST=127.0.0.1
@@ -133,7 +141,7 @@ SENSOR_NUMBER=500
 # 存储组名称前缀
 # GROUP_NAME_PREFIX=g_
 
-# IoTDB 表模型下，表名称前缀
+# IoTDB 表模型下(IoTDB_DIALECT_MODE=table)，表名称前缀
 # IoTDB_TABLE_NAME_PREFIX=table_
 
 # 设备名称前缀
@@ -173,7 +181,7 @@ CLIENT_NUMBER=10
 # 存储组的数量，对IoTDB而言为database的数量
 GROUP_NUMBER=10
 
-# IoTDB 表模型下，表的数量
+# IoTDB 表模型下(IoTDB_DIALECT_MODE=table)，表的数量
 # IoTDB_TABLE_NUMBER=1
 
 # IoTDB核心线程池数量
@@ -473,4 +481,5 @@ IS_REGULAR_FREQUENCY=true
 # 测试过程中测试进度日志的输出间隔，单位为秒
 # LOG_PRINT_INTERVAL=5
 # 测试过程中当前测试结果日志的输出间隔，单位为秒
+# 设为0时，benchmark 仅在结束前输出一次测试结果日志
 RESULT_PRINT_INTERVAL=0
