@@ -473,4 +473,4 @@ IS_REGULAR_FREQUENCY=true
 # 测试过程中测试进度日志的输出间隔，单位为秒
 # LOG_PRINT_INTERVAL=5
 # 测试过程中当前测试结果日志的输出间隔，单位为秒
-# RESULT_PRINT_INTERVAL=3600
+RESULT_PRINT_INTERVAL=0
