@@ -4,12 +4,12 @@
 
 ################### 被测数据库配置 #######################
 # 被测试的数据库，目前的格式为{name}{-version}{-insert mode}(注意-号)其全部参考值参见README文件，注意版本需要匹配
-DB_SWITCH=IoTDB-130-SESSION_BY_TABLET
+DB_SWITCH=IoTDB-200-SESSION_BY_TABLET
 
-# IoTDB需指定sql_dialect, 并且一个IoTDB只能指定一种。支持tree、table,默认值为tree。
+# IoTDB-2.0需指定sql_dialect, 并且一个IoTDB只能指定一种。支持tree、table,默认值为tree。
 # sql_dialect等于table时，要满足：device数量 >= table数量 >= database数量
 # sql_dialect等于tree时，要满足：device数量 >= database数量
-# IoTDB_DIALECT_MODE=tree
+IoTDB_DIALECT_MODE=tree
 
 # 主机列表，如果有多个主机则使用英文逗号进行分割
 HOST=172.20.31.41
@@ -75,21 +75,12 @@ LOOP=10000
 # 如果 BENCHMARK_CLUSTER=true, 则为当前Benchmark的编号
 # BENCHMARK_INDEX=0
 
-# 在集群模式下：是否所有数据库都可见，如果可见则可以向其他数据库节点发送数据
-# iotdb 在1.3版本后（不包括1.3）不再支持本参数。
-# IS_ALL_NODES_VISIBLE=false
-
 ################ Benchmark：双写模式 ####################
-# 双写模式仅支持不同数据库之间进行比较，不支持同一个数据库不同版本进行双写
+# 双写模式仅支持不同数据库之间进行比较，不支持同一个数据库不同版本进行双写，不支持iotdb树模型与表模型的比较。
 # IS_DOUBLE_WRITE=false
 
 # 另一个写入的数据库，目前的格式为{name}{-version}{-insert mode}(注意-号)其全部参考值参见README文件
 # ANOTHER_DB_SWITCH=IoTDB-130-SESSION_BY_TABLET
-
-# 另一个写入数据库的sql_dialect, IoTDB 需指定 sql_dialect, 并且一个 IoTDB 只能指定一种。支持 tree、table,默认值为 tree。
-# another_sql_dialect等于table时，要满足：device数量 >= table数量 >= database数量
-# another_sql_dialect等于tree时，要满足：device数量 >= database数量
-# ANOTHER_IoTDB_DIALECT_MODE=tree
 
 # 另一个写入的数据库的主机
 # ANOTHER_HOST=127.0.0.1
@@ -315,7 +306,7 @@ POINT_STEP=5000
 ########################################################
 
 ################### 操作信息整体配置 #####################
-# 各操作的比例,按照顺序为 写入:Q1:Q2:Q3:Q4:Q5:Q6:Q7:Q8:Q9:Q10, 请注意使用英文冒号。比例中的每一项是整数。
+# 各操作的比例,按照顺序为 写入:Q1:Q2:Q3:Q4:Q5:Q6:Q7:Q8:Q9:Q10:Q11, 请注意使用英文冒号。比例中的每一项是整数。
 # Qi表示的查询如下:
 # Q1  精确点查询 select v1... from data where time = ? and device in ?
 # Q2  范围查询（只限制起止时间）select v1... from data where time > ? and time < ? and device in ?
@@ -328,7 +319,7 @@ POINT_STEP=5000
 # Q9  倒序范围查询（只限制起止时间）select v1... from data where time > ? and time < ? and device in ? order by time desc
 # Q10 倒序带值过滤的范围查询 select v1... from data where time > ? and time < ? and v1 > ? and device in ? order by time desc
 # Q11 分组聚合查询，倒序；目前仅支持iotdb、tdengine-3.0、influxdb v1
-# IoTDB V1表模型支持 Q1 Q2 Q3 Q9 Q10
+# IoTDB-2.0 表模型支持 Q1 Q2 Q3 Q9 Q10
 OPERATION_PROPORTION=1:0:0:0:0:0:0:0:0:0:0:0
 
 # 最长等待写时间，单位毫秒，即如果整个写操作在指定时间内没有返回，则终止此操作
@@ -394,7 +385,8 @@ IS_REGULAR_FREQUENCY=true
 # 在读写混合的场景下，是否优先查询最近写入的数据
 # IS_RECENT_QUERY=false
 
-# 时间过滤条件的时间起点变化步长，若设为0则每个查询的时间过滤条件是一样的，单位：POINT_STEP
+# 时间过滤条件的时间起点变化步长，单位：POINT_STEP。若设为0则每个查询的时间过滤条件是一样的。
+# 计算方式为 时间间隔 = STEP_SIZE * POINT_STEP。
 # STEP_SIZE=1
 
 # 每条查询语句中查询涉及到的传感器数量
