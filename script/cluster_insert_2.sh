@@ -40,10 +40,10 @@ TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="172.20.70.11:9090"
 ############公用函数##########################
+#echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 if [ "${PASSWORD}" = "" ]; then
 echo "需要关注密码设置！"
 fi
-#echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 init_items() {
 ############定义监控采集项初始值##########################
 test_date_time=0
@@ -134,8 +134,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/CN/apache-iotdb/
 	mkdir -p ${TEST_PATH}/CN/apache-iotdb/activation
 	cp -rf ${ATMOS_PATH}/conf/${test_type}/license ${TEST_PATH}/CN/apache-iotdb/activation/
+	
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/DN/apache-iotdb/
-
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
@@ -522,7 +522,7 @@ else
 	#echo "开始测试对齐模板时间序列顺序读写混合！"
 	#test_operation tempaligned seq_rw 223
 	#echo "开始测试对齐模板时间序列乱续读写混合！"
-	#test_operation tempaligned unseq_rw 223
+	#test_operation tempaligned unseq_rw 223	
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
