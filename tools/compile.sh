@@ -97,13 +97,13 @@ do
 				mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
 				echo $commit_date_time
 				echo $test_date_time
-				cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-bin/iotdb-enterprise-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+				cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
 				#配置文件整理
 				#rm -rf ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 				#mv ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties.template ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 				#向新的网盘环境复制一份备份
 				mkdir -p ${REPO_PATH_BK}/${commit_id}/apache-iotdb/
-				cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-bin/iotdb-enterprise-*-bin/* ${REPO_PATH_BK}/${commit_id}/apache-iotdb/
+				cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH_BK}/${commit_id}/apache-iotdb/
 				#配置文件整理
 				#rm -rf ${REPO_PATH_BK}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 				#mv ${REPO_PATH_BK}/${commit_id}/apache-iotdb/conf/iotdb-system.properties.template ${REPO_PATH_BK}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
