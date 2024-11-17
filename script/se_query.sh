@@ -318,6 +318,19 @@ test_operation() {
 			
 			#启动写入程序
 			mv_config_file ${ts_type} ${query_list[${i}]}
+			# IoTDB-2.0 表模型支持 需要修改测试数据模型
+			if [ "${ts_type}" = "tablemode" ]; then 
+				echo "IoTDB_DIALECT_MODE=table" >> ${BM_PATH}/conf/config.properties
+			fi
+			# IoTDB-2.0 表模型支持 Q1 Q2 Q3 Q9 Q10
+			#query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4a-1 Q4a-2 Q4a-3 Q4b-1 Q4b-2 Q4b-3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q8 Q9-1 Q9-2 Q9-3 Q10)
+			table_query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q9-1 Q9-2 Q9-3 Q10)
+			if [[ " ${array[@]} " =~ " ${query_list[${i}]} " ]]; then
+				echo "目前支持 ${query_list[${i}]} 查询"
+			else
+				echo "目前不支持 ${query_list[${i}]} 查询，将要跳过。"
+				continue
+			fi
 			sleep 3
 
 			start_benchmark
