@@ -28,7 +28,7 @@ TABLENAME="weeklytest_insert" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="172.20.70.11:9090"
-insert_list=(seq_w unseq_w seq_rw unseq_rw)
+insert_list=(seq_w unseq_w seq_rw unseq_rw tablemode_seq_w tablemode_unseq_w tablemode_seq_rw tablemode_unseq_rw)
 query_data_type=(no_overflow is_overflow)
 query_list=(Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3 Q4-b1 Q4-b2 Q4-b3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3 Q7-4 Q8 Q9 Q10)
 query_type=(PRECISE_POINT, TIME_RANGE, TIME_RANGE, TIME_RANGE, VALUE_RANGE, VALUE_RANGE, VALUE_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_RANGE, AGG_VALUE, AGG_RANGE_VALUE, AGG_RANGE_VALUE, AGG_RANGE_VALUE, GROUP_BY, GROUP_BY, GROUP_BY, GROUP_BY, LATEST_POINT, RANGE_QUERY_DESC, VALUE_RANGE_QUERY_DESC,)
@@ -335,7 +335,7 @@ test_operation() {
 		pid=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h 127.0.0.1 -p 6667 -u root -pw root -e "flush")
 
 		#收集启动后基础监控数据
-		collect_monitor_data
+		collect_monitor_data ${TEST_IP}
 		#测试结果收集写入数据库
 		csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
 		read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
@@ -386,7 +386,7 @@ else
 		#for (( i = 0; i < ${#ts_list[*]}; i++ ))
 		#do
 			#echo "开始测试${protocol_list[$j]}协议下的${ts_list[$i]}时间序列！"
-			echo "开始测试${protocol_list[$p_index]}协议下的common时间序列！"
+			echo "开始测试${protocol_list[$p_index]}协议下的对齐模板时间序列！"
 			test_operation ${protocol_list[$j]} 
 		#done
 	done
