@@ -205,12 +205,12 @@ setup_env() {
 		TEST_IP=${IP_list[$i]}
 		#启动ConfigNode节点
 		echo "starting IoTDB ConfigNode on ${TEST_IP} ..."
-		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-confignode.sh  > /dev/null 2>&1 &")
+		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-confignode.sh > /dev/null 2>&1 &")
 		#主节点需要先启动，所以等待10秒是为了保证主节点启动完毕
 		sleep 5
 		#启动DataNode节点
 		echo "starting IoTDB DataNode on ${TEST_IP} ..."
-		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-datanode.sh   > /dev/null 2>&1 &")
+		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-datanode.sh -H ${TEST_IOTDB_PATH}/dn_dump.hprof  > /dev/null 2>&1 &")
 		#等待60s，让服务器完成前期准备
 		sleep 10
 		for (( t_wait = 0; t_wait <= 50; t_wait++ ))
