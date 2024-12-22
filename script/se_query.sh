@@ -285,6 +285,7 @@ test_operation() {
 		fi
 		#mkdir -p ${TEST_IOTDB_PATH}/data
 		cp -rf  ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_IOTDB_PATH}/
+		cp_state=$(cp -rf  ${DATA_PATH}/${protocol_class}/${ts_type}/data ${TEST_IOTDB_PATH}/)
 		for (( i = 0; i < ${#query_list[*]}; i++ ))
 		do
 			query_type=${query_list[${i}]}
