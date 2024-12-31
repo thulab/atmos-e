@@ -6,6 +6,7 @@ test_type=sql_coverage
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
 TOOL_PATH=${INIT_PATH}/iotdb-sql
+BM_PATH=${INIT_PATH}/iot-benchmark
 TC_PATH=${INIT_PATH}/iotdb-sql-testcase
 BUCKUP_PATH=/nasdata/repository/sql_coverage/master
 REPOS_PATH=/nasdata/repository/master
