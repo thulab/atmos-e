@@ -15,8 +15,9 @@ TEST_IOTDB_PATH=${TEST_INIT_PATH}/apache-iotdb
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
-protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
-protocol_list=(111 223)
+# 4. org.apache.iotdb.consensus.iot.IoTConsensusV2
+protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus org.apache.iotdb.consensus.iot.IoTConsensusV2)
+protocol_list=(111 223 224)
 ts_list=(common aligned template tempaligned)
 ############mysql信息##########################
 MYSQLHOSTNAME="111.200.37.158" #数据库信息
@@ -37,6 +38,14 @@ if [ "${PASSWORD}" = "" ]; then
 echo "需要关注密码设置！"
 fi
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
+echo "检查iot-benchmark版本"
+BM_REPOS_PATH=/nasdata/repository/iot-benchmark
+BM_NEW=$(cat ${BM_REPOS_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
+BM_OLD=$(cat ${BM_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
+if [ "${BM_OLD}" ！= "cat: git.properties: No such file or directory" ] && [ "${BM_OLD}" != "${BM_NEW}" ]; then
+	rm -rf ${BM_PATH}
+	cp -rf ${BM_REPOS_PATH} ${BM_PATH}
+fi
 init_items() {
 ############定义监控采集项初始值##########################
 test_date_time=0
@@ -288,6 +297,8 @@ test_operation() {
 			set_protocol_class 2 2 3
 		elif [ "${protocol_class}" = "211" ]; then
 			set_protocol_class 2 1 1
+		elif [ "${protocol_class}" = "224" ]; then
+			set_protocol_class 2 2 4
 		else
 			echo "协议设置错误！"
 			return

@@ -15,8 +15,9 @@ TEST_BM_PATH=${TEST_INIT_PATH}/iot-benchmark
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
-protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
-protocol_list=(223)
+# 4. org.apache.iotdb.consensus.iot.IoTConsensusV2
+protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus org.apache.iotdb.consensus.iot.IoTConsensusV2)
+protocol_list=(223 224)
 ts_list=(common aligned)
 IP_list=(0 172.20.31.45 172.20.31.58)
 PIPE_list=(0 172.20.31.58 172.20.31.45)
@@ -38,6 +39,14 @@ if [ "${PASSWORD}" = "" ]; then
 echo "需要关注密码设置！"
 fi
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
+echo "检查iot-benchmark版本"
+BM_REPOS_PATH=/nasdata/repository/iot-benchmark
+BM_NEW=$(cat ${BM_REPOS_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
+BM_OLD=$(cat ${BM_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
+if [ "${BM_OLD}" ！= "cat: git.properties: No such file or directory" ] && [ "${BM_OLD}" != "${BM_NEW}" ]; then
+	rm -rf ${BM_PATH}
+	cp -rf ${BM_REPOS_PATH} ${BM_PATH}
+fi
 init_items() {
 ############定义监控采集项初始值##########################
 test_date_time=0
@@ -205,12 +214,12 @@ setup_env() {
 		TEST_IP=${IP_list[$i]}
 		#启动ConfigNode节点
 		echo "starting IoTDB ConfigNode on ${TEST_IP} ..."
-		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-confignode.sh > /dev/null 2>&1 &")
+		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-confignode.sh  > /dev/null 2>&1 &")
 		#主节点需要先启动，所以等待10秒是为了保证主节点启动完毕
 		sleep 5
 		#启动DataNode节点
 		echo "starting IoTDB DataNode on ${TEST_IP} ..."
-		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-datanode.sh -H ${TEST_IOTDB_PATH}/dn_dump.hprof  > /dev/null 2>&1 &")
+		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/start-datanode.sh -H ${TEST_IOTDB_PATH}/dn_dump.hprof   > /dev/null 2>&1 &")
 		#等待60s，让服务器完成前期准备
 		sleep 10
 		for (( t_wait = 0; t_wait <= 50; t_wait++ ))
@@ -435,6 +444,8 @@ test_operation() {
 		set_protocol_class 2 2 3
     elif [ "${protocol_class}" = "211" ]; then
         set_protocol_class 2 1 1
+    elif [ "${protocol_class}" = "224" ]; then
+        set_protocol_class 2 2 4
 	else
 		echo "协议设置错误！"
 		return
@@ -520,6 +531,8 @@ else
 	test_operation 223 common
 	echo "开始测试223协议下的aligned时间序列！"
 	test_operation 223 aligned
+	echo "开始测试224协议下的aligned时间序列！"
+	test_operation 224 aligned
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"

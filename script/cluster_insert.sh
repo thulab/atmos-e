@@ -17,7 +17,7 @@ TEST_CONFIGNODE_PATH=${TEST_PATH}/CN/apache-iotdb
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
 protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.iotdb.consensus.ratis.RatisConsensus org.apache.iotdb.consensus.iot.IoTConsensus)
 protocol_list=(111 223)
-ts_list=(common aligned template tempaligned tablemode)
+ts_list=(common aligned template tempaligned)
 
 IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
 D_IP_list=(0 172.20.31.41 172.20.31.42 172.20.31.43)
@@ -40,9 +40,17 @@ TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="172.20.70.11:9090"
 ############公用函数##########################
-#echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 if [ "${PASSWORD}" = "" ]; then
 echo "需要关注密码设置！"
+fi
+#echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
+echo "检查iot-benchmark版本"
+BM_REPOS_PATH=/nasdata/repository/iot-benchmark
+BM_NEW=$(cat ${BM_REPOS_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
+BM_OLD=$(cat ${BM_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
+if [ "${BM_OLD}" ！= "cat: git.properties: No such file or directory" ] && [ "${BM_OLD}" != "${BM_NEW}" ]; then
+	rm -rf ${BM_PATH}
+	cp -rf ${BM_REPOS_PATH} ${BM_PATH}
 fi
 init_items() {
 ############定义监控采集项初始值##########################
@@ -162,6 +170,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	echo "dn_metric_reporter_list=PROMETHEUS" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "dn_metric_level=ALL" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "dn_metric_prometheus_reporter_port=9091" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
+
 }
 set_protocol_class() { 
 	config_node=$1
@@ -320,8 +329,8 @@ if [ "$check_config_num" == "$config_num" ] && [ "$check_data_num" == "$data_num
 	if [ "$bm_num" != '' ];
 	then
 		for ((j = 1; j <= $bm_num; j++)); do
-			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/logs"
-			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/data"
+			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}"
+			scp -r ${BM_PATH} ${ACCOUNT}@${B_IP_list[${j}]}:${BM_PATH}
 			ssh ${ACCOUNT}@${B_IP_list[${j}]} "rm -rf ${BM_PATH}/conf/config.properties"
 			scp -r ${BM_PATH}/conf/config.properties ${ACCOUNT}@${B_IP_list[${j}]}:${BM_PATH}/conf/config.properties
 			#echo "启动BM： ${B_IP_list[${j}]} ..."
@@ -431,6 +440,10 @@ test_operation() {
 		set_protocol_class 1 1 1
 	elif [ "${protocol_class}" = "222" ]; then
 		set_protocol_class 2 2 2
+		echo "schema_region_ratis_rpc_leader_election_timeout_min_ms=8000" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
+		echo "data_region_ratis_rpc_leader_election_timeout_min_ms=8000" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
+		echo "schema_region_ratis_rpc_leader_election_timeout_max_ms=16000" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
+		echo "data_region_ratis_rpc_leader_election_timeout_max_ms=16000" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	elif [ "${protocol_class}" = "223" ]; then
 		set_protocol_class 2 2 3
     elif [ "${protocol_class}" = "211" ]; then
@@ -471,7 +484,7 @@ test_operation() {
 		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/${j}/CN
 		sudo mkdir -p ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/${j}/DN
 		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/${j}/CN
-		scp -r ${ACCOUNT}@${C_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/${j}/DN
+		scp -r ${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/${j}/DN
 	done
 	sudo cp -rf ${BM_PATH}/TestResult/csvOutput/* ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/
 }
