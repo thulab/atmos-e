@@ -90,6 +90,7 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 	cp -rf /root/zk_test_helishi/iotdbtest/iotdbtest.exe ${TEST_PATH}/iotdbtest/iotdbtest.exe
 	mkdir -p ${TEST_IOTDB_PATH}/activation
 	cp -rf ${ATMOS_PATH}/conf/${test_type}/license ${TEST_IOTDB_PATH}/activation/
+	cp -rf ${ATMOS_PATH}/conf/${test_type}/.env ${TEST_IOTDB_PATH}/
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
