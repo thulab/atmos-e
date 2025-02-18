@@ -99,7 +99,7 @@ do
 			echo "当前版本${commit_id}未记录,即将编译。"
 			#代码编译
 			date_time=`date +%Y%m%d%H%M%S`
-			comp_mvn=$(mvn clean package -pl distribution -am -DskipTests)
+			comp_mvn=$(mvn clean package -DskipTests -am -pl distribution -P with-ainode)
 			if [ $? -eq 0 ]
 			then
 				echo "${commit_id}编译完成！"
