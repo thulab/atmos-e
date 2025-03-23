@@ -156,7 +156,7 @@ set_protocol_class() {
 setup_env() {
 	TEST_IP=$1
 	echo "开始重置环境！"
-	ssh ${ACCOUNT}@${TEST_IP} "sudo reboot"
+	ssh ${ACCOUNT}@${TEST_IP} "sudo systemctl reboot"
 	sleep 60
 	echo "setting env to ${TEST_IP} ..."
 	#删除原有路径下所有
@@ -197,7 +197,7 @@ setup_env() {
 setup_env_q() {
 	TEST_IP=$1
 	echo "开始重置环境！"
-	ssh ${ACCOUNT}@${TEST_IP} "sudo reboot"
+	ssh ${ACCOUNT}@${TEST_IP} "sudo systemctl reboot"
 	sleep 60
 	echo "setting env to ${TEST_IP} ..."
 	#删除原有路径下所有

@@ -182,7 +182,7 @@ setup_env() {
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}
-		ssh ${ACCOUNT}@${TEST_IP} "sudo reboot"
+		ssh ${ACCOUNT}@${TEST_IP} "sudo systemctl reboot"
 	done
 	sleep 120
 	for (( i = 1; i < ${#IP_list[*]}; i++ ))
