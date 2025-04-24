@@ -249,6 +249,7 @@ else
 	cp -rf ${TC_PATH}/scripts ${TEST_TOOL_PATH}/user/
 	cp -rf ${TEST_IOTDB_PATH}/lib/* ${TEST_TOOL_PATH}/user/driver/iotdb/
 	cd ${TEST_TOOL_PATH}
+	sed -i "s/sql_dialect=table$/sql_dialect=tree/g" ${TEST_TOOL_PATH}/user/CONFIG/otf_new.properties
 	#start_test=$(./test.sh)
 	#javac -encoding gbk -cp '${TEST_TOOL_PATH}/user/driver/iotdb/*:${TEST_TOOL_PATH}/lib/*:${TEST_TOOL_PATH}/user/driver/POI/*:.' ${TEST_TOOL_PATH}/src/*.java -d ${TEST_TOOL_PATH}/bin
 	compile=$(./compile.sh)
