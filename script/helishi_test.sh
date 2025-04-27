@@ -94,8 +94,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
-	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=2G/g" ${TEST_IOTDB_PATH}/conf/datanode-env.bat
-	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=500M/g" ${TEST_IOTDB_PATH}/conf/confignode-env.bat
+	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=2G/g" ${TEST_IOTDB_PATH}/conf/windows/datanode-env.bat
+	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=500M/g" ${TEST_IOTDB_PATH}/conf/windows/confignode-env.bat
 	#清空配置文件
 	# echo "只保留要修改的参数" > ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 	echo "data_region_group_extension_policy=CUSTOM" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
