@@ -252,13 +252,14 @@ setup_env() {
 	fi
 }
 monitor_test_status() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
-	TEST_IP=$1
+	
 	while true; do
 		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
 		flagB=0
 		for (( m = 1; m <= 2; m++ ))
 		do
+			TEST_IP=${IP_list[$m]}
 			if [ $t_time -ge 7200 ]; then
 				echo "测试失败"  #倒序输入形成负数结果
 				end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
@@ -272,10 +273,12 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				ssh ${ACCOUNT}@${TEST_IP} "dir D:\\first-rest-test\\iot-benchmark\\data" >/dev/null 2>&1
 				if [ $? -eq 0 ];then
 					echo "${TEST_IP}测试结果已生成"
+					echo $?
 					flagB=$[${flagB}+1]
 					break
 				else
 					echo "${TEST_IP}测试结果未生成"
+					echo $?
 					if [ $rflag -ge 5 ]; then
 						break
 					else
