@@ -107,8 +107,8 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 }
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
-	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=2G/g" ${TEST_IOTDB_PATH}/conf/windows/datanode-env.bat
-	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=500M/g" ${TEST_IOTDB_PATH}/conf/windows/confignode-env.bat
+	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=20G/g" ${TEST_IOTDB_PATH}/conf/windows/datanode-env.bat
+	sed -i "s/^@REM set ON_HEAP_MEMORY=2G.*$/set ON_HEAP_MEMORY=6G/g" ${TEST_IOTDB_PATH}/conf/windows/confignode-env.bat
 	#清空配置文件
 	# echo "只保留要修改的参数" > ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 	echo "query_timeout_threshold=6000000" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
@@ -310,7 +310,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				do
 					if [ "${ts_type}" = "tablemode" ]; then
 						str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${IP_list[1]} -p 6667 -u root -pw root -e "select count(s_0) from test_g_0.table_0 where device_id = 'd_${device}';" | grep -o '172800' | wc -l )
-						str2=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${IP_list[1]} -p 6667 -u root -pw root -e "select count(s_0) from test_g_0.table_0 where device_id = 'd_${device}';" | grep -o '172800' | wc -l )
+						str2=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${IP_list[2]} -p 6667 -u root -pw root -e "select count(s_0) from test_g_0.table_0 where device_id = 'd_${device}';" | grep -o '172800' | wc -l )
 						if [ "$str1" = "1" ] && [ "$str2" = "1" ]; then
 							#表模型计算方式不用
 							str1=500
@@ -320,7 +320,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 						#echo "str2=${str2}"
 					else
 						str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${IP_list[1]} -p 6667 -u root -pw root -e "select count(*) from root.test.g_0.d_${device};" | grep -o '172800' | wc -l )
-						str2=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${IP_list[1]} -p 6667 -u root -pw root -e "select count(*) from root.test.g_0.d_${device};" | grep -o '172800' | wc -l )
+						str2=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${IP_list[2]} -p 6667 -u root -pw root -e "select count(*) from root.test.g_0.d_${device};" | grep -o '172800' | wc -l )
 					fi
 					if [ "$str1" = "500" ] && [ "$str2" = "500" ]; then
 						echo "root.test.g_0.d_${device}同步已结束"
