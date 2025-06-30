@@ -483,7 +483,6 @@ test_operation() {
 	do
 		TEST_IP=${IP_list[$j]}
 		echo "开始写入！"
-		#pid3=$(ssh ${ACCOUNT}@${TEST_IP} "cd ${TEST_BM_PATH};${TEST_BM_PATH}/benchmark.sh > /dev/null 2>&1 &")
 		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "schtasks /Run /TN  run_test")
 	done
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
@@ -503,7 +502,7 @@ test_operation() {
 	#测试结果收集写入数据库
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
-		rm -rf ${TEST_BM_PATH}/TestResult/csvOutput/*
+		rm -rf ${TEST_BM_PATH}/TestResult
 		mkdir -p ${TEST_BM_PATH}/TestResult/csvOutput/
 		scp -r ${ACCOUNT}@${IP_list[${j}]}:${TEST_IOTBM_PATH_W_RP} ${TEST_BM_PATH}/TestResult/csvOutput/
 		#收集启动后基础监控数据
