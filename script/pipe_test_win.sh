@@ -11,6 +11,7 @@ REPOS_PATH=/nasdata/repository/master
 #测试数据运行路径
 TEST_PATH=${INIT_PATH}/first-rest-test
 TEST_IOTDB_PATH=${TEST_PATH}/apache-iotdb
+TEST_BM_PATH=${TEST_PATH}/iot-benchmark
 TEST_IOTDB_PATH_W="D:\\first-rest-test"
 TEST_IOTBM_PATH_W_RP="D:\\first-rest-test\\iot-benchmark\\data\\csvOutput\\*result.csv"
 TEST_File_PATH_W="C:\\run_test.vbs"
@@ -191,7 +192,8 @@ setup_env() {
 		sed -i "s/^HOST=.*$/HOST=${TEST_IP}/g" ${TEST_BM_PATH}/conf/config.properties
 		rm -rf ${TEST_IOTDB_PATH}/activation
 		mkdir -p ${TEST_IOTDB_PATH}/activation
-		cp -rf ${ATMOS_PATH}/conf/${test_type}/${TEST_IP} ${TEST_IOTDB_PATH}/activation/license
+		cp -rf ${ATMOS_PATH}/conf/${test_type}/license/${TEST_IP} ${TEST_IOTDB_PATH}/activation/license
+		cp -rf ${ATMOS_PATH}/conf/${test_type}/env/${TEST_IP} ${TEST_IOTDB_PATH}/.env
 		#复制三项到客户机
 		scp -r ${TEST_PATH}/* ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH_W}
 	done	
