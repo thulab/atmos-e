@@ -252,7 +252,7 @@ setup_env() {
 	fi
 }
 monitor_test_status() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
-	
+	sleep 600  #等待六百秒，因为测试执行至少20分钟
 	while true; do
 		now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 		t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
@@ -454,10 +454,10 @@ backup_test_data() { # 备份测试数据
 	do
 		TEST_IP=${IP_list[$j]}
 		sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/${TEST_IP}/
-		str1=$(ssh ${ACCOUNT}@${TEST_IP} "rm -rf ${TEST_IOTDB_PATH}/data" 2>/dev/null)
-		scp -r ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH}/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/${TEST_IP}/
+		str1=$(ssh ${ACCOUNT}@${TEST_IP} "rmdir /s /q ${TEST_IOTDB_PATH_W}\\apache-iotdb\\data" 2>/dev/null)
+		scp -r ${ACCOUNT}@${TEST_IP}:${TEST_IOTDB_PATH_W}/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/${TEST_IP}/
 	done
-	sudo cp -rf ${TEST_BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/
+	#sudo cp -rf ${TEST_BM_PATH}/TestResult/ ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}/
 }
 mv_config_file() { # 移动配置文件
 	rm -rf ${TEST_BM_PATH}/conf/config.properties
@@ -547,7 +547,7 @@ test_operation() {
 		str1=$(ssh ${ACCOUNT}@${TEST_IP} "${TEST_IOTDB_PATH}/sbin/stop-standalone.sh")
 	done
 	#备份本次测试
-	#backup_test_data ${ts_type}
+	backup_test_data ${ts_type}
 }
 ##准备开始测试
 echo "ontesting" > ${INIT_PATH}/test_type_file
