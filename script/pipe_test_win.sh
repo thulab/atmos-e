@@ -266,13 +266,24 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 				cost_time=-1
 				break
 			fi
-			str1=$(ssh ${ACCOUNT}@${IP_list[${m}]} "jps | grep -w App | grep -v grep | wc -l" 2>/dev/null)
-			if [ "$str1" = "1" ]; then
-				echo "BM写入未结束:${IP_list[${m}]}"  > /dev/null 2>&1 &
-			else
-				echo "BM写入已结束:${IP_list[${m}]}"
-				flagB=$[${flagB}+1]
-			fi
+			rflag=0
+			while true; do
+				echo "当前连接：${ACCOUNT}@${TEST_IP}"
+				ssh ${ACCOUNT}@${TEST_IP} "dir D:\\first-rest-test\\iot-benchmark\\data" >/dev/null 2>&1
+				if [ $? -eq 0 ];then
+					echo "${TEST_IP}测试结果已生成"
+					flagB=$[${flagB}+1]
+					break
+				else
+					echo "${TEST_IP}测试结果未生成"
+					if [ $rflag -ge 5 ]; then
+						break
+					else
+						rflag=$[${rflag}+1]
+					fi
+					sleep 180
+				fi
+			done
 		done
 		if [ $flagB -ge 2 ]; then
 			if [ "${ts_type}" = "tablemode" ]; then
