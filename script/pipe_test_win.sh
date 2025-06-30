@@ -12,7 +12,7 @@ REPOS_PATH=/nasdata/repository/master
 TEST_PATH=${INIT_PATH}/first-rest-test
 TEST_IOTDB_PATH=${TEST_PATH}/apache-iotdb
 TEST_IOTDB_PATH_W="D:\\first-rest-test"
-TEST_IOTBM_PATH_W_RP="D:\\first-rest-test\\iot-benchmark\\data\\csvOutput\\"
+TEST_IOTBM_PATH_W_RP="D:\\first-rest-test\\iot-benchmark\\data\\csvOutput\\*result.csv"
 TEST_File_PATH_W="C:\\run_test.vbs"
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
@@ -503,7 +503,7 @@ test_operation() {
 	do
 		rm -rf ${TEST_BM_PATH}/TestResult/csvOutput/*
 		mkdir -p ${TEST_BM_PATH}/TestResult/csvOutput/
-		scp -r ${ACCOUNT}@${IP_list[${j}]}:${TEST_IOTBM_PATH_W_RP}*result.csv ${TEST_BM_PATH}/TestResult/csvOutput/
+		scp -r ${ACCOUNT}@${IP_list[${j}]}:${TEST_IOTBM_PATH_W_RP} ${TEST_BM_PATH}/TestResult/csvOutput/
 		#收集启动后基础监控数据
 		csvOutputfile=${TEST_BM_PATH}/TestResult/csvOutput/*result.csv
 		if [ ! -f $csvOutputfile ]; then
