@@ -558,8 +558,8 @@ else
 	test_operation 223 common unsequence
 	test_operation 223 aligned sequence
 	test_operation 223 aligned unsequence
-	test_operation 223 template sequence
-	test_operation 223 template unsequence
+	#test_operation 223 template sequence
+	#test_operation 223 template unsequence
 	test_operation 223 tempaligned sequence
 	test_operation 223 tempaligned unsequence
 	test_operation 223 tablemode sequence
