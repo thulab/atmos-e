@@ -53,7 +53,7 @@ sendEmail() {
 	error_type=$1
 	date_time=`date +%Y%m%d%H%M%S`
 	mailto='qingxin.feng@hotmail.com'
-	test_type=${HOSTNAME}
+	#test_type=${HOSTNAME}
 	case $error_type in
 		1)
 		#1.代码更新失败
