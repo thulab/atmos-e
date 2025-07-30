@@ -63,8 +63,8 @@ sendEmail() {
 		2)
 		#2.编译失败
 			headline=''${test_type}'代码编译失败'
-			mailbody='错误类型：'${test_type}'代码编译失败<BR>报错时间：'${date_time}'<BR>报错Commit：'${commit_id}'<BR>提交人：'${author}''
-			msgbody='错误类型：'${test_type}'代码编译失败\n报错时间：'${date_time}'\n报错Commit：'${commit_id}'\n<BR>提交人：'${author}''
+			mailbody='错误类型：'${test_type}'代码编译失败<BR>报错时间：'${date_time}'<BR>报错Commit：'${commit_id}'<BR>提交人：'${author}'<BR>报错信息：'${comp_mvn}''
+			msgbody='错误类型：'${test_type}'代码编译失败\n报错时间：'${date_time}'\n报错Commit：'${commit_id}'\n提交人：'${author}'\n报错信息：'${comp_mvn}''
 			;;
 		#*)
 		#exit -1
@@ -99,7 +99,7 @@ do
 			echo "当前版本${commit_id}未记录,即将编译。"
 			#代码编译
 			date_time=`date +%Y%m%d%H%M%S`
-			comp_mvn=$(mvn clean package -DskipTests -am -pl distribution -P with-ainode)
+			comp_mvn=$(mvn clean package -DskipUTs -am -pl distribution -P with-ainode)
 			if [ $? -eq 0 ]
 			then
 				echo "${commit_id}编译完成！"
