@@ -1,9 +1,9 @@
 #!/bin/sh
 #登录用户名
-ACCOUNT=atmos
+ACCOUNT=root
 test_type=compile
 #初始环境存放路径
-INIT_PATH=/home/atmos/zk_test
+INIT_PATH=/root/zk_test
 IOTDB_PATH=${INIT_PATH}/timechodb
 FILENAME=${INIT_PATH}/gitlog.txt
 REPO_PATH=/nasdata/repository/master
