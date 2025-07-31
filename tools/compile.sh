@@ -101,14 +101,17 @@ do
 		echo "当前版本${commit_id}未记录,即将编译。"
 		#代码编译
 		date_time=`date +%Y%m%d%H%M%S`
-		comp_mvn=$(mvn clean package -DskipUTs -am -pl distribution -P with-ainode)
+		comp_mvn=$(mvn clean package -DskipTests -am -pl distribution -P with-ainode)
 		if [ $? -eq 0 ]
 		then
 			echo "${commit_id}编译完成！"
 			rm -rf ${REPO_PATH}/${commit_id}
 			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
 			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
+			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-ainode-bin/timechodb-*-ainode-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
 			#配置文件整理
+			echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#rm -rf ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#mv ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties.template ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#向异构机器网盘环境复制一份备份
@@ -173,5 +176,3 @@ echo "别闲着，做一轮服务器空间清理任务吧。删除15天之前的
 find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
 sleep 300s
 echo "${test_type}" > ${INIT_PATH}/test_type_file
-
-
