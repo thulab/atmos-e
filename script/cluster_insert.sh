@@ -215,7 +215,7 @@ for (( i = 1; i < ${#IP_list[*]}; i++ ))
 do
 	#ssh ${ACCOUNT}@${IP_list[${i}]} "killall -u ${ACCOUNT} > /dev/null 2>&1 &"
 	#ssh ${ACCOUNT}@${IP_list[${i}]} "sudo init 6"
-	ssh ${ACCOUNT}@${IP_list[${i}]} "ps -ef | grep java | grep -v grep | grep '^root' | awk '{print $2}' | xargs kill -9"
+	ssh ${ACCOUNT}@${IP_list[${i}]} "ps -ef | grep java | grep -v grep | grep '^root' | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1 &"
 	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo sync"
 	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo echo 3 > /proc/sys/vm/drop_caches"
 done
