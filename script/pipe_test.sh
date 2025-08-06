@@ -182,7 +182,9 @@ setup_env() {
 	for (( j = 1; j < ${#IP_list[*]}; j++ ))
 	do
 		TEST_IP=${IP_list[$j]}
-		ssh ${ACCOUNT}@${TEST_IP} "sudo init 6"
+		ssh ${ACCOUNT}@${IP_list[${i}]} "ps -ef | grep java | grep -v grep | grep '^root' | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1 &"
+		ssh ${ACCOUNT}@${IP_list[${i}]} "sudo sync"
+		ssh ${ACCOUNT}@${IP_list[${i}]} "sudo echo 3 > /proc/sys/vm/drop_caches"
 	done
 	sleep 120
 	for (( i = 1; i < ${#IP_list[*]}; i++ ))
