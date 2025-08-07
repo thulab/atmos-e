@@ -115,9 +115,9 @@ do
 			#rm -rf ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#mv ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties.template ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#向异构机器网盘环境复制一份备份
-			sudo rm -rf ${REPO_PATH_EX}/${commit_id}
-			sudo mkdir -p ${REPO_PATH_EX}/${commit_id}/apache-iotdb/
-			sudo cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH_EX}/${commit_id}/apache-iotdb/
+			#sudo rm -rf ${REPO_PATH_EX}/${commit_id}
+			#sudo mkdir -p ${REPO_PATH_EX}/${commit_id}/apache-iotdb/
+			#sudo cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH_EX}/${commit_id}/apache-iotdb/
 			#获取本次更新的变更文件列表
 			git log -1 --name-only > $FILENAME
 			#按照文件夹名称排除不必要测试文件夹
