@@ -81,8 +81,8 @@ cd ${IOTDB_PATH}
 git_pull=$(timeout 100s git fetch --all)
 git_pull=$(timeout 100s git reset --hard origin/master)
 git_pull=$(timeout 100s git pull)
-commit_id_list=(`git log --pretty=format:"%h" -11 | awk -F "|" '{print $1}' | cut -c1-7`)
-for (( i = 0; i <= 10; i++))
+commit_id_list=(`git log --pretty=format:"%h" -21 | awk -F "|" '{print $1}' | cut -c1-7`)
+for (( i = 0; i <= 20; i++))
 do
 	query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id_list[$i]}'"
 	echo "$query_sql"
