@@ -229,9 +229,9 @@ setup_env() {
 			TEST_IP=${IP_list[$i]}
 			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${TEST_IP} -p 6667 -e "create pipe test with source ('source.realtime.mode'='stream','source.realtime.enable'='true','source.forwarding-pipe-requests'='false','source.batch.enable'='true','source.history.enable'='true') with sink ('sink'='iotdb-thrift-sink', 'sink.node-urls'='${PIPE_list[$i]}:6667');")
 			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${TEST_IP} -p 6667 -e "start pipe test;")
-			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 1')
+			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 2')
 			#echo $str1
-			if [ "$str1" = "Total line number = 1" ]; then
+			if [ "$str1" = "Total line number = 2" ]; then
 				echo "PIPE is ready"
 				pipeflag=$[${pipeflag}+1]
 			fi
@@ -242,9 +242,9 @@ setup_env() {
 			TEST_IP=${IP_list[$i]}
 			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${TEST_IP} -p 6667 -e "create pipe test with source ('source.realtime.mode'='stream','source.realtime.enable'='true','source.forwarding-pipe-requests'='false','source.batch.enable'='true','source.history.enable'='true') with sink ('sink'='iotdb-thrift-sink', 'sink.node-urls'='${PIPE_list[$i]}:6667');")
 			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${TEST_IP} -p 6667 -e "start pipe test;")
-			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 1')
+			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 2')
 			echo $str1
-			if [ "$str1" = "Total line number = 1" ]; then
+			if [ "$str1" = "Total line number = 2" ]; then
 				echo "PIPE is ready"
 				pipeflag=$[${pipeflag}+1]
 			fi
