@@ -503,19 +503,19 @@ test_operation() {
 	#启动iotdb
 	setup_env
 	sleep 10
-	#启动写入程序
-	for (( j = 1; j < ${#IP_list[*]}; j++ ))
-	do
-		TEST_IP=${IP_list[$j]}
-		echo "开始写入！"
-		pid3=$(ssh ${ACCOUNT}@${TEST_IP} "cd ${TEST_BM_PATH};${TEST_BM_PATH}/benchmark.sh > /dev/null 2>&1 &")
-	done
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
 	m_start_time=$(date +%s)
 	#等待1分钟
 	sleep 60
 	#判断PIPE设置情况
 	if [ $pipflag -ge 2 ]; then
+		#启动写入程序
+		for (( j = 1; j < ${#IP_list[*]}; j++ ))
+		do
+			TEST_IP=${IP_list[$j]}
+			echo "开始写入！"
+			pid3=$(ssh ${ACCOUNT}@${TEST_IP} "cd ${TEST_BM_PATH};${TEST_BM_PATH}/benchmark.sh > /dev/null 2>&1 &")
+		done
 		monitor_test_status
 	else
 		#PIPE启动失败
