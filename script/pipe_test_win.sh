@@ -234,7 +234,7 @@ setup_env() {
 			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 1')
 			str2=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect table -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 2')
 			#echo $str1
-			if [ "$str1" = "Total line number = 1" ] || [ "$str2" = "Total line number = 2" ]; then
+			if [[ "$str1" = "Total line number = 1" ]]  || [[ "$str2" = "Total line number = 2" ]]; then
 				echo "PIPE is ready"
 				pipeflag=$[${pipeflag}+1]
 			fi
@@ -248,7 +248,7 @@ setup_env() {
 			str1=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 1')
 			str2=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -sql_dialect tree -h ${TEST_IP} -p 6667 -e "show pipes;" | grep 'Total line number = 2')
 			echo $str1
-			if [ "$str1" = "Total line number = 1" ] || [ "$str2" = "Total line number = 2" ]; then
+			if [[ "$str1" = "Total line number = 1" ]]  || [[ "$str2" = "Total line number = 2" ]]; then
 				echo "PIPE is ready"
 				pipeflag=$[${pipeflag}+1]
 			fi
