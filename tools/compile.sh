@@ -108,9 +108,9 @@ do
 			echo "${commit_id}编译完成！"
 			rm -rf ${REPO_PATH}/${commit_id}
 			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
-			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-bin/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
 			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
-			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-ainode-bin/timechodb-*-ainode-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
+			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-ainode-bin/timechodb-*-SNAPSHOT-ainode-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
 			#配置文件整理
 			echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#rm -rf ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
