@@ -247,11 +247,13 @@ else
 	cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
 	cp -rf ${TC_PATH}/lib/trigger_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
-	cp -rf ${TC_PATH}/tree/scripts ${TEST_TOOL_PATH}/user/
-	cp -rf ${TEST_IOTDB_PATH}/lib/* ${TEST_TOOL_PATH}/user/driver/iotdb/
 	cd ${TEST_TOOL_PATH}
-	sed -i "s/sql_dialect=table$/sql_dialect=tree/g" ${TEST_TOOL_PATH}/user/CONFIG/otf_new.properties
-	sed -i "s/setup$/test/g" ${TEST_TOOL_PATH}/user/CONFIG/otf_new.properties
+	rm -rf ${TEST_TOOL_PATH}/user/scripts
+	cp -rf ${TC_PATH}/tree/scripts ${TEST_TOOL_PATH}/user/
+	rm -rf ${TEST_TOOL_PATH}/user/CONFIG
+	cp -rf ${TC_PATH}/tree/CONFIG ${TEST_TOOL_PATH}/user/
+	cp -rf ${TEST_IOTDB_PATH}/lib/* ${TEST_TOOL_PATH}/user/driver/iotdb/
+	
 	#start_test=$(./test.sh)
 	#javac -encoding gbk -cp '${TEST_TOOL_PATH}/user/driver/iotdb/*:${TEST_TOOL_PATH}/lib/*:${TEST_TOOL_PATH}/user/driver/POI/*:.' ${TEST_TOOL_PATH}/src/*.java -d ${TEST_TOOL_PATH}/bin
 	compile=$(./compile.sh)
@@ -359,11 +361,12 @@ else
 	#cp -rf ${TC_PATH}/lib/trigger_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
-	cp -rf ${TC_PATH}/table/scripts ${TEST_TOOL_PATH}/user/
-	cp -rf ${TEST_IOTDB_PATH}/lib/* ${TEST_TOOL_PATH}/user/driver/iotdb/
 	cd ${TEST_TOOL_PATH}
-	sed -i "s/sql_dialect=tree$/sql_dialect=table/g" ${TEST_TOOL_PATH}/user/CONFIG/otf_new.properties
-	sed -i "s/setup$/test/g" ${TEST_TOOL_PATH}/user/CONFIG/otf_new.properties
+	rm -rf ${TEST_TOOL_PATH}/user/scripts
+	cp -rf ${TC_PATH}/table/scripts ${TEST_TOOL_PATH}/user/
+	rm -rf ${TEST_TOOL_PATH}/user/CONFIG
+	cp -rf ${TC_PATH}/table/CONFIG ${TEST_TOOL_PATH}/user/
+	cp -rf ${TEST_IOTDB_PATH}/lib/* ${TEST_TOOL_PATH}/user/driver/iotdb/
 	#start_test=$(./test.sh)
 	#javac -encoding gbk -cp '${TEST_TOOL_PATH}/user/driver/iotdb/*:${TEST_TOOL_PATH}/lib/*:${TEST_TOOL_PATH}/user/driver/POI/*:.' ${TEST_TOOL_PATH}/src/*.java -d ${TEST_TOOL_PATH}/bin
 	compile=$(./compile.sh)
