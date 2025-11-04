@@ -282,7 +282,8 @@ test_operation() {
 			return
 		fi
 		#设置环境并启动IoTDB
-		setup_env ${TEST_IP}	
+		setup_env ${TEST_IP}
+		change_pwd=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${TEST_IP} -p 6667 -e "ALTER USER root SET PASSWORD '${IoTDB_PW}'")
 		echo "写入测试开始！"
 		start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
 		m_start_time=$(date +%s)
