@@ -2,6 +2,7 @@
 #登录用户名
 TEST_IP="172.20.31.39"
 ACCOUNT=root
+IoTDB_PW=TimechoDB@2021
 test_type=api_insert
 #初始环境存放路径
 INIT_PATH=/root/zk_test
@@ -226,7 +227,7 @@ function get_single_index() {
 	echo ${index_value}
 }
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
-	#TEST_IP=$1
+	TEST_IP=$1
 	dataFileSize=0
 	walFileSize=0
 	numOfSe0Level=0
@@ -258,7 +259,7 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 backup_test_data() { # 备份测试数据
 	sudo rm -rf ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
-    sudo rm -rf ${TEST_IOTDB_PATH}/data
+	sudo rm -rf ${TEST_IOTDB_PATH}/data
 	sudo mv ${TEST_IOTDB_PATH} ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 	sudo cp -rf ${BM_PATH}/data/csvOutput ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 }
@@ -296,6 +297,7 @@ test_operation() {
 	start_iotdb
 	data1=$(date +%Y_%m_%d_%H%M%S | cut -c 1-10)
 	sleep 10
+	
 	####判断IoTDB是否正常启动
 	for (( t_wait = 0; t_wait <= 10; t_wait++ ))
 	do
@@ -307,7 +309,6 @@ test_operation() {
 		continue
 	  fi
 	done
-	#iotdb_state='Total line number = 2'
 	if [ "${iotdb_state}" = "Total line number = 2" ]; then
 		echo "IoTDB正常启动，准备开始测试"
 	else
@@ -320,31 +321,39 @@ test_operation() {
 		result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}")
 		return
 	fi
+	change_pwd=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "ALTER USER root SET PASSWORD '${IoTDB_PW}'")
 	#启动写入程序
 	mv_config_file ${ts_type}
+	start_benchmark
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
 	m_start_time=$(date +%s)
-	start_benchmark
+
 	#等待1分钟
 	sleep 60
+
 	monitor_test_status
 	m_end_time=$(date +%s)
+
 	#停止IoTDB程序和监控程序
-	pid=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h 127.0.0.1 -p 6667 -e "flush")
+	pid=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h 127.0.0.1 -p 6667 -pw ${IoTDB_PW} -e "flush")
+
 	#收集启动后基础监控数据
-	collect_monitor_data
+	collect_monitor_data ${TEST_IP}
 	#测试结果收集写入数据库
 	csvOutputfile=${BM_PATH}/data/csvOutput/*result.csv
 	read okOperation okPoint failOperation failPoint throughput <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '1,1p' | awk -F, '{print $2,$3,$4,$5,$6}')
 	read Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<<$(cat ${csvOutputfile} | grep ^INGESTION | sed -n '2,2p' | awk -F, '{print $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}')
+	
 	cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark) values(${commit_date_time},${test_date_time},'${commit_id}','${author}','${ts_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${errorLogSize},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},${protocol_class})"
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+	
 	#停止IoTDB程序和监控程序
 	stop_iotdb
 	sleep 30
 	check_benchmark_pid
 	check_iotdb_pid
+
 	#备份本次测试
 	backup_test_data ${ts_type}
 }

@@ -2,6 +2,7 @@
 #登录用户名
 TEST_IP="172.20.31.32"
 ACCOUNT=root
+IoTDB_PW=TimechoDB@2021
 test_type=weeklytest_insert
 #初始环境存放路径
 INIT_PATH=/root/zk_test
@@ -331,7 +332,7 @@ test_operation() {
 			result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}")
 			return
 		fi
-		
+		change_pwd=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -e "ALTER USER root SET PASSWORD '${IoTDB_PW}'")
 		#启动写入程序
 		mv_config_file ${insert_list[${i}]}
 		m_start_time=$(date +%s)
@@ -344,7 +345,7 @@ test_operation() {
 		monitor_test_status
 		m_end_time=$(date +%s)
 		#停止IoTDB程序和监控程序
-		pid=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h 127.0.0.1 -p 6667 -e "flush")
+		pid=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h 127.0.0.1 -p 6667 -pw ${IoTDB_PW} -e "flush")
 
 		#收集启动后基础监控数据
 		collect_monitor_data ${TEST_IP}
