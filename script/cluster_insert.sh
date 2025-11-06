@@ -465,7 +465,7 @@ test_operation() {
 	mv_config_file ${ts_type} ${data_type}
 	sed -i "s/^HOST=.*$/HOST=${D_IP_list[1]}/g" ${BM_PATH}/conf/config.properties
 	setup_nCmD -c3 -d3 -t1
-	change_pwd=$(${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${D_IP_list[1]} -p 6667 -e "ALTER USER root SET PASSWORD '${IoTDB_PW}'")
+	change_pwd=$(${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_IP_list[1]} -p 6667 -e "ALTER USER root SET PASSWORD '${IoTDB_PW}'")
 	echo "测试开始！"
 	start_time=`date -d today +"%Y-%m-%d %H:%M:%S"`
 	m_start_time=$(date +%s)
