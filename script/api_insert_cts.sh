@@ -3,7 +3,7 @@
 TEST_IP="172.20.31.29"
 ACCOUNT=root
 IoTDB_PW=TimechoDB@2021
-test_type=api_insert
+test_type=api_insert_cts
 #初始环境存放路径
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
