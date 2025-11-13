@@ -102,15 +102,15 @@ do
 		echo "当前版本${commit_id}未记录,即将编译。"
 		#代码编译
 		date_time=`date +%Y%m%d%H%M%S`
-		comp_mvn=$(mvn clean package -DskipTests -am -pl distribution -P with-ainode)
+		comp_mvn=$(mvn clean package -DskipTests -am -pl distribution)
 		if [ $? -eq 0 ]
 		then
 			echo "${commit_id}编译完成！"
 			rm -rf ${REPO_PATH}/${commit_id}
 			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
 			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-bin/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
-			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
-			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-ainode-bin/timechodb-*-SNAPSHOT-ainode-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
+			#mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
+			#cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-ainode-bin/timechodb-*-SNAPSHOT-ainode-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
 			#配置文件整理
 			echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 			#rm -rf ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
@@ -140,7 +140,7 @@ do
 			if [ "${file_num}" = "0" ]; then
 				#不需要测试
 				str_noneed='NoNeed'
-				insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,ts_performance,cluster_insert,cluster_insert_2,insert_records,restart_db,routine_test,config_insert,count_ts,pipe_test,last_cache_query,windows_test,benchants,helishi_test,pipe_test_win,api_insert_cts,remark) values(${commit_date_time},'${commit_id}','${author}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}')"
+				insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,ts_performance,cluster_insert,cluster_insert_2,insert_records,restart_db,routine_test,config_insert,count_ts,pipe_test,last_cache_query,windows_test,benchants,helishi_test,pipe_test_win,api_insert_cts,remark) values(${commit_date_time},'${commit_id}','${author}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${commit_headline}')"
 				mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 			else
 				#正常下派所有任务
@@ -152,7 +152,7 @@ do
 			echo "${commit_id}编译失败！"
 			echo $comp_mvn >> ${INIT_PATH}/compile-error.log
 			str_err='CError'
-			insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,ts_performance,cluster_insert,cluster_insert_2,insert_records,restart_db,routine_test,config_insert,count_ts,pipe_test,last_cache_query,windows_test,benchants,helishi_test,pipe_test_win,api_insert_cts,remark) values(${commit_date_time},'${commit_id}','${author}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}')"
+			insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,ts_performance,cluster_insert,cluster_insert_2,insert_records,restart_db,routine_test,config_insert,count_ts,pipe_test,last_cache_query,windows_test,benchants,helishi_test,pipe_test_win,api_insert_cts,remark) values(${commit_date_time},'${commit_id}','${author}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${commit_headline}')"
 			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 			sendEmail 2
 		fi
