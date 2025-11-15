@@ -151,7 +151,7 @@ if [ "${diff_str}" = "" ]; then
 	mv "$first_csv" "$PROCESSED_DIR/"
 	mv ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin "$PROCESSED_DIR/"
 else
-	echo "当前${commit_id_list[$i]}已经存在！"
+	echo "当前${commit_id}已经存在！"
 	# 将处理过的csv文件移动到已处理目录
 	mv "$first_csv" "$PROCESSED_DIR/"
 	mv "$zip_file" "$PROCESSED_DIR/"
