@@ -144,6 +144,8 @@ if [ "${diff_str}" = "" ]; then
 	rm -rf ${REPO_PATH}/${commit_id}
 	mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
 	cp -rf ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+	#配置文件整理
+	echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 	insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
 	mv "$first_csv" "$PROCESSED_DIR/"
