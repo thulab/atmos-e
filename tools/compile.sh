@@ -24,7 +24,7 @@ fi
 init_items() {
 commit_date_time=0
 commit_id=0
-author=0
+author=FLOW
 se_insert=0
 unse_insert=0
 se_query=0
@@ -75,7 +75,7 @@ sendEmail() {
 }
 
 echo "ontesting" > ${INIT_PATH}/test_type_file
-
+init_items
 PROCESSED_DIR="/root/zk_test/release/processed"  # 已处理文件存放目录
 # 创建必要的目录
 mkdir -p "$PROCESSED_DIR"
@@ -131,7 +131,6 @@ if [ "${diff_str}" = "" ]; then
 		
 		# 解压zip文件到当前文件夹（或指定目录）
 		unzip -o "$zip_file" -d "$IOTDB_PATH"
-		
 		if [ $? -eq 0 ]; then
 			echo "解压成功"
 			# 将处理过的zip文件移动到已处理目录
@@ -143,9 +142,11 @@ if [ "${diff_str}" = "" ]; then
 		echo "未找到包含commit_id '$commit_id' 的zip文件"
 	fi
 	rm -rf ${REPO_PATH}/${commit_id}
+	mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
 	cp -rf ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
 	insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
 	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+	mv "$first_csv" "$PROCESSED_DIR/"
 	mv ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin "$PROCESSED_DIR/"
 else
 	echo "当前${commit_id_list[$i]}已经存在！"
