@@ -4,7 +4,7 @@ ACCOUNT=root
 test_type=compile
 #初始环境存放路径
 INIT_PATH=/root/zk_test
-IOTDB_PATH=${INIT_PATH}/timechodb
+IOTDB_PATH=${INIT_PATH}/release
 FILENAME=${INIT_PATH}/gitlog.txt
 REPO_PATH=/nasdata/repository/master
 REPO_PATH_EX=/ex_nasdata/repository/master
@@ -76,91 +76,87 @@ sendEmail() {
 
 echo "ontesting" > ${INIT_PATH}/test_type_file
 
-# 获取git commit对比判定是否启动测试
-cd ${IOTDB_PATH}
-git_pull=$(timeout 100s git fetch --all)
-git_pull=$(timeout 100s git reset --hard origin/master)
-git_pull=$(timeout 100s git pull)
-commit_id_list=(`git log --pretty=format:"%h" -21 | awk -F "|" '{print $1}' | cut -c1-7`)
-for (( i = 0; i <= 20; i++))
-do
-	query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id_list[$i]}'"
-	echo "$query_sql"
-	diff_str=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}" | sed -n '2p')
-	if [ "${diff_str}" = "" ]; then
-		cd ${IOTDB_PATH}
-		git_pull=$(timeout 100s git fetch --all)
-		git_pull=$(timeout 100s git reset --hard origin/master)
-		git_pull=$(timeout 100s git pull)
-		git_reset=$(timeout 100s git reset --hard ${commit_id_list[$i]})
-		# 获取更新后git commit对比判定是否启动测试
-		commit_id=$(git log --pretty=format:"%h" -1 | cut -c1-7)
-		commit_headline=$(git log --pretty=format:"%s" -1 | tr -d '\"' | tr -d "'")
-		author=$(git log --pretty=format:"%an" -1)
-		commit_date_time=$(git log --pretty=format:"%ai" -1 | cut -b 1-19 | sed s/-//g | sed s/://g | sed s/[[:space:]]//g)
-		#对比判定是否启动测试
-		echo "当前版本${commit_id}未记录,即将编译。"
-		#代码编译
-		date_time=`date +%Y%m%d%H%M%S`
-		comp_mvn=$(mvn clean package -DskipTests -am -pl distribution)
-		if [ $? -eq 0 ]
-		then
-			echo "${commit_id}编译完成！"
-			rm -rf ${REPO_PATH}/${commit_id}
-			mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
-			cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-bin/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
-			#mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
-			#cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-ainode-bin/timechodb-*-SNAPSHOT-ainode-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb-ainode/
-			#配置文件整理
-			echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
-			#rm -rf ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
-			#mv ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties.template ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
-			#向异构机器网盘环境复制一份备份
-			#sudo rm -rf ${REPO_PATH_EX}/${commit_id}
-			#sudo mkdir -p ${REPO_PATH_EX}/${commit_id}/apache-iotdb/
-			#sudo cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH_EX}/${commit_id}/apache-iotdb/
-			#获取本次更新的变更文件列表
-			git log -1 --name-only > $FILENAME
-			#按照文件夹名称排除不必要测试文件夹
-			for (( ix = 0; ix < ${#filter_list_folder_name[*]}; ix++ ))
-			do
-				sed -i "/${filter_list_folder_name[${ix}]}/d" $FILENAME
-			done
-			file_num=0
-			non_file_num=0
-			while read line;do
-				filename=$(basename $line)
-				if echo "$filename" | grep -q -E '\.java$'
-				then
-					file_num=$[${file_num}+1]
-				else
-					non_file_num=$[${non_file_num}+1]
-				fi
-			done <  $FILENAME
-			if [ "${file_num}" = "0" ]; then
-				#不需要测试
-				str_noneed='NoNeed'
-				insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,ts_performance,cluster_insert,cluster_insert_2,insert_records,restart_db,routine_test,config_insert,count_ts,pipe_test,last_cache_query,windows_test,benchants,helishi_test,pipe_test_win,api_insert_cts,remark) values(${commit_date_time},'${commit_id}','${author}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${str_noneed}','${commit_headline}')"
-				mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
-			else
-				#正常下派所有任务
-				insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
-				mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
-				echo "${commit_id}测试任务已发布！"
-			fi
+PROCESSED_DIR="/root/zk_test/release/processed"  # 已处理文件存放目录
+# 创建必要的目录
+mkdir -p "$PROCESSED_DIR"
+
+# 检查文件夹中是否有csv文件
+csv_files=("$IOTDB_PATH"/*.csv)
+if [ ${#csv_files[@]} -eq 1 ] && [ ! -f "${csv_files[0]}" ]; then
+	echo "$(date): 文件夹为空，睡眠10分钟..."
+	sleep 600  # 10分钟
+	continue
+fi
+
+# 获取第一个csv文件
+first_csv=$(ls "$IOTDB_PATH"/*.csv 2>/dev/null | head -n1)
+
+if [ -z "$first_csv" ]; then
+	echo "$(date): 没有找到csv文件，睡眠10分钟..."
+	sleep 600
+	continue
+fi
+
+echo "$(date): 处理文件: $first_csv"
+
+# 提取文件名（不含路径和扩展名）
+filename=$(basename "$first_csv" .csv)
+
+# 倒序文件名
+reversed=$(echo "$filename" | rev)
+
+# 提取第4到第12个字符（倒序后的位置）
+# 注意：字符串索引从1开始，所以是3-11（因为cut从1开始计数）
+commit_id=$(echo "$reversed" | cut -c1-8)
+
+# 将提取的字符串再次倒序，恢复原始顺序
+commit_id=$(echo "$commit_id" | rev)
+
+commit_date_time=$(echo "$reversed" | cut -c10-23)
+commit_date_time=$(echo "$commit_date_time" | rev)
+
+echo "提取的commit_id: $commit_id"
+echo "提取的commit_date_time: $commit_date_time"
+
+query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id}'"
+echo "$query_sql"
+diff_str=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}" | sed -n '2p')
+if [ "${diff_str}" = "" ]; then
+	# 寻找包含commit_id的zip文件
+	zip_file=$(find "$IOTDB_PATH" -name "*${commit_id}*.zip" | head -n1)
+
+	if [ -n "$zip_file" ]; then
+		echo "找到匹配的zip文件: $zip_file"
+		echo "正在解压..."
+		
+		# 解压zip文件到当前文件夹（或指定目录）
+		unzip -o "$zip_file" -d "$IOTDB_PATH"
+		
+		if [ $? -eq 0 ]; then
+			echo "解压成功"
+			# 将处理过的zip文件移动到已处理目录
+			mv "$zip_file" "$PROCESSED_DIR/"
 		else
-			echo "${commit_id}编译失败！"
-			echo $comp_mvn >> ${INIT_PATH}/compile-error.log
-			str_err='CError'
-			insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,se_insert,unse_insert,se_query,unse_query,compaction,sql_coverage,weeklytest_insert,weeklytest_query,api_insert,ts_performance,cluster_insert,cluster_insert_2,insert_records,restart_db,routine_test,config_insert,count_ts,pipe_test,last_cache_query,windows_test,benchants,helishi_test,pipe_test_win,api_insert_cts,remark) values(${commit_date_time},'${commit_id}','${author}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${str_err}','${commit_headline}')"
-			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
-			sendEmail 2
+			echo "解压失败"
 		fi
 	else
-		echo "当前${commit_id_list[$i]}已经存在！"
+		echo "未找到包含commit_id '$commit_id' 的zip文件"
 	fi
-done
-echo "当前查询到的10个commitid都已经存在！"
+	rm -rf ${REPO_PATH}/${commit_id}
+	cp -rf ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+	insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
+	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+	mv ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin "$PROCESSED_DIR/"
+else
+	echo "当前${commit_id_list[$i]}已经存在！"
+	# 将处理过的csv文件移动到已处理目录
+	mv "$first_csv" "$PROCESSED_DIR/"
+	mv "$zip_file" "$PROCESSED_DIR/"
+fi
+rm -rf /root/zk_test/release/processed/*
+echo "已完成处理，等待下一轮循环..."
+echo "----------------------------------------"
+
 # 获取当前的星期（1表示星期一，7表示星期天）和小时
 day_of_week=$(date +%u)  # 星期几（1-7，1表示星期一）
 hour=$(date +%H)         # 当前小时（00-23）
