@@ -86,79 +86,77 @@ if [ ${#csv_files[@]} -eq 1 ] && [ ! -f "${csv_files[0]}" ]; then
 	echo "$(date): 文件夹为空，睡眠10分钟..."
 	sleep 600  # 10分钟
 	continue
-fi
-
-# 获取第一个csv文件
-first_csv=$(ls "$IOTDB_PATH"/*.csv 2>/dev/null | head -n1)
-
-if [ -z "$first_csv" ]; then
-	echo "$(date): 没有找到csv文件，睡眠10分钟..."
-	sleep 600
-	continue
-fi
-
-echo "$(date): 处理文件: $first_csv"
-
-# 提取文件名（不含路径和扩展名）
-filename=$(basename "$first_csv" .csv)
-
-# 倒序文件名
-reversed=$(echo "$filename" | rev)
-
-# 提取第4到第12个字符（倒序后的位置）
-# 注意：字符串索引从1开始，所以是3-11（因为cut从1开始计数）
-commit_id=$(echo "$reversed" | cut -c1-8)
-
-# 将提取的字符串再次倒序，恢复原始顺序
-commit_id=$(echo "$commit_id" | rev)
-
-commit_date_time=$(echo "$reversed" | cut -c10-23)
-commit_date_time=$(echo "$commit_date_time" | rev)
-
-echo "提取的commit_id: $commit_id"
-echo "提取的commit_date_time: $commit_date_time"
-
-query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id}'"
-echo "$query_sql"
-diff_str=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}" | sed -n '2p')
-if [ "${diff_str}" = "" ]; then
-	# 寻找包含commit_id的zip文件
-	zip_file=$(find "$IOTDB_PATH" -name "*${commit_id}*.zip" | head -n1)
-
-	if [ -n "$zip_file" ]; then
-		echo "找到匹配的zip文件: $zip_file"
-		echo "正在解压..."
-		
-		# 解压zip文件到当前文件夹（或指定目录）
-		unzip -o "$zip_file" -d "$IOTDB_PATH"
-		if [ $? -eq 0 ]; then
-			echo "解压成功"
-			# 将处理过的zip文件移动到已处理目录
-			mv "$zip_file" "$PROCESSED_DIR/"
-		else
-			echo "解压失败"
-		fi
-	else
-		echo "未找到包含commit_id '$commit_id' 的zip文件"
-	fi
-	rm -rf ${REPO_PATH}/${commit_id}
-	mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
-	cp -rf ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
-	#配置文件整理
-	echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
-	insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
-	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
-	mv "$first_csv" "$PROCESSED_DIR/"
-	mv ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin "$PROCESSED_DIR/"
 else
-	echo "当前${commit_id}已经存在！"
-	# 将处理过的csv文件移动到已处理目录
-	mv "$first_csv" "$PROCESSED_DIR/"
-	mv "$zip_file" "$PROCESSED_DIR/"
+	# 获取第一个csv文件
+	first_csv=$(ls "$IOTDB_PATH"/*.csv 2>/dev/null | head -n1)
+	if [ -z "$first_csv" ]; then
+		echo "$(date): 没有找到csv文件，睡眠10分钟..."
+		sleep 600
+		continue
+	fi
+	echo "$(date): 处理文件: $first_csv"
+
+	# 提取文件名（不含路径和扩展名）
+	filename=$(basename "$first_csv" .csv)
+
+	# 倒序文件名
+	reversed=$(echo "$filename" | rev)
+
+	# 提取第4到第12个字符（倒序后的位置）
+	# 注意：字符串索引从1开始，所以是3-11（因为cut从1开始计数）
+	commit_id=$(echo "$reversed" | cut -c1-8)
+
+	# 将提取的字符串再次倒序，恢复原始顺序
+	commit_id=$(echo "$commit_id" | rev)
+
+	commit_date_time=$(echo "$reversed" | cut -c10-23)
+	commit_date_time=$(echo "$commit_date_time" | rev)
+
+	echo "提取的commit_id: $commit_id"
+	echo "提取的commit_date_time: $commit_date_time"
+
+	query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id}'"
+	echo "$query_sql"
+	diff_str=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}" | sed -n '2p')
+	if [ "${diff_str}" = "" ]; then
+		# 寻找包含commit_id的zip文件
+		zip_file=$(find "$IOTDB_PATH" -name "*${commit_id}*.zip" | head -n1)
+
+		if [ -n "$zip_file" ]; then
+			echo "找到匹配的zip文件: $zip_file"
+			echo "正在解压..."
+			
+			# 解压zip文件到当前文件夹（或指定目录）
+			unzip -o "$zip_file" -d "$IOTDB_PATH"
+			if [ $? -eq 0 ]; then
+				echo "解压成功"
+				# 将处理过的zip文件移动到已处理目录
+				mv "$zip_file" "$PROCESSED_DIR/"
+			else
+				echo "解压失败"
+			fi
+		else
+			echo "未找到包含commit_id '$commit_id' 的zip文件"
+		fi
+		rm -rf ${REPO_PATH}/${commit_id}
+		mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
+		cp -rf ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+		#配置文件整理
+		echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
+		insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
+		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"
+		mv "$first_csv" "$PROCESSED_DIR/"
+		mv ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin "$PROCESSED_DIR/"
+	else
+		echo "当前${commit_id}已经存在！"
+		# 将处理过的csv文件移动到已处理目录
+		mv "$first_csv" "$PROCESSED_DIR/"
+		mv "$zip_file" "$PROCESSED_DIR/"
+	fi
+	rm -rf /root/zk_test/release/processed/*
+	echo "已完成处理，等待下一轮循环..."
+	echo "----------------------------------------"
 fi
-rm -rf /root/zk_test/release/processed/*
-echo "已完成处理，等待下一轮循环..."
-echo "----------------------------------------"
 
 # 获取当前的星期（1表示星期一，7表示星期天）和小时
 day_of_week=$(date +%u)  # 星期几（1-7，1表示星期一）
