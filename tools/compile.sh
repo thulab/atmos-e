@@ -85,14 +85,12 @@ csv_files=("$IOTDB_PATH"/*.csv)
 if [ ${#csv_files[@]} -eq 1 ] && [ ! -f "${csv_files[0]}" ]; then
 	echo "$(date): 文件夹为空，睡眠10分钟..."
 	sleep 600  # 10分钟
-	continue
 else
 	# 获取第一个csv文件
 	first_csv=$(ls "$IOTDB_PATH"/*.csv 2>/dev/null | head -n1)
 	if [ -z "$first_csv" ]; then
 		echo "$(date): 没有找到csv文件，睡眠10分钟..."
 		sleep 600
-		continue
 	fi
 	echo "$(date): 处理文件: $first_csv"
 
