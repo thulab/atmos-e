@@ -24,7 +24,8 @@ fi
 init_items() {
 commit_date_time=0
 commit_id=0
-author=FLOW
+commit_headline=0
+author=0
 se_insert=0
 unse_insert=0
 se_query=0
@@ -112,7 +113,10 @@ else
 
 	echo "提取的commit_id: $commit_id"
 	echo "提取的commit_date_time: $commit_date_time"
-
+	
+	read s1 s2 s3 s4 s5<<<$(cat ${csvOutputfile} | sed -n '2,2p' | tr -d '\"' | tr -d "'" | awk -F, '{print $1,$2,$3,$4}')
+	author=$s2
+	commit_headline=$s5
 	query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id}'"
 	echo "$query_sql"
 	diff_str=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}" | sed -n '2p')
