@@ -114,7 +114,8 @@ else
 	echo "提取的commit_id: $commit_id"
 	echo "提取的commit_date_time: $commit_date_time"
 	
-	read s1 s2 s3 s4 s5<<<$(cat ${first_csv} | sed -n '2,2p' | tr -d '\"' | tr -d "'" | awk -F, '{print $1,$2,$3,$4}')
+	read s1 s2 s3 s4 s5<<<$(cat $first_csv | sed -n '2,2p' | tr -d '\"' | tr -d "'" | awk -F, '{print $1,$2,$3,$4}')
+	echo "first_csv："$first_csv
 	author=$s2
 	commit_headline=$s5
 	query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id}'"
