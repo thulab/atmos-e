@@ -134,6 +134,9 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	echo "dn_metric_prometheus_reporter_port=9091" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 	#UDF路径限制扩展
 	echo "trusted_uri_pattern=.*" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	#设置安全版本功能配置
+	echo "enforce_strong_password=true" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
+	echo "enable_audit_log=true" >> ${TEST_IOTDB_PATH}/conf/iotdb-system.properties
 }
 set_protocol_class() { 
 	config_node=$1
