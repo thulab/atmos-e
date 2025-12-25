@@ -250,6 +250,7 @@ else
 	cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
 	cp -rf ${TC_PATH}/lib/trigger_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
+	cp -rf ${TC_PATH}/lib/pipe_jar/local/* /data/nginx/
 	cd ${TEST_TOOL_PATH}
 	rm -rf ${TEST_TOOL_PATH}/user/scripts
 	cp -rf ${TC_PATH}/tree/scripts ${TEST_TOOL_PATH}/user/
@@ -363,6 +364,7 @@ else
 	#cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
 	#cp -rf ${TC_PATH}/lib/trigger_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
+	cp -rf ${TC_PATH}/lib/pipe_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
 	cd ${TEST_TOOL_PATH}
 	rm -rf ${TEST_TOOL_PATH}/user/scripts
