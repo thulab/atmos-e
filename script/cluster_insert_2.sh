@@ -144,6 +144,7 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/CN/apache-iotdb/
 	mkdir -p ${TEST_PATH}/CN/apache-iotdb/activation
 	cp -rf ${ATMOS_PATH}/conf/${test_type}/license ${TEST_PATH}/CN/apache-iotdb/activation/
+	cp -rf ${ATMOS_PATH}/conf/${test_type}/env ${TEST_PATH}/CN/apache-iotdb/.env
 	
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/DN/apache-iotdb/
 }
