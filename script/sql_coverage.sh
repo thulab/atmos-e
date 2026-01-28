@@ -5,7 +5,7 @@ test_type=sql_coverage
 #初始环境存放路径
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
-TOOL_PATH=${INIT_PATH}/iotdb-sql
+TOOL_PATH=${INIT_PATH}/iotdb-sql-test
 BM_PATH=${INIT_PATH}/iot-benchmark
 TC_PATH=${INIT_PATH}/iotdb-sql-testcase
 BUCKUP_PATH=/nasdata/repository/sql_coverage/master
@@ -13,7 +13,7 @@ REPOS_PATH=/nasdata/repository/master
 #测试数据运行路径
 TEST_INIT_PATH=/data/qa
 TEST_IOTDB_PATH=${TEST_INIT_PATH}/apache-iotdb
-TEST_TOOL_PATH=${TEST_INIT_PATH}/iotdb-sql
+TEST_TOOL_PATH=${TEST_INIT_PATH}/iotdb-sql-test
 # 1. org.apache.iotdb.consensus.simple.SimpleConsensus
 # 2. org.apache.iotdb.consensus.ratis.RatisConsensus
 # 3. org.apache.iotdb.consensus.iot.IoTConsensus
