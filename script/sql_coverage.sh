@@ -252,6 +252,10 @@ else
 	cp -rf ${TC_PATH}/lib/trigger_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/pipe_jar/local/* /data/nginx/
+	# 复制测试依赖tsfile数据
+	mkdir -p /data/tsfile
+	rm -rf /data/tsfile/*
+	cp -rf ${TC_PATH}/tsfile/* /data/tsfile/
 	cd ${TEST_TOOL_PATH}
 	rm -rf ${TEST_TOOL_PATH}/user/scripts
 	cp -rf ${TC_PATH}/tree/scripts ${TEST_TOOL_PATH}/user/
@@ -367,6 +371,10 @@ else
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/pipe_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
+	# 复制测试依赖tsfile数据
+	mkdir -p /data/tsfile
+	rm -rf /data/tsfile/*
+	cp -rf ${TC_PATH}/tsfile/* /data/tsfile/
 	cd ${TEST_TOOL_PATH}
 	rm -rf ${TEST_TOOL_PATH}/user/scripts
 	cp -rf ${TC_PATH}/table/scripts ${TEST_TOOL_PATH}/user/
