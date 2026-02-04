@@ -249,6 +249,8 @@ else
 	cp -rf ${TC_PATH}/lib/udf_jar/envelop ${TEST_IOTDB_PATH}/ext/udf/
 	cp -rf ${TC_PATH}/lib/udf_jar/ext ${TEST_IOTDB_PATH}/ext/udf/
 	cp -rf ${TC_PATH}/lib/udf_jar/example ${TEST_IOTDB_PATH}/ext/udf/
+	mkdir -p /data/nginx
+	rm -rf /data/nginx/*
 	cp -rf ${TC_PATH}/lib/trigger_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/udf_jar/local/* /data/nginx/
 	cp -rf ${TC_PATH}/lib/pipe_jar/local/* /data/nginx/
