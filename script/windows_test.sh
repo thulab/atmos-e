@@ -1,6 +1,7 @@
 #!/bin/bash
 #登录用户名
 ACCOUNT=Administrator
+IoTDB_PW=TimechoDB@2021
 test_type=windows_test
 #初始环境存放路径
 INIT_PATH=/root/zk_test
