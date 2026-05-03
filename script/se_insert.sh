@@ -855,9 +855,6 @@ test_operation() {
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
     insert_result_row "${current_ts_type}" "${protocol_code}"
-
-    cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-    insert_result_row "${current_ts_type}" "${protocol_code}"
     
     # 在插入结果后，调用监控函数检查是否报警
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
