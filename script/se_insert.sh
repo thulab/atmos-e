@@ -139,7 +139,7 @@ check_password() {
         die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL。"
     fi
 }
-check_iotdb_pid() { # 检查iotdb的pid，有就停止
+
 ensure_runtime_dependencies() {
     local cmd
     for cmd in awk cat cp curl date grep jq jps kill mkdir mv mysql rm sed sudo tr; do
