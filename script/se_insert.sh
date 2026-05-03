@@ -863,6 +863,8 @@ test_operation() {
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
         if ! check_throughput_monitor "${commit_date_time}" "${throughput}"; then
             log "当前测试结果触发监控警报，但测试流程继续"
+		else
+			log "当前测试结果吞吐符合规律"
         fi
     fi
 
