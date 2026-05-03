@@ -18,7 +18,7 @@ readonly TEST_TYPE="se_insert"
 
 # -------------------- 路径相关变量 --------------------
 readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-ex"
+readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
 readonly BM_PATH="${INIT_PATH}/iot-benchmark"
 readonly BACKUP_PATH="/nasdata/repository/se_insert"
 readonly REPOS_PATH="/nasdata/repository/master"
