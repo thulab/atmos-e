@@ -245,6 +245,58 @@ check_benchmark_version() {
         cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
     fi
 }
+# -------------------- 告警通知函数 --------------------
+sendMsg() {
+    local error_type="$1"
+    local date_time
+    local test_type="${test_type:-性能测试}"  # 默认值
+    local headline=''
+    local msgbody=''
+    
+    date_time="$(date '+%Y-%m-%d %H:%M:%S')"
+    
+    case "${error_type}" in
+        1)
+            # 1. 吞吐量监控异常
+            headline="吞吐量监控异常告警"
+            msgbody="[Atmos性能测试告警]\n错误类型：吞吐量异常\n告警时间：${date_time}\n测试类型：${test_type}\n当前吞吐量：${2}\n控制上限：${3}\n控制下限：${4}\n历史均值：${5}\n"
+            ;;
+        2)
+            # 2. 其他错误类型（可根据需要扩展）
+            headline="${test_type}代码编译失败"
+            msgbody="错误类型：${test_type}代码编译失败\n报错时间：${date_time}\n报错Commit：${commit_id:-N/A}\n提交人：${author:-N/A}\n报错信息：${comp_mvn:-N/A}"
+            ;;
+        *)
+            log "未知错误类型: ${error_type}"
+            return 1
+            ;;
+    esac
+    
+    # 发送钉钉消息
+    local dingtalk_token="f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62"
+    local dingtalk_url="https://oapi.dingtalk.com/robot/send?access_token=${dingtalk_token}"
+    
+    # 构建JSON数据
+    local json_data
+    json_data=$(cat <<EOF
+{
+    "msgtype": "text",
+    "text": {
+        "content": "${msgbody}"
+    }
+}
+EOF
+)
+    
+    # 发送请求
+    curl -s -X POST \
+        -H 'Content-Type: application/json' \
+        -d "${json_data}" \
+        "${dingtalk_url}" > /dev/null 2>&1 &
+    
+    log "已发送钉钉告警通知: ${headline}"
+    return 0
+}
 # -------------------- 监控控制函数 --------------------
 check_throughput_monitor() {
     local commit_date_time="$1"
@@ -303,7 +355,8 @@ check_throughput_monitor() {
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
         if (( $(echo "$throughput > $ucl" | bc -l 2>/dev/null) )) || \
            (( $(echo "$throughput < $lcl && $lcl > 0" | bc -l 2>/dev/null) )); then
-            log "⚠️  监控警报: 吞吐量 $throughput 超出控制限 [$lcl, $ucl] (均值: $mean, 标准差: $std)"
+            log "监控警报: 吞吐量 $throughput 超出控制限 [$lcl, $ucl] (均值: $mean, 标准差: $std)"
+			sendMsg 1 "${throughput}" "${ucl}" "${lcl}" "${mean}"
             return 1
         else
             log "监控正常: 吞吐量 $throughput 在控制限内 [$lcl, $ucl]"
