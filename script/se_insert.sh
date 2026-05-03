@@ -245,7 +245,75 @@ check_benchmark_version() {
         cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
     fi
 }
-
+# -------------------- 监控控制函数 --------------------
+check_throughput_monitor() {
+    local commit_date_time="$1"
+    local throughput="$2"
+    
+    # 获取最近100条同类型数据（排除本次测试结果）
+    local data
+    data="$(mysql_exec "
+        SELECT throughput 
+        FROM ${result_table} 
+        WHERE commit_date_time < '${commit_date_time}' 
+        AND throughput > 0  -- 只取有效数据
+        ORDER BY commit_date_time DESC 
+        LIMIT 100
+    ")" || {
+        log "监控: 获取历史数据失败"
+        return 0
+    }
+    
+    # 如果没有足够的历史数据，跳过监控
+    local data_count=$(echo "$data" | wc -l)
+    if [ "$data_count" -lt 20 ]; then
+        log "监控: 历史数据不足 ($data_count 条)，跳过监控检查"
+        return 0
+    fi
+    
+    # 计算均值和标准差
+    local mean std
+    mean="$(echo "$data" | awk '
+        {sum+=$1; sumsq+=$1*$1} 
+        END {if(NR>0) print sum/NR; else print 0}
+    ')"
+    
+    std="$(echo "$data" | awk '
+        {sum+=$1; sumsq+=$1*$1} 
+        END {
+            if(NR>0) {
+                var = sumsq/NR - (sum/NR)^2
+                if(var < 0) var = 0
+                print sqrt(var)
+            } else {
+                print 0
+            }
+        }
+    ')"
+    
+    # 计算控制限
+    local ucl lcl
+    ucl="$(echo "$mean + 3 * $std" | bc -l 2>/dev/null || echo "0")"
+    lcl="$(echo "$mean - 3 * $std" | bc -l 2>/dev/null || echo "0")"
+    
+    # 确保LCL不小于0
+    lcl="$(echo "if ($lcl < 0) 0 else $lcl" | bc -l 2>/dev/null || echo "0")"
+    
+    # 检查最新吞吐量是否超出控制限
+    if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
+        if (( $(echo "$throughput > $ucl" | bc -l 2>/dev/null) )) || \
+           (( $(echo "$throughput < $lcl && $lcl > 0" | bc -l 2>/dev/null) )); then
+            log "⚠️  监控警报: 吞吐量 $throughput 超出控制限 [$lcl, $ucl] (均值: $mean, 标准差: $std)"
+            return 1
+        else
+            log "监控正常: 吞吐量 $throughput 在控制限内 [$lcl, $ucl]"
+            return 0
+        fi
+    else
+        log "监控: 当前吞吐量为非正数 ($throughput)，跳过监控检查"
+        return 0
+    fi
+}
 init_items() {
     okPoint=0
     okOperation=0
@@ -734,6 +802,16 @@ test_operation() {
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
     insert_result_row "${current_ts_type}" "${protocol_code}"
+
+    cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
+    insert_result_row "${current_ts_type}" "${protocol_code}"
+    
+    # 在插入结果后，调用监控函数检查是否报警
+    if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
+        if ! check_throughput_monitor "${commit_date_time}" "${throughput}"; then
+            log "当前测试结果触发监控警报，但测试流程继续"
+        fi
+    fi
 
     stop_iotdb
     sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
