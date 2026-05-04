@@ -142,11 +142,15 @@ check_password() {
 
 ensure_runtime_dependencies() {
     local cmd
-    for cmd in awk cat cp curl date grep jq jps kill mkdir mv mysql rm sed sudo tr; do
+    # 在改动运行环境之前先把依赖校验完，避免只在监控或失败分支才会用到的
+    # 数学计算、结果解析工具缺失时，脚本运行到中途才报错。
+    for cmd in awk bc cat cp curl date grep jq jps kill mkdir mv mysql rm sed sudo tr wc; do
         require_command "$cmd"
     done
 }
 
+# 将删除类操作限制在已知工作目录内，避免变量展开异常时误删宿主机上的
+# 非预期路径。
 path_is_safe() {
     local path="$1"
     [ -n "$path" ] || return 1
@@ -212,6 +216,8 @@ fetch_next_commit() {
     local row=""
     local raw_commit_date_time=""
 
+    # 人工标记为 retest 的任务优先于未测试提交，方便在队列未清空前
+    # 直接重跑有问题的版本。
     row="$(query_next_commit "retest")"
     if [ -z "${row}" ]; then
         row="$(query_next_commit "pending")"
@@ -458,6 +464,8 @@ modify_iotdb_config() {
 
     sed -i 's/^#\?ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY="20G"/' "${datanode_env}"
 
+    # 每次测试都会从干净源码重新准备工作目录，因此这里直接追加覆盖配置，
+    # 不会在不同 commit 之间持续累积。
     cat >> "${properties_file}" <<EOF
 enable_seq_space_compaction=false
 enable_unseq_space_compaction=false
@@ -589,6 +597,9 @@ monitor_test_status() {
     local now_epoch=0
     local elapsed=0
 
+    # 这里没有可直接复用的 IoT-Benchmark 完成回调，因此以结果 CSV 是否生成
+    # 作为测试完成的唯一判定依据。超时后会补写一个 stuck 结果文件，确保后续
+    # 解析和入库仍能留下可见的失败记录。
     while true; do
         csv_file="$(find_result_csv || true)"
         if [ -n "${csv_file}" ]; then
@@ -696,6 +707,8 @@ parse_benchmark_result() {
 
     [ -f "${csv_file}" ] || return 1
 
+    # IoT-Benchmark 会把吞吐和延迟写在不同的 INGESTION 行里，这里分开提取，
+    # 避免强依赖固定表头或列布局。
     throughput_line="$(
         awk -F, '
             /^INGESTION/ {
@@ -797,6 +810,8 @@ test_operation() {
     local current_ts_type="$2"
     local csv_file=""
     local monitor_failed=0
+    # throughput / cost_time 的负值是约定好的哨兵值，用来在结果表中区分
+    # 启动失败、鉴权失败、结果解析失败等不同异常场景。
 
     log "开始测试协议 ${protocol_code} 下的 ${current_ts_type} 时间序列。"
     init_items
@@ -879,6 +894,8 @@ test_operation() {
 }
 
 mark_test_in_progress() {
+    # 这个文件会被外层调度器读取，作为当前测试状态的粗粒度协同信号，
+    # 因此即使脚本提前退出，也要保证它被正确更新。
     printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
 }
 
