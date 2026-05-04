@@ -50,6 +50,7 @@ readonly TASK_TABLENAME="commit_history"
 
 # -------------------- Prometheus 配置信息 --------------------
 readonly METRIC_SERVER="111.200.37.158:19090"
+readonly DISK_ID="vdc"
 
 # -------------------- 运行时配置 --------------------
 readonly MONITOR_TIMEOUT_SECONDS=7200
@@ -666,10 +667,10 @@ collect_monitor_data() {
     walFileSize="$(bytes_to_gib "${walFileSize}")"
     maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"sdb\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"sdb\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"sdb\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"sdb\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
 }
 
 backup_test_data() {
