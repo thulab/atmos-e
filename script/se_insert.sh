@@ -301,6 +301,9 @@ EOF
 check_throughput_monitor() {
     local commit_date_time="$1"
     local throughput="$2"
+    local current_ts_type="$3"
+    local protocol_code="$4"
+
     
     # 获取最近100条同类型数据（排除本次测试结果）
     local data
@@ -308,6 +311,8 @@ check_throughput_monitor() {
         SELECT throughput 
         FROM ${result_table} 
         WHERE commit_date_time < '${commit_date_time}' 
+        AND ts_type = '${current_ts_type}' 
+        AND remark = '${protocol_code}' 
         AND throughput > 0  -- 只取有效数据
         ORDER BY commit_date_time DESC 
         LIMIT 100
@@ -858,10 +863,10 @@ test_operation() {
     
     # 在插入结果后，调用监控函数检查是否报警
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
-        if ! check_throughput_monitor "${commit_date_time}" "${throughput}"; then
+        if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${current_ts_type}" "${protocol_code}"; then
             log "当前测试结果触发监控警报，但测试流程继续"
-		else
-			log "当前测试结果吞吐符合规律"
+        else
+            log "当前测试结果吞吐符合规律"
         fi
     fi
 
