@@ -355,7 +355,7 @@ check_throughput_monitor() {
     
     # 确保LCL不小于0
     lcl="$(echo "if ($lcl < 0) 0 else $lcl" | bc -l 2>/dev/null || echo "0")"
-    
+    log "吞吐量 $throughput 控制限 [$lcl, $ucl] (均值: $mean, 标准差: $std)"
     # 检查最新吞吐量是否超出控制限
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
         if (( $(echo "$throughput > $ucl" | bc -l 2>/dev/null) )) || \
