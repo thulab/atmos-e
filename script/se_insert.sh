@@ -321,7 +321,7 @@ check_throughput_monitor() {
         FROM ${result_table} 
         WHERE commit_date_time < '${commit_date_time}' 
         AND ts_type = '${current_ts_type}' 
-        AND protocol = '${protocol_code}' 
+        AND protocol = '${protocol_code}'
         AND throughput > 0  -- 只取有效数据
         ORDER BY commit_date_time DESC 
         LIMIT 100
@@ -939,11 +939,11 @@ main() {
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
         for ts in "${TS_LIST[@]}"; do
-			for api in "${API_LIST[@]}"; do
-				if ! test_operation "${protocol}" "${ts}" "${api}"; then
-					task_failed=1
-				fi
-			done
+            for api in "${API_LIST[@]}"; do
+                if ! test_operation "${protocol}" "${ts}" "${api}"; then
+                    task_failed=1
+                fi
+            done
         done
     done
 
