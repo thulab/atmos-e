@@ -34,9 +34,11 @@ readonly -a PROTOCOL_CLASS=(
     "org.apache.iotdb.consensus.simple.SimpleConsensus"
     "org.apache.iotdb.consensus.ratis.RatisConsensus"
     "org.apache.iotdb.consensus.iot.IoTConsensus"
+    "org.apache.iotdb.consensus.iot.IoTConsensusV2"
 )
 readonly -a PROTOCOL_LIST=(223)
 readonly -a TS_LIST=(common aligned tempaligned tablemode)
+readonly -a API_LIST=(SESSION_BY_TABLET)
 
 # -------------------- MySQL 配置信息 --------------------
 readonly MYSQLHOSTNAME="111.200.37.158"
@@ -319,7 +321,7 @@ check_throughput_monitor() {
         FROM ${result_table} 
         WHERE commit_date_time < '${commit_date_time}' 
         AND ts_type = '${current_ts_type}' 
-        AND remark = '${protocol_code}' 
+        AND protocol = '${protocol_code}' 
         AND throughput > 0  -- 只取有效数据
         ORDER BY commit_date_time DESC 
         LIMIT 100
@@ -746,7 +748,8 @@ parse_benchmark_result() {
 
 insert_result_row() {
     local current_ts_type="$1"
-    local protocol_code="$2"
+    local current_api_type="$2"
+    local protocol_code="$3"
     local insert_sql=""
 
     insert_sql=$(cat <<EOF
@@ -754,7 +757,7 @@ insert into ${result_table} (
     commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,
     Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,
     numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,avgCPULoad,maxCPULoad,
-    maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark
+    maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,api_type,protocol
 ) values (
     ${commit_date_time},
     ${test_date_time},
@@ -793,6 +796,7 @@ insert into ${result_table} (
     ${maxDiskIOSizeWrite},
     ${maxDiskIOOpsRead},
     ${maxDiskIOOpsWrite},
+    $(sql_quote "${current_api_type}"),
     ${protocol_code}
 )
 EOF
@@ -809,6 +813,7 @@ cleanup_processes() {
 test_operation() {
     local protocol_code="$1"
     local current_ts_type="$2"
+    local current_api_type="$3"
     local csv_file=""
     local monitor_failed=0
     # throughput / cost_time 的负值是约定好的哨兵值，用来在结果表中区分
@@ -831,7 +836,7 @@ test_operation() {
         log "IoTDB 未能正常启动，写入负值测试结果。"
         cost_time=-3
         throughput=-3
-        insert_result_row "${current_ts_type}" "${protocol_code}"
+        insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
         cleanup_processes
         return 1
     fi
@@ -840,7 +845,7 @@ test_operation() {
         log "root 密码修改失败，写入负值测试结果。"
         cost_time=-4
         throughput=-4
-        insert_result_row "${current_ts_type}" "${protocol_code}"
+        insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
         cleanup_processes
         return 1
     fi
@@ -865,7 +870,7 @@ test_operation() {
         [ -n "${end_time}" ] || end_time="$(current_datetime)"
         cost_time=-2
         throughput=-2
-        insert_result_row "${current_ts_type}" "${protocol_code}"
+        insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
         stop_iotdb
         sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
         cleanup_processes
@@ -875,7 +880,7 @@ test_operation() {
 
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-    insert_result_row "${current_ts_type}" "${protocol_code}"
+    insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
     
     # 在插入结果后，调用监控函数检查是否报警
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
@@ -934,9 +939,11 @@ main() {
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
         for ts in "${TS_LIST[@]}"; do
-            if ! test_operation "${protocol}" "${ts}"; then
-                task_failed=1
-            fi
+			for api in "${API_LIST[@]}"; do
+				if ! test_operation "${protocol}" "${ts}" "${api}"; then
+					task_failed=1
+				fi
+			done
         done
     done
 
