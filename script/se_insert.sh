@@ -104,7 +104,7 @@ maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
 m_start_time=0
 m_end_time=0
-disk_id="${DEFAULT_DISK_ID}"
+disk_id_regex="^${DEFAULT_DISK_ID}$"
 
 log() {
     printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -192,7 +192,7 @@ copy_if_exists() {
     cp -rf -- "${source}" "${target}"
 }
 
-get_monitor_disk_target_path() {
+get_monitor_disk_fallback_path() {
     local data_path="${TEST_IOTDB_PATH}/data"
 
     if [ -d "${data_path}" ]; then
@@ -203,17 +203,142 @@ get_monitor_disk_target_path() {
     printf '%s\n' "${TEST_IOTDB_PATH}"
 }
 
+get_iotdb_property_value() {
+    local properties_file="$1"
+    local property_key="$2"
+
+    awk -v property_key="${property_key}" '
+        /^[[:space:]]*#/ { next }
+        {
+            line = $0
+            sub(/\r$/, "", line)
+            if (line ~ "^[[:space:]]*" property_key "[[:space:]]*=") {
+                sub("^[[:space:]]*" property_key "[[:space:]]*=[[:space:]]*", "", line)
+                value = line
+            }
+        }
+        END {
+            if (value != "") {
+                print value
+            }
+        }
+    ' "${properties_file}"
+}
+
+split_iotdb_path_list() {
+    local value="$1"
+    local item=""
+    local -a items=()
+
+    value="${value//;/,}"
+    value="${value//\"/}"
+    IFS=',' read -r -a items <<< "${value}"
+    for item in "${items[@]}"; do
+        item="$(trim "${item}")"
+        [ -n "${item}" ] || continue
+        printf '%s\n' "${item}"
+    done
+}
+
+normalize_monitor_target_path() {
+    local path="$1"
+
+    path="$(trim "${path}")"
+    path="${path%/}"
+
+    case "${path}" in
+        /*)
+            printf '%s\n' "${path}"
+            ;;
+        *)
+            printf '%s\n' "${TEST_IOTDB_PATH}/${path}"
+            ;;
+    esac
+}
+
+get_monitor_disk_target_paths() {
+    local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
+    local property_key=""
+    local property_value=""
+    local raw_path=""
+    local normalized_path=""
+    local found_configured_path=0
+    local -a property_keys=(dn_data_dirs data_dirs dn_wal_dirs wal_dirs)
+
+    if [ -f "${properties_file}" ]; then
+        for property_key in "${property_keys[@]}"; do
+            property_value="$(get_iotdb_property_value "${properties_file}" "${property_key}")"
+            [ -n "${property_value}" ] || continue
+
+            while IFS= read -r raw_path; do
+                [ -n "${raw_path}" ] || continue
+                normalized_path="$(normalize_monitor_target_path "${raw_path}")"
+                [ -n "${normalized_path}" ] || continue
+                printf '%s\n' "${normalized_path}"
+                found_configured_path=1
+            done < <(split_iotdb_path_list "${property_value}")
+        done
+    fi
+
+    if [ "${found_configured_path}" -eq 0 ]; then
+        get_monitor_disk_fallback_path
+    fi
+}
+
+find_existing_monitor_path() {
+    local path="$1"
+
+    while [ ! -e "${path}" ] && [ "${path}" != "/" ]; do
+        path="${path%/*}"
+        [ -n "${path}" ] || path="/"
+    done
+
+    [ -e "${path}" ] || return 1
+    printf '%s\n' "${path}"
+}
+
+contains_value() {
+    local expected="$1"
+    shift
+
+    local actual=""
+    for actual in "$@"; do
+        [ "${actual}" = "${expected}" ] && return 0
+    done
+
+    return 1
+}
+
+build_disk_id_regex() {
+    local regex=""
+    local current_disk_id=""
+
+    for current_disk_id in "$@"; do
+        if [ -z "${regex}" ]; then
+            regex="${current_disk_id}"
+        else
+            regex="${regex}|${current_disk_id}"
+        fi
+    done
+
+    [ -n "${regex}" ] || regex="${DEFAULT_DISK_ID}"
+    printf '^(%s)$\n' "${regex}"
+}
+
 detect_disk_id_from_path() {
     local target_path="$1"
+    local existing_path=""
     local source_device=""
     local resolved_device=""
     local parent_device=""
 
     command -v findmnt >/dev/null 2>&1 || return 1
     command -v lsblk >/dev/null 2>&1 || return 1
-    [ -e "${target_path}" ] || return 1
 
-    source_device="$(findmnt -no SOURCE --target "${target_path}" 2>/dev/null | awk 'NF { print; exit }')"
+    existing_path="$(find_existing_monitor_path "${target_path}" || true)"
+    [ -n "${existing_path}" ] || return 1
+
+    source_device="$(findmnt -no SOURCE --target "${existing_path}" 2>/dev/null | awk 'NF { print; exit }')"
     [ -n "${source_device}" ] || return 1
 
     source_device="${source_device%%[*}"
@@ -237,16 +362,27 @@ detect_disk_id_from_path() {
 resolve_monitor_disk_id() {
     local target_path=""
     local detected_disk_id=""
+    local -a detected_disk_ids=()
+    local -a monitor_target_paths=()
 
-    disk_id="${DEFAULT_DISK_ID}"
-    target_path="$(get_monitor_disk_target_path)"
-    detected_disk_id="$(detect_disk_id_from_path "${target_path}" || true)"
+    disk_id_regex="^${DEFAULT_DISK_ID}$"
 
-    if [ -n "${detected_disk_id}" ]; then
-        disk_id="${detected_disk_id}"
-        log "resolved disk id ${disk_id} from ${target_path}"
+    while IFS= read -r target_path; do
+        [ -n "${target_path}" ] || continue
+        monitor_target_paths+=("${target_path}")
+        detected_disk_id="$(detect_disk_id_from_path "${target_path}" || true)"
+        [ -n "${detected_disk_id}" ] || continue
+
+        if ! contains_value "${detected_disk_id}" "${detected_disk_ids[@]}"; then
+            detected_disk_ids+=("${detected_disk_id}")
+        fi
+    done < <(get_monitor_disk_target_paths)
+
+    if [ "${#detected_disk_ids[@]}" -gt 0 ]; then
+        disk_id_regex="$(build_disk_id_regex "${detected_disk_ids[@]}")"
+        log "resolved disk ids ${detected_disk_ids[*]} from ${monitor_target_paths[*]}"
     else
-        log "failed to resolve disk id from ${target_path}, fallback to ${disk_id}"
+        log "failed to resolve disk ids from ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}}, fallback to ${DEFAULT_DISK_ID}"
     fi
 }
 
@@ -749,10 +885,10 @@ collect_monitor_data() {
     walFileSize="$(bytes_to_gib "${walFileSize}")"
     maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOOpsRead="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
+    maxDiskIOOpsWrite="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
+    maxDiskIOSizeRead="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
+    maxDiskIOSizeWrite="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
 }
 
 backup_test_data() {
