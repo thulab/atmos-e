@@ -52,7 +52,7 @@ readonly TASK_TABLENAME="commit_history"
 
 # -------------------- Prometheus 配置信息 --------------------
 readonly METRIC_SERVER="111.200.37.158:19090"
-readonly DISK_ID="vdc"
+readonly DEFAULT_DISK_ID="vdc"
 
 # -------------------- 运行时配置 --------------------
 readonly MONITOR_TIMEOUT_SECONDS=7200
@@ -104,6 +104,7 @@ maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
 m_start_time=0
 m_end_time=0
+disk_id="${DEFAULT_DISK_ID}"
 
 log() {
     printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -189,6 +190,64 @@ copy_if_exists() {
     fi
 
     cp -rf -- "${source}" "${target}"
+}
+
+get_monitor_disk_target_path() {
+    local data_path="${TEST_IOTDB_PATH}/data"
+
+    if [ -d "${data_path}" ]; then
+        printf '%s\n' "${data_path}"
+        return 0
+    fi
+
+    printf '%s\n' "${TEST_IOTDB_PATH}"
+}
+
+detect_disk_id_from_path() {
+    local target_path="$1"
+    local source_device=""
+    local resolved_device=""
+    local parent_device=""
+
+    command -v findmnt >/dev/null 2>&1 || return 1
+    command -v lsblk >/dev/null 2>&1 || return 1
+    [ -e "${target_path}" ] || return 1
+
+    source_device="$(findmnt -no SOURCE --target "${target_path}" 2>/dev/null | awk 'NF { print; exit }')"
+    [ -n "${source_device}" ] || return 1
+
+    source_device="${source_device%%[*}"
+    if command -v readlink >/dev/null 2>&1; then
+        resolved_device="$(readlink -f "${source_device}" 2>/dev/null || printf '%s\n' "${source_device}")"
+    else
+        resolved_device="${source_device}"
+    fi
+
+    [ -b "${resolved_device}" ] || return 1
+
+    while true; do
+        parent_device="$(lsblk -ndo PKNAME "${resolved_device}" 2>/dev/null | awk 'NF { print; exit }')"
+        [ -n "${parent_device}" ] || break
+        resolved_device="/dev/${parent_device}"
+    done
+
+    printf '%s\n' "${resolved_device##*/}"
+}
+
+resolve_monitor_disk_id() {
+    local target_path=""
+    local detected_disk_id=""
+
+    disk_id="${DEFAULT_DISK_ID}"
+    target_path="$(get_monitor_disk_target_path)"
+    detected_disk_id="$(detect_disk_id_from_path "${target_path}" || true)"
+
+    if [ -n "${detected_disk_id}" ]; then
+        disk_id="${detected_disk_id}"
+        log "resolved disk id ${disk_id} from ${target_path}"
+    else
+        log "failed to resolve disk id from ${target_path}, fallback to ${disk_id}"
+    fi
 }
 
 sudo_safe_rm() {
@@ -674,6 +733,7 @@ collect_monitor_data() {
     local datanode_error_log_size=0
     local confignode_error_log_size=0
 
+    resolve_monitor_disk_id
     dataFileSize="$(get_single_index "sum(file_global_size{instance=~\"${ip}:9091\"})" "${m_end_time}")"
     dataFileSize="$(bytes_to_gib "${dataFileSize}")"
     numOfSe0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"seq\"})" "${m_end_time}")"
@@ -689,10 +749,10 @@ collect_monitor_data() {
     walFileSize="$(bytes_to_gib "${walFileSize}")"
     maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
 }
 
 backup_test_data() {
