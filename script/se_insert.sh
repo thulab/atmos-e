@@ -207,6 +207,8 @@ get_iotdb_property_value() {
     local properties_file="$1"
     local property_key="$2"
 
+    # 与 IoTDB 的配置读取规则保持一致：同一个配置项如果出现多次，
+    # 以最后一条生效配置为准。
     awk -v property_key="${property_key}" '
         /^[[:space:]]*#/ { next }
         {
@@ -214,12 +216,12 @@ get_iotdb_property_value() {
             sub(/\r$/, "", line)
             if (line ~ "^[[:space:]]*" property_key "[[:space:]]*=") {
                 sub("^[[:space:]]*" property_key "[[:space:]]*=[[:space:]]*", "", line)
-                value = line
+                last_value = line
             }
         }
         END {
-            if (value != "") {
-                print value
+            if (last_value != "") {
+                print last_value
             }
         }
     ' "${properties_file}"
