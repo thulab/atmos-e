@@ -2,6 +2,9 @@
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"
 fi
+if shopt -oq posix; then
+    exec bash "${BASH_SOURCE[0]}" "$@"
+fi
 
 set -u
 set -o pipefail

@@ -4,6 +4,10 @@ if [ -z "${BASH_VERSION:-}" ]; then
     echo "insert_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
 fi
+if shopt -oq posix; then
+    echo "insert_common.sh requires non-posix bash" >&2
+    return 1 2>/dev/null || exit 1
+fi
 
 : "${TEST_IP:?TEST_IP must be set before sourcing insert_common.sh}"
 : "${TEST_TYPE:?TEST_TYPE must be set before sourcing insert_common.sh}"
