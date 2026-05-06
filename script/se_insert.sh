@@ -265,7 +265,7 @@ get_monitor_disk_target_paths() {
     local raw_path=""
     local normalized_path=""
     local found_configured_path=0
-    local -a property_keys=(dn_data_dirs data_dirs dn_wal_dirs wal_dirs)
+    local -a property_keys=(dn_data_dirs dn_wal_dirs)
 
     if [ -f "${properties_file}" ]; then
         for property_key in "${property_keys[@]}"; do
