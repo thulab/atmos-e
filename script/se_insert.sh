@@ -178,6 +178,19 @@ safe_rm() {
     rm -rf -- "$path"
 }
 
+copy_if_exists() {
+    local source="$1"
+    local target="$2"
+    local label="${3:-$1}"
+
+    if [ ! -e "${source}" ]; then
+        log "skip copy, missing ${label}: ${source}"
+        return 0
+    fi
+
+    cp -rf -- "${source}" "${target}"
+}
+
 sudo_safe_rm() {
     local path="$1"
     [ -e "$path" ] || return 0
@@ -454,8 +467,8 @@ set_env() {
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
-    cp -rf "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/"
-    cp -rf "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env"
+    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/" "license"
+    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env" "env"
 }
 
 modify_iotdb_config() {
