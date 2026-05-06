@@ -656,6 +656,10 @@ collect_monitor_data() {
     local metric_window=$((m_end_time - m_start_time))
     local maxNumofThread_C=0
     local maxNumofThread_D=0
+    local datanode_error_log_file="${TEST_IOTDB_PATH}/logs/log_datanode_error.log"
+    local confignode_error_log_file="${TEST_IOTDB_PATH}/logs/log_confignode_error.log"
+    local datanode_error_log_size=0
+    local confignode_error_log_size=0
 
     dataFileSize="$(get_single_index "sum(file_global_size{instance=~\"${ip}:9091\"})" "${m_end_time}")"
     dataFileSize="$(bytes_to_gib "${dataFileSize}")"
@@ -665,6 +669,9 @@ collect_monitor_data() {
     maxNumofThread_D="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     maxNumofThread=$(( $(to_int "${maxNumofThread_C}") + $(to_int "${maxNumofThread_D}") ))
     maxNumofOpenFiles="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
+    datanode_error_log_size="$(du -sb "${datanode_error_log_file}" 2>/dev/null | awk '{print $1}')"
+    confignode_error_log_size="$(du -sb "${confignode_error_log_file}" 2>/dev/null | awk '{print $1}')"
+    errorLogSize=$(( ${datanode_error_log_size:-0} + ${confignode_error_log_size:-0} ))
     walFileSize="$(get_single_index "max_over_time(file_size{instance=~\"${ip}:9091\",name=~\"wal\"}[${metric_window}s])" "${m_end_time}")"
     walFileSize="$(bytes_to_gib "${walFileSize}")"
     maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
