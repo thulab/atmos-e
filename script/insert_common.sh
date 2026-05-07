@@ -366,14 +366,14 @@ resolve_monitor_disk_id() {
         detected_disk_id="$(detect_disk_id_from_path "${target_path}" || true)"
         [ -n "${detected_disk_id}" ] || continue
 
-        if ! contains_value "${detected_disk_id}" "${detected_disk_ids[@]}"; then
+        if ! contains_value "${detected_disk_id}" "${detected_disk_ids[@]:-}"; then
             detected_disk_ids+=("${detected_disk_id}")
         fi
     done < <(get_monitor_disk_target_paths)
 
-    if [ "${#detected_disk_ids[@]}" -gt 0 ]; then
-        disk_id_regex="$(build_disk_id_regex "${detected_disk_ids[@]}")"
-        log "resolved disk ids ${detected_disk_ids[*]} from ${monitor_target_paths[*]}"
+    if [ "${#detected_disk_ids[@]:-}" -gt 0 ]; then
+        disk_id_regex="$(build_disk_id_regex "${detected_disk_ids[@]:-}")"
+        log "resolved disk ids ${detected_disk_ids[*]:-} from ${monitor_target_paths[*]:-}"
     else
         log "failed to resolve disk ids from ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}}, fallback to ${DEFAULT_DISK_ID}"
     fi
