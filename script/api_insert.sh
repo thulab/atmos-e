@@ -34,9 +34,11 @@ readonly -a PROTOCOL_CLASS=(
     "org.apache.iotdb.consensus.simple.SimpleConsensus"
     "org.apache.iotdb.consensus.ratis.RatisConsensus"
     "org.apache.iotdb.consensus.iot.IoTConsensus"
+    "org.apache.iotdb.consensus.iot.IoTConsensusV2"
 )
 readonly -a PROTOCOL_LIST=(223)
-readonly -a TS_LIST=(SESSION_BY_TABLET SESSION_BY_TABLET_TABLE SESSION_BY_RECORDS SESSION_BY_RECORD JDBC)
+readonly -a TS_LIST=(tempaligned)
+readonly -a API_LIST=(SESSION_BY_TABLET SESSION_BY_TABLET_TABLE SESSION_BY_RECORDS SESSION_BY_RECORD JDBC)
 
 # -------------------- MySQL 配置信息 --------------------
 readonly MYSQLHOSTNAME="111.200.37.158"
@@ -50,7 +52,7 @@ readonly TASK_TABLENAME="commit_history"
 
 # -------------------- Prometheus 配置信息 --------------------
 readonly METRIC_SERVER="111.200.37.158:19090"
-readonly DISK_ID="vdc"
+readonly DEFAULT_DISK_ID="vdc"
 
 # -------------------- 运行时配置 --------------------
 readonly MONITOR_TIMEOUT_SECONDS=7200
@@ -102,7 +104,7 @@ maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
 m_start_time=0
 m_end_time=0
-
+disk_id_regex="^${DEFAULT_DISK_ID}$"
 log() {
     printf '[%s] %s\n' "$(date '+%F %T')" "$*"
 }
@@ -174,6 +176,215 @@ safe_rm() {
     [ -e "$path" ] || return 0
     path_is_safe "$path" || die "拒绝删除非预期路径: $path"
     rm -rf -- "$path"
+}
+
+copy_if_exists() {
+    local source="$1"
+    local target="$2"
+    local label="${3:-$1}"
+
+    if [ ! -e "${source}" ]; then
+        log "skip copy, missing ${label}: ${source}"
+        return 0
+    fi
+
+    cp -rf -- "${source}" "${target}"
+}
+
+get_monitor_disk_fallback_path() {
+    local data_path="${TEST_IOTDB_PATH}/data"
+
+    if [ -d "${data_path}" ]; then
+        printf '%s\n' "${data_path}"
+        return 0
+    fi
+
+    printf '%s\n' "${TEST_IOTDB_PATH}"
+}
+
+get_iotdb_property_value() {
+    local properties_file="$1"
+    local property_key="$2"
+
+    # 与 IoTDB 的配置读取规则保持一致：同一个配置项如果出现多次，
+    # 以最后一条生效配置为准。
+    awk -v property_key="${property_key}" '
+        /^[[:space:]]*#/ { next }
+        {
+            line = $0
+            sub(/\r$/, "", line)
+            if (line ~ "^[[:space:]]*" property_key "[[:space:]]*=") {
+                sub("^[[:space:]]*" property_key "[[:space:]]*=[[:space:]]*", "", line)
+                last_value = line
+            }
+        }
+        END {
+            if (last_value != "") {
+                print last_value
+            }
+        }
+    ' "${properties_file}"
+}
+
+split_iotdb_path_list() {
+    local value="$1"
+    local item=""
+    local -a items=()
+
+    value="${value//;/,}"
+    value="${value//\"/}"
+    IFS=',' read -r -a items <<< "${value}"
+    for item in "${items[@]}"; do
+        item="$(trim "${item}")"
+        [ -n "${item}" ] || continue
+        printf '%s\n' "${item}"
+    done
+}
+
+normalize_monitor_target_path() {
+    local path="$1"
+
+    path="$(trim "${path}")"
+    path="${path%/}"
+
+    case "${path}" in
+        /*)
+            printf '%s\n' "${path}"
+            ;;
+        *)
+            printf '%s\n' "${TEST_IOTDB_PATH}/${path}"
+            ;;
+    esac
+}
+
+get_monitor_disk_target_paths() {
+    local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
+    local property_key=""
+    local property_value=""
+    local raw_path=""
+    local normalized_path=""
+    local found_configured_path=0
+    local -a property_keys=(dn_data_dirs dn_wal_dirs)
+
+    if [ -f "${properties_file}" ]; then
+        for property_key in "${property_keys[@]}"; do
+            property_value="$(get_iotdb_property_value "${properties_file}" "${property_key}")"
+            [ -n "${property_value}" ] || continue
+
+            while IFS= read -r raw_path; do
+                [ -n "${raw_path}" ] || continue
+                normalized_path="$(normalize_monitor_target_path "${raw_path}")"
+                [ -n "${normalized_path}" ] || continue
+                printf '%s\n' "${normalized_path}"
+                found_configured_path=1
+            done < <(split_iotdb_path_list "${property_value}")
+        done
+    fi
+
+    if [ "${found_configured_path}" -eq 0 ]; then
+        get_monitor_disk_fallback_path
+    fi
+}
+
+find_existing_monitor_path() {
+    local path="$1"
+
+    while [ ! -e "${path}" ] && [ "${path}" != "/" ]; do
+        path="${path%/*}"
+        [ -n "${path}" ] || path="/"
+    done
+
+    [ -e "${path}" ] || return 1
+    printf '%s\n' "${path}"
+}
+
+contains_value() {
+    local expected="$1"
+    shift
+
+    local actual=""
+    for actual in "$@"; do
+        [ "${actual}" = "${expected}" ] && return 0
+    done
+
+    return 1
+}
+
+build_disk_id_regex() {
+    local regex=""
+    local current_disk_id=""
+
+    for current_disk_id in "$@"; do
+        if [ -z "${regex}" ]; then
+            regex="${current_disk_id}"
+        else
+            regex="${regex}|${current_disk_id}"
+        fi
+    done
+
+    [ -n "${regex}" ] || regex="${DEFAULT_DISK_ID}"
+    printf '^(%s)$\n' "${regex}"
+}
+
+detect_disk_id_from_path() {
+    local target_path="$1"
+    local existing_path=""
+    local source_device=""
+    local resolved_device=""
+    local parent_device=""
+
+    command -v findmnt >/dev/null 2>&1 || return 1
+    command -v lsblk >/dev/null 2>&1 || return 1
+
+    existing_path="$(find_existing_monitor_path "${target_path}" || true)"
+    [ -n "${existing_path}" ] || return 1
+
+    source_device="$(findmnt -no SOURCE --target "${existing_path}" 2>/dev/null | awk 'NF { print; exit }')"
+    [ -n "${source_device}" ] || return 1
+
+    source_device="${source_device%%[*}"
+    if command -v readlink >/dev/null 2>&1; then
+        resolved_device="$(readlink -f "${source_device}" 2>/dev/null || printf '%s\n' "${source_device}")"
+    else
+        resolved_device="${source_device}"
+    fi
+
+    [ -b "${resolved_device}" ] || return 1
+
+    while true; do
+        parent_device="$(lsblk -ndo PKNAME "${resolved_device}" 2>/dev/null | awk 'NF { print; exit }')"
+        [ -n "${parent_device}" ] || break
+        resolved_device="/dev/${parent_device}"
+    done
+
+    printf '%s\n' "${resolved_device##*/}"
+}
+
+resolve_monitor_disk_id() {
+    local target_path=""
+    local detected_disk_id=""
+    local -a detected_disk_ids=()
+    local -a monitor_target_paths=()
+
+    disk_id_regex="^${DEFAULT_DISK_ID}$"
+
+    while IFS= read -r target_path; do
+        [ -n "${target_path}" ] || continue
+        monitor_target_paths+=("${target_path}")
+        detected_disk_id="$(detect_disk_id_from_path "${target_path}" || true)"
+        [ -n "${detected_disk_id}" ] || continue
+
+        if ! contains_value "${detected_disk_id}" "${detected_disk_ids[@]:-}"; then
+            detected_disk_ids+=("${detected_disk_id}")
+        fi
+    done < <(get_monitor_disk_target_paths)
+
+    if [ "${#detected_disk_ids[@]:-}" -gt 0 ]; then
+        disk_id_regex="$(build_disk_id_regex "${detected_disk_ids[@]:-}")"
+        log "resolved disk ids ${detected_disk_ids[*]:-} from ${monitor_target_paths[*]:-}"
+    else
+        log "failed to resolve disk ids from ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}}, fallback to ${DEFAULT_DISK_ID}"
+    fi
 }
 
 sudo_safe_rm() {
@@ -308,8 +519,9 @@ EOF
 check_throughput_monitor() {
     local commit_date_time="$1"
     local throughput="$2"
-    local current_ts_type="$3"
-    local protocol_code="$4"
+    local protocol_code="$3"
+    local current_ts_type="$4"
+    local current_api_type="$5"
 
     
     # 获取最近100条同类型数据（排除本次测试结果）
@@ -319,7 +531,8 @@ check_throughput_monitor() {
         FROM ${result_table} 
         WHERE commit_date_time < '${commit_date_time}' 
         AND ts_type = '${current_ts_type}' 
-        AND remark = '${protocol_code}' 
+        AND api_type = '${current_api_type}'
+        AND protocol = '${protocol_code}'
         AND throughput > 0  -- 只取有效数据
         ORDER BY commit_date_time DESC 
         LIMIT 100
@@ -452,8 +665,8 @@ set_env() {
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
-    cp -rf "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/"
-    cp -rf "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env"
+    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/" "license"
+    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env" "env"
 }
 
 modify_iotdb_config() {
@@ -654,7 +867,12 @@ collect_monitor_data() {
     local metric_window=$((m_end_time - m_start_time))
     local maxNumofThread_C=0
     local maxNumofThread_D=0
+    local datanode_error_log_file="${TEST_IOTDB_PATH}/logs/log_datanode_error.log"
+    local confignode_error_log_file="${TEST_IOTDB_PATH}/logs/log_confignode_error.log"
+    local datanode_error_log_size=0
+    local confignode_error_log_size=0
 
+    resolve_monitor_disk_id
     dataFileSize="$(get_single_index "sum(file_global_size{instance=~\"${ip}:9091\"})" "${m_end_time}")"
     dataFileSize="$(bytes_to_gib "${dataFileSize}")"
     numOfSe0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"seq\"})" "${m_end_time}")"
@@ -663,21 +881,25 @@ collect_monitor_data() {
     maxNumofThread_D="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     maxNumofThread=$(( $(to_int "${maxNumofThread_C}") + $(to_int "${maxNumofThread_D}") ))
     maxNumofOpenFiles="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
+    datanode_error_log_size="$(du -sb "${datanode_error_log_file}" 2>/dev/null | awk '{print $1}')"
+    confignode_error_log_size="$(du -sb "${confignode_error_log_file}" 2>/dev/null | awk '{print $1}')"
+    errorLogSize=$(( ${datanode_error_log_size:-0} + ${confignode_error_log_size:-0} ))
     walFileSize="$(get_single_index "max_over_time(file_size{instance=~\"${ip}:9091\",name=~\"wal\"}[${metric_window}s])" "${m_end_time}")"
     walFileSize="$(bytes_to_gib "${walFileSize}")"
     maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    maxDiskIOOpsRead="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
+    maxDiskIOOpsWrite="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
+    maxDiskIOSizeRead="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
+    maxDiskIOSizeWrite="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
 }
 
 backup_test_data() {
-    local current_ts_type="$1"
-    local protocol_code="$2"
-    local backup_dir="${BACKUP_PATH}/${current_ts_type}/${commit_date_time}_${commit_id}_${protocol_code}"
-    local backup_parent="${BACKUP_PATH}/${current_ts_type}"
+    local protocol_code="$1"
+    local current_ts_type="$2"
+    local current_api_type="$3"
+    local backup_dir="${BACKUP_PATH}/${current_ts_type}_${current_api_type}/${commit_date_time}_${commit_id}_${protocol_code}"
+    local backup_parent="${BACKUP_PATH}/${current_ts_type}_${current_api_type}"
 
     sudo_safe_rm "${backup_dir}"
     path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
@@ -692,8 +914,10 @@ backup_test_data() {
 }
 
 mv_config_file() {
-    local current_ts_type="$1"
-    local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}"
+    local protocol_code="$1"
+    local current_ts_type="$2"
+    local current_api_type="$3"
+    local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}_${current_api_type}"
     local config_target="${BM_PATH}/conf/config.properties"
 
     [ -f "${config_source}" ] || die "缺少 benchmark 配置文件: ${config_source}"
@@ -745,8 +969,9 @@ parse_benchmark_result() {
 }
 
 insert_result_row() {
-    local current_ts_type="$1"
-    local protocol_code="$2"
+    local protocol_code="$1"
+    local current_ts_type="$2"
+    local current_api_type="$3"
     local insert_sql=""
 
     insert_sql=$(cat <<EOF
@@ -754,7 +979,7 @@ insert into ${result_table} (
     commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,
     Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,
     numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,avgCPULoad,maxCPULoad,
-    maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark
+    maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,api_type,protocol
 ) values (
     ${commit_date_time},
     ${test_date_time},
@@ -793,6 +1018,7 @@ insert into ${result_table} (
     ${maxDiskIOSizeWrite},
     ${maxDiskIOOpsRead},
     ${maxDiskIOOpsWrite},
+    $(sql_quote "${current_api_type}"),
     ${protocol_code}
 )
 EOF
@@ -809,6 +1035,7 @@ cleanup_processes() {
 test_operation() {
     local protocol_code="$1"
     local current_ts_type="$2"
+    local current_api_type="$3"
     local csv_file=""
     local monitor_failed=0
     # throughput / cost_time 的负值是约定好的哨兵值，用来在结果表中区分
@@ -831,7 +1058,7 @@ test_operation() {
         log "IoTDB 未能正常启动，写入负值测试结果。"
         cost_time=-3
         throughput=-3
-        insert_result_row "${current_ts_type}" "${protocol_code}"
+        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         cleanup_processes
         return 1
     fi
@@ -840,12 +1067,12 @@ test_operation() {
         log "root 密码修改失败，写入负值测试结果。"
         cost_time=-4
         throughput=-4
-        insert_result_row "${current_ts_type}" "${protocol_code}"
+        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         cleanup_processes
         return 1
     fi
 
-    mv_config_file "${current_ts_type}"
+    mv_config_file "${protocol_code}" "${current_ts_type}" "${current_api_type}"
     start_benchmark
     start_time="$(current_datetime)"
     m_start_time="$(date +%s)"
@@ -865,21 +1092,21 @@ test_operation() {
         [ -n "${end_time}" ] || end_time="$(current_datetime)"
         cost_time=-2
         throughput=-2
-        insert_result_row "${current_ts_type}" "${protocol_code}"
+        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         stop_iotdb
         sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
         cleanup_processes
-        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}" "${protocol_code}"
+        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         return 1
     fi
 
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-    insert_result_row "${current_ts_type}" "${protocol_code}"
+    insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
     
     # 在插入结果后，调用监控函数检查是否报警
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
-        if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${current_ts_type}" "${protocol_code}"; then
+        if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${protocol_code}" "${current_ts_type}" "${current_api_type}"; then
             log "当前测试结果触发监控警报，但测试流程继续"
         else
             log "当前测试结果吞吐符合规律"
@@ -889,7 +1116,7 @@ test_operation() {
     stop_iotdb
     sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
     cleanup_processes
-    [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}" "${protocol_code}"
+    [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${protocol_code}" "${current_ts_type}" "${current_api_type}"
 
     return "${monitor_failed}"
 }
@@ -934,9 +1161,11 @@ main() {
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
         for ts in "${TS_LIST[@]}"; do
-            if ! test_operation "${protocol}" "${ts}"; then
-                task_failed=1
-            fi
+            for api in "${API_LIST[@]}"; do
+                if ! test_operation "${protocol}" "${ts}" "${api}"; then
+                    task_failed=1
+                fi
+            done
         done
     done
 
