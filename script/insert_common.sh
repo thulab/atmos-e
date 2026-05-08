@@ -34,9 +34,20 @@ readonly -a PROTOCOL_CLASS=(
     "org.apache.iotdb.consensus.iot.IoTConsensus"
     "org.apache.iotdb.consensus.iot.IoTConsensusV2"
 )
-readonly -a PROTOCOL_LIST=(223)
-readonly -a TS_LIST=(common aligned tempaligned tablemode)
-readonly -a API_LIST=(SESSION_BY_TABLET)
+if ! declare -p PROTOCOL_LIST >/dev/null 2>&1; then
+    readonly -a PROTOCOL_LIST=(223)
+fi
+if ! declare -p TS_LIST >/dev/null 2>&1; then
+    readonly -a TS_LIST=(common aligned tempaligned tablemode)
+fi
+if ! declare -p API_LIST >/dev/null 2>&1; then
+    readonly -a API_LIST=(SESSION_BY_TABLET)
+fi
+if ! declare -p ENABLE_BENCHMARK_VERSION_CHECK >/dev/null 2>&1; then
+    readonly ENABLE_BENCHMARK_VERSION_CHECK=1
+else
+    readonly ENABLE_BENCHMARK_VERSION_CHECK
+fi
 
 readonly MYSQLHOSTNAME="111.200.37.158"
 readonly PORT="13306"
@@ -1133,7 +1144,9 @@ main() {
 
     ensure_runtime_dependencies
     check_password
-    check_benchmark_version
+    if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then
+        check_benchmark_version
+    fi
 
     mark_test_in_progress
     if ! fetch_next_commit; then
