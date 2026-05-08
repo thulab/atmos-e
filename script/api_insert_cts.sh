@@ -38,7 +38,7 @@ readonly -a PROTOCOL_CLASS=(
 )
 readonly -a PROTOCOL_LIST=(223)
 readonly -a TS_LIST=(tempaligned)
-readonly -a API_LIST=(SESSION_BY_TABLET SESSION_BY_TABLET_TABLE SESSION_BY_RECORDS SESSION_BY_RECORD JDBC)
+readonly -a API_LIST=(SESSION_BY_TABLET SESSION_BY_RECORDS SESSION_BY_RECORD JDBC)
 
 # -------------------- MySQL 配置信息 --------------------
 readonly MYSQLHOSTNAME="111.200.37.158"
