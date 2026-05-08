@@ -511,8 +511,9 @@ EOF
 check_throughput_monitor() {
     local commit_date_time="$1"
     local throughput="$2"
-    local current_ts_type="$3"
-    local protocol_code="$4"
+    local protocol_code="$3"
+    local current_ts_type="$4"
+    local current_api_type="$5"
 
     
     # 获取最近100条同类型数据（排除本次测试结果）
@@ -522,6 +523,7 @@ check_throughput_monitor() {
         FROM ${result_table} 
         WHERE commit_date_time < '${commit_date_time}' 
         AND ts_type = '${current_ts_type}' 
+        AND api_type = '${current_api_type}'
         AND protocol = '${protocol_code}'
         AND throughput > 0  -- 只取有效数据
         ORDER BY commit_date_time DESC 
@@ -885,10 +887,11 @@ collect_monitor_data() {
 }
 
 backup_test_data() {
-    local current_ts_type="$1"
-    local protocol_code="$2"
-    local backup_dir="${BACKUP_PATH}/${current_ts_type}/${commit_date_time}_${commit_id}_${protocol_code}"
-    local backup_parent="${BACKUP_PATH}/${current_ts_type}"
+    local protocol_code="$1"
+    local current_ts_type="$2"
+    local current_api_type="$3"
+    local backup_dir="${BACKUP_PATH}/${current_ts_type}_${current_api_type}/${commit_date_time}_${commit_id}_${protocol_code}"
+    local backup_parent="${BACKUP_PATH}/${current_ts_type}_${current_api_type}"
 
     sudo_safe_rm "${backup_dir}"
     path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
@@ -903,8 +906,10 @@ backup_test_data() {
 }
 
 mv_config_file() {
-    local current_ts_type="$1"
-    local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}"
+    local protocol_code="$1"
+    local current_ts_type="$2"
+    local current_api_type="$3"
+    local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}_${current_api_type}"
     local config_target="${BM_PATH}/conf/config.properties"
 
     [ -f "${config_source}" ] || die "缺少 benchmark 配置文件: ${config_source}"
@@ -956,9 +961,9 @@ parse_benchmark_result() {
 }
 
 insert_result_row() {
-    local current_ts_type="$1"
-    local current_api_type="$2"
-    local protocol_code="$3"
+    local protocol_code="$1"
+    local current_ts_type="$2"
+    local current_api_type="$3"
     local insert_sql=""
 
     insert_sql=$(cat <<EOF
@@ -1045,7 +1050,7 @@ test_operation() {
         log "IoTDB 未能正常启动，写入负值测试结果。"
         cost_time=-3
         throughput=-3
-        insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
+        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         cleanup_processes
         return 1
     fi
@@ -1054,12 +1059,12 @@ test_operation() {
         log "root 密码修改失败，写入负值测试结果。"
         cost_time=-4
         throughput=-4
-        insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
+        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         cleanup_processes
         return 1
     fi
 
-    mv_config_file "${current_ts_type}"
+    mv_config_file "${protocol_code}" "${current_ts_type}" "${current_api_type}"
     start_benchmark
     start_time="$(current_datetime)"
     m_start_time="$(date +%s)"
@@ -1079,21 +1084,21 @@ test_operation() {
         [ -n "${end_time}" ] || end_time="$(current_datetime)"
         cost_time=-2
         throughput=-2
-        insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
+        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         stop_iotdb
         sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
         cleanup_processes
-        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}" "${protocol_code}"
+        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         return 1
     fi
 
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-    insert_result_row "${current_ts_type}" "${current_api_type}" "${protocol_code}"
+    insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
     
     # 在插入结果后，调用监控函数检查是否报警
     if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
-        if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${current_ts_type}" "${protocol_code}"; then
+        if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${protocol_code}" "${current_ts_type}" "${current_api_type}"; then
             log "当前测试结果触发监控警报，但测试流程继续"
         else
             log "当前测试结果吞吐符合规律"
@@ -1103,7 +1108,7 @@ test_operation() {
     stop_iotdb
     sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
     cleanup_processes
-    [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}" "${protocol_code}"
+    [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${protocol_code}" "${current_ts_type}" "${current_api_type}"
 
     return "${monitor_failed}"
 }
