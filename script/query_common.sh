@@ -13,8 +13,6 @@ fi
 : "${TEST_TYPE:?在 source query_common.sh 之前必须设置 TEST_TYPE}"
 
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
-readonly TABLENAME="test_result_${TEST_TYPE}"
-
 readonly INIT_PATH="/root/zk_test"
 readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
 readonly BM_PATH="${INIT_PATH}/iot-benchmark"
@@ -39,6 +37,9 @@ fi
 if ! declare -p QUERY_DATA_TYPES >/dev/null 2>&1; then
     readonly -a QUERY_DATA_TYPES=(tablemode common aligned tempaligned)
 fi
+if ! declare -p QUERY_SENSOR_TYPES >/dev/null 2>&1; then
+    readonly -a QUERY_SENSOR_TYPES=()
+fi
 if ! declare -p QUERY_LIST >/dev/null 2>&1; then
     readonly -a QUERY_LIST=(
         Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4a-1 Q4a-2 Q4a-3
@@ -59,15 +60,30 @@ if ! declare -p DEFAULT_DATA_TYPE >/dev/null 2>&1; then
 else
     readonly DEFAULT_DATA_TYPE
 fi
+if ! declare -p QUERY_REPEAT_COUNT >/dev/null 2>&1; then
+    readonly QUERY_REPEAT_COUNT=1
+else
+    readonly QUERY_REPEAT_COUNT
+fi
 if ! declare -p METRIC_SERVER >/dev/null 2>&1; then
     readonly METRIC_SERVER="172.20.70.11:9090"
 else
     readonly METRIC_SERVER
 fi
+if ! declare -p RESULT_TABLE_NAME >/dev/null 2>&1; then
+    readonly RESULT_TABLE_NAME="test_result_${TEST_TYPE}"
+else
+    readonly RESULT_TABLE_NAME
+fi
 if ! declare -p ENABLE_BENCHMARK_VERSION_CHECK >/dev/null 2>&1; then
     readonly ENABLE_BENCHMARK_VERSION_CHECK=1
 else
     readonly ENABLE_BENCHMARK_VERSION_CHECK
+fi
+if ! declare -p BENCHMARK_WARMUP_SECONDS >/dev/null 2>&1; then
+    readonly BENCHMARK_WARMUP_SECONDS=2
+else
+    readonly BENCHMARK_WARMUP_SECONDS
 fi
 
 readonly MYSQLHOSTNAME="111.200.37.158"
@@ -82,7 +98,6 @@ readonly MONITOR_POLL_INTERVAL_SECONDS=10
 readonly IOTDB_READY_RETRIES=10
 readonly IOTDB_READY_INTERVAL_SECONDS=5
 readonly STARTUP_GRACE_SECONDS=10
-readonly BENCHMARK_WARMUP_SECONDS=2
 readonly BENCHMARK_STOP_WAIT_SECONDS=30
 
 commit_id=""
@@ -92,6 +107,8 @@ test_date_time=""
 ts_type=""
 data_type="${DEFAULT_DATA_TYPE}"
 query_type=""
+sensor_type=""
+query_num=1
 
 okPoint=0
 okOperation=0
@@ -133,6 +150,7 @@ die() {
 
 trim() {
     local value="${1:-}"
+
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
     printf '%s' "${value}"
@@ -150,25 +168,76 @@ normalize_datetime() {
     printf '%s' "$1" | tr -cd '0-9'
 }
 
+resolve_query_dataset_source() {
+    local protocol_code="$1"
+    local current_suite_type="$2"
+
+    printf '%s\n' "${QUERY_DATASET_PATH}/${protocol_code}/${current_suite_type}/data"
+}
+
+resolve_query_config_source() {
+    local current_suite_type="$1"
+    local current_query="$2"
+
+    printf '%s\n' "${ATMOS_PATH}/conf/${TEST_TYPE}/${current_suite_type}/${current_query}"
+}
+
+prepare_query_context() {
+    local current_suite_type="$1"
+    local current_query="$2"
+    local current_sensor_type="$3"
+    local current_repeat="$4"
+
+    ts_type="${current_suite_type}"
+    data_type="${DEFAULT_DATA_TYPE}"
+    query_type="${current_query}"
+    sensor_type="${current_sensor_type}"
+    query_num="${current_repeat}"
+}
+
+result_extra_columns() {
+    :
+}
+
+result_extra_values() {
+    :
+}
+
+query_log_dir_suffix() {
+    local current_query="$1"
+
+    printf '%s\n' "${current_query}"
+}
+
+append_iotdb_properties() {
+    local properties_file="$1"
+
+    :
+}
+
 require_command() {
     command -v "$1" >/dev/null 2>&1 || die "缺少依赖命令: $1"
 }
 
 check_password() {
-    if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL"
-    fi
+    [ -n "${PASSWORD}" ] || die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL"
 }
 
 ensure_runtime_dependencies() {
-    local cmd
+    local cmd=""
+
     for cmd in awk cat cp curl date du grep jq jps kill mkdir mv mysql rm sed sudo tr wc; do
         require_command "${cmd}"
     done
 }
 
+validate_query_settings() {
+    [[ "${QUERY_REPEAT_COUNT}" =~ ^[1-9][0-9]*$ ]] || die "QUERY_REPEAT_COUNT 必须是正整数"
+}
+
 path_is_safe() {
     local path="$1"
+
     [ -n "${path}" ] || return 1
 
     case "${path}" in
@@ -186,6 +255,7 @@ path_is_safe() {
 
 safe_rm() {
     local path="$1"
+
     [ -e "${path}" ] || return 0
     path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
     rm -rf -- "${path}"
@@ -193,6 +263,7 @@ safe_rm() {
 
 sudo_safe_rm() {
     local path="$1"
+
     [ -e "${path}" ] || return 0
     path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
     sudo rm -rf -- "${path}"
@@ -213,11 +284,13 @@ copy_if_exists() {
 
 mysql_exec() {
     local sql="$1"
+
     MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
 }
 
 sql_quote() {
     local value="${1:-}"
+
     value="${value//\\/\\\\}"
     value="$(printf '%s' "${value}" | sed "s/'/''/g")"
     printf "'%s'" "${value}"
@@ -225,6 +298,7 @@ sql_quote() {
 
 update_task_status() {
     local status="$1"
+
     mysql_exec "update ${TASK_TABLENAME} set ${TEST_TYPE} = $(sql_quote "${status}") where commit_id = $(sql_quote "${commit_id}")"
 }
 
@@ -283,6 +357,8 @@ init_items() {
     ts_type=""
     data_type="${DEFAULT_DATA_TYPE}"
     query_type=""
+    sensor_type=""
+    query_num=1
     okPoint=0
     okOperation=0
     failPoint=0
@@ -350,6 +426,7 @@ cleanup_processes() {
 
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
+
     [ -d "${source_path}" ] || die "缺少待测版本目录: ${source_path}"
 
     safe_rm "${TEST_IOTDB_PATH}"
@@ -385,6 +462,8 @@ dn_metric_reporter_list=PROMETHEUS
 dn_metric_level=ALL
 dn_metric_prometheus_reporter_port=9091
 EOF
+
+    append_iotdb_properties "${properties_file}"
 }
 
 set_protocol_class() {
@@ -408,9 +487,10 @@ EOF
 
 copy_query_dataset() {
     local protocol_code="$1"
-    local current_ts_type="$2"
-    local source_path="${QUERY_DATASET_PATH}/${protocol_code}/${current_ts_type}/data"
+    local current_suite_type="$2"
+    local source_path=""
 
+    source_path="$(resolve_query_dataset_source "${protocol_code}" "${current_suite_type}")"
     [ -d "${source_path}" ] || die "缺少查询数据集: ${source_path}"
     cp -rf -- "${source_path}" "${TEST_IOTDB_PATH}/"
 }
@@ -558,8 +638,8 @@ to_int() {
 collect_monitor_data() {
     local ip="$1"
     local metric_window=$((m_end_time - m_start_time))
-    local maxNumofThread_C=0
-    local maxNumofThread_D=0
+    local max_num_thread_c=0
+    local max_num_thread_d=0
     local datanode_error_log_file="${TEST_IOTDB_PATH}/logs/log_datanode_error.log"
     local confignode_error_log_file="${TEST_IOTDB_PATH}/logs/log_confignode_error.log"
     local datanode_error_log_size=0
@@ -573,9 +653,9 @@ collect_monitor_data() {
     dataFileSize="$(bytes_to_gib "${dataFileSize}")"
     numOfSe0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"seq\"})" "${m_end_time}")"
     numOfUnse0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"unseq\"})" "${m_end_time}")"
-    maxNumofThread_C="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9081\"}[${metric_window}s])" "${m_end_time}")"
-    maxNumofThread_D="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxNumofThread=$(( $(to_int "${maxNumofThread_C}") + $(to_int "${maxNumofThread_D}") ))
+    max_num_thread_c="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9081\"}[${metric_window}s])" "${m_end_time}")"
+    max_num_thread_d="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
+    maxNumofThread=$(( $(to_int "${max_num_thread_c}") + $(to_int "${max_num_thread_d}") ))
     maxNumofOpenFiles="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
     walFileSize="$(get_single_index "max_over_time(file_size{instance=~\"${ip}:9091\",name=~\"wal\"}[${metric_window}s])" "${m_end_time}")"
     walFileSize="$(bytes_to_gib "${walFileSize}")"
@@ -585,8 +665,8 @@ collect_monitor_data() {
 }
 
 backup_test_data() {
-    local current_ts_type="$1"
-    local backup_parent="${BACKUP_PATH}/${current_ts_type}"
+    local current_suite_type="$1"
+    local backup_parent="${BACKUP_PATH}/${current_suite_type}"
     local backup_dir="${backup_parent}/${commit_date_time}_${commit_id}"
 
     sudo_safe_rm "${backup_dir}"
@@ -602,20 +682,21 @@ backup_test_data() {
 }
 
 mv_config_file() {
-    local current_ts_type="$1"
+    local current_suite_type="$1"
     local current_query="$2"
-    local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}/${current_query}"
+    local config_source=""
     local config_target="${BM_PATH}/conf/config.properties"
 
+    config_source="$(resolve_query_config_source "${current_suite_type}" "${current_query}")"
     [ -f "${config_source}" ] || die "缺少 benchmark 配置文件: ${config_source}"
     safe_rm "${config_target}"
     cp -rf "${config_source}" "${config_target}"
 }
 
 append_tablemode_config_if_needed() {
-    local current_ts_type="$1"
+    local current_suite_type="$1"
 
-    if [ "${current_ts_type}" = "tablemode" ]; then
+    if [ "${current_suite_type}" = "tablemode" ]; then
         printf 'IoTDB_DIALECT_MODE=table\n' >> "${BM_PATH}/conf/config.properties"
     fi
 }
@@ -672,14 +753,18 @@ parse_query_result() {
 
 insert_result_row() {
     local protocol_code="$1"
+    local extra_columns=""
+    local extra_values=""
     local insert_sql=""
 
+    extra_columns="$(result_extra_columns)"
+    extra_values="$(result_extra_values)"
     insert_sql=$(cat <<EOF
-insert into ${TABLENAME} (
+insert into ${RESULT_TABLE_NAME} (
     commit_date_time,test_date_time,commit_id,author,ts_type,data_type,query_type,
     okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,
     MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,
-    numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark
+    numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark${extra_columns}
 ) values (
     ${commit_date_time},
     ${test_date_time},
@@ -713,7 +798,7 @@ insert into ${TABLENAME} (
     ${maxNumofOpenFiles},
     ${maxNumofThread},
     ${errorLogSize},
-    $(sql_quote "${protocol_code}")
+    $(sql_quote "${protocol_code}")${extra_values}
 )
 EOF
 )
@@ -723,9 +808,12 @@ EOF
 
 archive_query_logs() {
     local current_query="$1"
+    local log_suffix=""
     local live_log_dir="${TEST_IOTDB_PATH}/logs"
-    local archived_log_dir="${TEST_IOTDB_PATH}/logs_${current_query}"
+    local archived_log_dir=""
 
+    log_suffix="$(query_log_dir_suffix "${current_query}")"
+    archived_log_dir="${TEST_IOTDB_PATH}/logs_${log_suffix}"
     [ -d "${live_log_dir}" ] || mkdir -p "${live_log_dir}"
     [ -d "${BM_PATH}/data/csvOutput" ] || return 0
 
@@ -736,16 +824,26 @@ archive_query_logs() {
 
 test_operation() {
     local protocol_code="$1"
-    local current_ts_type=""
+    local current_suite_type=""
     local current_query=""
+    local current_sensor_type=""
+    local current_repeat=0
     local query_label=""
+    local query_scope=""
     local csv_file=""
     local index=0
     local monitor_failed=0
     local operation_failed=0
+    local -a sensor_types=()
 
-    for current_ts_type in "${QUERY_DATA_TYPES[@]}"; do
-        log "开始执行协议 ${protocol_code}、时间序列类型 ${current_ts_type} 的查询测试"
+    if [ "${#QUERY_SENSOR_TYPES[@]}" -gt 0 ]; then
+        sensor_types=("${QUERY_SENSOR_TYPES[@]}")
+    else
+        sensor_types=("")
+    fi
+
+    for current_suite_type in "${QUERY_DATA_TYPES[@]}"; do
+        log "开始执行协议 ${protocol_code}、查询场景 ${current_suite_type} 的查询测试"
         cleanup_processes
         set_env
         modify_iotdb_config
@@ -755,94 +853,105 @@ test_operation() {
             return 1
         fi
 
-        copy_query_dataset "${protocol_code}" "${current_ts_type}"
+        copy_query_dataset "${protocol_code}" "${current_suite_type}"
 
-        for ((index = 0; index < ${#QUERY_LIST[@]}; index++)); do
-            current_query="${QUERY_LIST[${index}]}"
-            query_label="${QUERY_LABELS[${index}]}"
-            init_items
-            ts_type="${current_ts_type}"
-            data_type="${DEFAULT_DATA_TYPE}"
-            query_type="${current_query}"
-            monitor_failed=0
+        for current_sensor_type in "${sensor_types[@]}"; do
+            for ((index = 0; index < ${#QUERY_LIST[@]}; index++)); do
+                current_query="${QUERY_LIST[${index}]}"
+                query_label="${QUERY_LABELS[${index}]}"
+                query_scope="${current_query}"
+                if [ -n "${current_sensor_type}" ]; then
+                    query_scope="${query_scope}/${current_sensor_type}"
+                fi
+                sensor_type="${current_sensor_type}"
 
-            log "开始执行 ${current_ts_type} 的 ${current_query} 查询"
-            check_iotdb_pid
-            sleep 1
-            start_iotdb
-            sleep "${STARTUP_GRACE_SECONDS}"
+                log "开始执行 ${current_suite_type} 的 ${query_scope} 查询"
+                check_iotdb_pid
+                sleep 1
+                start_iotdb
+                sleep "${STARTUP_GRACE_SECONDS}"
 
-            if ! wait_for_iotdb_ready; then
-                log "IoTDB 未能正常启动，记录失败结果"
-                end_time="$(current_datetime)"
-                cost_time=-3
-                throughput=-3
-                insert_result_row "${protocol_code}"
-                operation_failed=1
-                stop_iotdb
-                sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
-                cleanup_processes
-                continue
-            fi
+                if ! wait_for_iotdb_ready; then
+                    init_items
+                    prepare_query_context "${current_suite_type}" "${current_query}" "${current_sensor_type}" 1
+                    log "IoTDB 未能正常启动，记录失败结果"
+                    end_time="$(current_datetime)"
+                    cost_time=-3
+                    throughput=-3
+                    insert_result_row "${protocol_code}"
+                    operation_failed=1
+                    stop_iotdb
+                    sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
+                    cleanup_processes
+                    continue
+                fi
 
-            mv_config_file "${current_ts_type}" "${current_query}"
-            append_tablemode_config_if_needed "${current_ts_type}"
-            sleep 3
+                mv_config_file "${current_suite_type}" "${current_query}"
+                append_tablemode_config_if_needed "${current_suite_type}"
+                sleep 3
 
-            start_benchmark
-            start_time="$(current_datetime)"
-            m_start_time="$(date +%s)"
-            sleep "${BENCHMARK_WARMUP_SECONDS}"
+                for ((current_repeat = 1; current_repeat <= QUERY_REPEAT_COUNT; current_repeat++)); do
+                    init_items
+                    prepare_query_context "${current_suite_type}" "${current_query}" "${current_sensor_type}" "${current_repeat}"
+                    monitor_failed=0
 
-            if ! monitor_test_status "${current_query}" "${query_label}"; then
-                monitor_failed=1
-            fi
+                    start_benchmark
+                    start_time="$(current_datetime)"
+                    m_start_time="$(date +%s)"
+                    sleep "${BENCHMARK_WARMUP_SECONDS}"
 
-            m_end_time="$(date +%s)"
-            collect_monitor_data "${TEST_IP}"
+                    if ! monitor_test_status "${current_query}" "${query_label}"; then
+                        monitor_failed=1
+                    fi
 
-            csv_file="$(find_result_csv || true)"
-            if [ -z "${csv_file}" ] || ! parse_query_result "${csv_file}" "${query_label}"; then
-                log "benchmark 结果解析失败，记录兜底失败结果"
-                [ -n "${end_time}" ] || end_time="$(current_datetime)"
-                cost_time=-2
-                throughput=-2
-                insert_result_row "${protocol_code}"
-                operation_failed=1
+                    m_end_time="$(date +%s)"
+                    collect_monitor_data "${TEST_IP}"
+
+                    csv_file="$(find_result_csv || true)"
+                    if [ -z "${csv_file}" ] || ! parse_query_result "${csv_file}" "${query_label}"; then
+                        log "benchmark 结果解析失败，记录兜底失败结果"
+                        [ -n "${end_time}" ] || end_time="$(current_datetime)"
+                        cost_time=-2
+                        throughput=-2
+                        insert_result_row "${protocol_code}"
+                        operation_failed=1
+                        if [ "${monitor_failed}" -ne 0 ]; then
+                            operation_failed=1
+                        fi
+                        continue
+                    fi
+
+                    [ -n "${end_time}" ] || end_time="$(current_datetime)"
+                    cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
+                    insert_result_row "${protocol_code}"
+                    log "${commit_id} ${ts_type} ${query_scope} 第${query_num}次: ${okPoint} 个点耗时 ${Latency} ms"
+
+                    if [ "${monitor_failed}" -ne 0 ]; then
+                        operation_failed=1
+                    fi
+                done
+
                 archive_query_logs "${current_query}"
                 stop_iotdb
                 sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
                 cleanup_processes
-                continue
-            fi
-
-            [ -n "${end_time}" ] || end_time="$(current_datetime)"
-            cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-            insert_result_row "${protocol_code}"
-            log "${commit_id} ${current_ts_type} ${current_query}: ${okPoint} 个点耗时 ${Latency} ms"
-
-            archive_query_logs "${current_query}"
-            stop_iotdb
-            sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
-            cleanup_processes
-
-            if [ "${monitor_failed}" -ne 0 ]; then
-                operation_failed=1
-            fi
+            done
         done
 
-        log "${current_ts_type} 查询测试已完成"
-        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}"
+        log "${current_suite_type} 查询测试已完成"
+        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_suite_type}"
     done
 
     return "${operation_failed}"
 }
 
 mark_test_in_progress() {
+    mkdir -p "${INIT_PATH}"
     printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
 }
 
 restore_test_type_file() {
+    mkdir -p "${INIT_PATH}"
     printf '%s\n' "${TEST_TYPE}" > "${INIT_PATH}/test_type_file"
 }
 
@@ -854,6 +963,7 @@ main() {
 
     ensure_runtime_dependencies
     check_password
+    validate_query_settings
     [ "${#QUERY_LIST[@]}" -eq "${#QUERY_LABELS[@]}" ] || die "QUERY_LIST 和 QUERY_LABELS 的数量不一致"
     if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then
         check_benchmark_version
