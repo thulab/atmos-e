@@ -469,7 +469,11 @@ wait_for_iotdb_ready() {
     fi
 
     for ((attempt = 1; attempt <= IOTDB_READY_RETRIES; attempt++)); do
-        iotdb_state="$("${TEST_IOTDB_PATH}/sbin/start-cli.sh" "${cli_args[@]}" -e "show cluster" 2>/dev/null | grep -F 'Total line number = 2' || true)"
+        if [ "${#cli_args[@]}" -gt 0 ]; then
+            iotdb_state="$("${TEST_IOTDB_PATH}/sbin/start-cli.sh" "${cli_args[@]}" -e "show cluster" 2>/dev/null | grep -F 'Total line number = 2' || true)"
+        else
+            iotdb_state="$("${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "show cluster" 2>/dev/null | grep -F 'Total line number = 2' || true)"
+        fi
         if [ "${iotdb_state}" = "Total line number = 2" ]; then
             return 0
         fi
