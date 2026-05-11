@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
 if [ -z "${BASH_VERSION:-}" ]; then
-    echo "insert_common.sh requires bash" >&2
+    echo "insert_common.sh 需要使用 bash 运行" >&2
     return 1 2>/dev/null || exit 1
 fi
 if shopt -oq posix; then
-    echo "insert_common.sh requires non-posix bash" >&2
+    echo "insert_common.sh 需要使用非 posix 模式的 bash 运行" >&2
     return 1 2>/dev/null || exit 1
 fi
 
-: "${TEST_IP:?TEST_IP must be set before sourcing insert_common.sh}"
-: "${TEST_TYPE:?TEST_TYPE must be set before sourcing insert_common.sh}"
+: "${TEST_IP:?在 source insert_common.sh 之前必须设置 TEST_IP}"
+: "${TEST_TYPE:?在 source insert_common.sh 之前必须设置 TEST_TYPE}"
 
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
 readonly TABLENAME="test_result_${TEST_TYPE}"
@@ -113,7 +113,7 @@ log() {
 }
 
 die() {
-    log "ERROR: $*"
+    log "错误: $*"
     exit 1
 }
 
@@ -187,7 +187,7 @@ copy_if_exists() {
     local label="${3:-$1}"
 
     if [ ! -e "${source}" ]; then
-        log "skip copy, missing ${label}: ${source}"
+        log "跳过复制，缺少 ${label}: ${source}"
         return 0
     fi
 
@@ -384,9 +384,9 @@ resolve_monitor_disk_id() {
 
     if [ "${#detected_disk_ids[@]:-}" -gt 0 ]; then
         disk_id_regex="$(build_disk_id_regex "${detected_disk_ids[@]:-}")"
-        log "resolved disk ids ${detected_disk_ids[*]:-} from ${monitor_target_paths[*]:-}"
+        log "已从 ${monitor_target_paths[*]:-} 解析出磁盘 ID: ${detected_disk_ids[*]:-}"
     else
-        log "failed to resolve disk ids from ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}}, fallback to ${DEFAULT_DISK_ID}"
+        log "无法从 ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}} 解析磁盘 ID，回退到 ${DEFAULT_DISK_ID}"
     fi
 }
 
@@ -1146,7 +1146,7 @@ mark_test_in_progress() {
     printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
 }
 
-# Scheduler reads this file to decide which test suite should run next.
+# 调度器会读取这个文件，用来判断下一个要执行的测试套件。
 restore_test_type_file() {
     printf '%s\n' "${TEST_TYPE}" > "${INIT_PATH}/test_type_file"
 }

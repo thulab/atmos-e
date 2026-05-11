@@ -94,7 +94,7 @@ log() {
 }
 
 die() {
-    log "ERROR: $*"
+    log "错误: $*"
     exit 1
 }
 
@@ -118,12 +118,12 @@ normalize_datetime() {
 }
 
 require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "missing dependency command: $1"
+    command -v "$1" >/dev/null 2>&1 || die "缺少依赖命令: $1"
 }
 
 check_password() {
     if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD is not set, cannot connect to MySQL"
+        die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL"
     fi
 }
 
@@ -154,14 +154,14 @@ path_is_safe() {
 safe_rm() {
     local path="$1"
     [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unexpected path: ${path}"
+    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
     rm -rf -- "${path}"
 }
 
 sudo_safe_rm() {
     local path="$1"
     [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unexpected path: ${path}"
+    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
     sudo rm -rf -- "${path}"
 }
 
@@ -171,7 +171,7 @@ copy_if_exists() {
     local label="${3:-$1}"
 
     if [ ! -e "${source}" ]; then
-        log "skip copy, missing ${label}: ${source}"
+        log "跳过复制，缺少 ${label}: ${source}"
         return 0
     fi
 
@@ -223,7 +223,7 @@ fetch_next_commit() {
     author="$(trim "${author}")"
     commit_date_time="$(normalize_datetime "${raw_commit_date_time}")"
     [ -n "${commit_id}" ] || return 1
-    [ -n "${commit_date_time}" ] || die "failed to parse commit_date_time"
+    [ -n "${commit_date_time}" ] || die "commit_date_time 解析失败"
 }
 
 mark_test_in_progress() {
@@ -328,7 +328,7 @@ check_pid_and_kill() {
 
     pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
     if [ -z "${pids}" ]; then
-        log "did not detect ${desc}"
+        log "未检测到${desc}"
         return 0
     fi
 
@@ -337,13 +337,13 @@ check_pid_and_kill() {
         kill -9 "${pid}" 2>/dev/null || true
     done <<< "${pids}"
 
-    log "${desc} stopped"
+    log "${desc}已停止"
 }
 
 check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode process"
-    check_pid_and_kill "ConfigNode" "ConfigNode process"
-    check_pid_and_kill "IoTDB" "IoTDB process"
+    check_pid_and_kill "DataNode" "DataNode 进程"
+    check_pid_and_kill "ConfigNode" "ConfigNode 进程"
+    check_pid_and_kill "IoTDB" "IoTDB 进程"
 }
 
 cleanup_processes() {
@@ -354,7 +354,7 @@ cleanup_processes() {
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
 
-    [ -d "${source_path}" ] || die "missing target commit directory: ${source_path}"
+    [ -d "${source_path}" ] || die "缺少待测版本目录: ${source_path}"
 
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
@@ -368,8 +368,8 @@ modify_iotdb_config() {
     local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
 
-    [ -f "${datanode_env}" ] || die "missing config file: ${datanode_env}"
-    [ -f "${properties_file}" ] || die "missing config file: ${properties_file}"
+    [ -f "${datanode_env}" ] || die "缺少配置文件: ${datanode_env}"
+    [ -f "${properties_file}" ] || die "缺少配置文件: ${properties_file}"
 
     sed -i 's/^#\?ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY="20G"/' "${datanode_env}"
 
@@ -394,7 +394,7 @@ EOF
 append_export_properties() {
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
 
-    [ -f "${properties_file}" ] || die "missing config file: ${properties_file}"
+    [ -f "${properties_file}" ] || die "缺少配置文件: ${properties_file}"
     cat >> "${properties_file}" <<EOF
 max_deduplicated_path_num=60000000
 query_timeout_threshold=60000000
@@ -467,11 +467,11 @@ prepare_tablemode_schema() {
     local import_schema_tool="${TEST_IOTDB_PATH}/tools/schema/import-schema.sh"
 
     [ -f "${TABLEMODE_SCHEMA_FILE}" ] || {
-        log "missing tablemode schema file: ${TABLEMODE_SCHEMA_FILE}"
+        log "缺少 tablemode 表结构文件: ${TABLEMODE_SCHEMA_FILE}"
         return 1
     }
     [ -f "${import_schema_tool}" ] || {
-        log "missing schema import tool: ${import_schema_tool}"
+        log "缺少表结构导入工具: ${import_schema_tool}"
         return 1
     }
 
@@ -574,7 +574,7 @@ monitor_test_status() {
         if log_file_has_completion_marker "${LIVE_LOG_FILE}"; then
             end_time="$(current_datetime)"
             cost_time=$(( $(datetime_to_epoch "${end_time}") - start_epoch ))
-            log "${ts_type} ${data_type} ${phase} finished"
+            log "${ts_type} ${data_type} ${phase} 已完成"
             return 0
         fi
 
@@ -584,7 +584,7 @@ monitor_test_status() {
             end_time="-1"
             cost_time=-100
             stop_active_operation
-            log "${ts_type} ${data_type} ${phase} timed out"
+            log "${ts_type} ${data_type} ${phase} 已超时"
             return 1
         fi
 
@@ -622,7 +622,7 @@ launch_phase_command() {
     case "${phase}" in
         load-tsfile)
             if [ ! -d "${case_dataset_path}" ]; then
-                log "missing dataset path: ${case_dataset_path}"
+                log "缺少数据集目录: ${case_dataset_path}"
                 return 1
             fi
 
@@ -735,13 +735,13 @@ launch_phase_command() {
             fi
             ;;
         *)
-            log "unsupported phase: ${phase}"
+            log "不支持的阶段: ${phase}"
             return 1
             ;;
     esac
 
     [ -f "${cmd[0]}" ] || {
-        log "missing operation tool: ${cmd[0]}"
+        log "缺少操作工具: ${cmd[0]}"
         return 1
     }
 
@@ -787,7 +787,7 @@ insert into ${TABLENAME} (
 EOF
 )
 
-    log "${commit_id} ${ts_type} ${data_type} ${remark}: cost_time=${cost_time}"
+    log "${commit_id} ${ts_type} ${data_type} ${remark}: 耗时 ${cost_time} 秒"
     mysql_exec "${insert_sql}"
 }
 
@@ -874,14 +874,14 @@ backup_test_data() {
     [ -d "${TEST_IOTDB_PATH}" ] || return 0
 
     sudo_safe_rm "${backup_dir}"
-    path_is_safe "${backup_parent}" || die "refuse to use unexpected backup path: ${backup_parent}"
+    path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
     sudo mkdir -p -- "${backup_parent}"
-    path_is_safe "${backup_dir}" || die "refuse to use unexpected backup path: ${backup_dir}"
+    path_is_safe "${backup_dir}" || die "拒绝使用非预期备份路径: ${backup_dir}"
     sudo mkdir -p -- "${backup_dir}"
 
     sudo_safe_rm "${TEST_IOTDB_PATH}/data"
     sudo_safe_rm "${TEST_IOTDB_PATH}/tools/data"
-    path_is_safe "${TEST_IOTDB_PATH}" || die "refuse to move unexpected path: ${TEST_IOTDB_PATH}"
+    path_is_safe "${TEST_IOTDB_PATH}" || die "拒绝移动非预期路径: ${TEST_IOTDB_PATH}"
     sudo mv "${TEST_IOTDB_PATH}" "${backup_dir}"
 }
 
@@ -895,13 +895,13 @@ test_operation() {
     data_type="${current_data_type}"
     export_properties_applied=0
 
-    log "start protocol ${protocol_code}, ts_type ${ts_type}, data_type ${data_type}"
+    log "开始执行协议 ${protocol_code}、时间序列类型 ${ts_type}、数据类型 ${data_type} 的测试"
     cleanup_processes
     set_env
     modify_iotdb_config
 
     if ! set_protocol_class "${protocol_code}"; then
-        log "invalid protocol configuration: ${protocol_code}"
+        log "协议配置无效: ${protocol_code}"
         return 1
     fi
 
@@ -938,7 +938,7 @@ main() {
     fi
 
     update_task_status "ontesting"
-    log "current commit ${commit_id} has not been tested, start ts performance workflow"
+    log "当前版本 ${commit_id} 未执行过测试，开始 ts_performance 测试流程"
 
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
@@ -950,7 +950,7 @@ main() {
         done
     done
 
-    log "ts performance run ${test_date_time} finished"
+    log "本轮 ts_performance 测试 ${test_date_time} 已结束"
     if [ "${task_failed}" -eq 0 ]; then
         update_task_status "done"
         mark_older_commits_skip

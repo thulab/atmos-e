@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
 if [ -z "${BASH_VERSION:-}" ]; then
-    echo "query_common.sh requires bash" >&2
+    echo "query_common.sh 需要使用 bash 运行" >&2
     return 1 2>/dev/null || exit 1
 fi
 if shopt -oq posix; then
-    echo "query_common.sh requires non-posix bash" >&2
+    echo "query_common.sh 需要使用非 posix 模式的 bash 运行" >&2
     return 1 2>/dev/null || exit 1
 fi
 
-: "${TEST_IP:?TEST_IP must be set before sourcing query_common.sh}"
-: "${TEST_TYPE:?TEST_TYPE must be set before sourcing query_common.sh}"
+: "${TEST_IP:?在 source query_common.sh 之前必须设置 TEST_IP}"
+: "${TEST_TYPE:?在 source query_common.sh 之前必须设置 TEST_TYPE}"
 
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
 readonly TABLENAME="test_result_${TEST_TYPE}"
@@ -127,7 +127,7 @@ log() {
 }
 
 die() {
-    log "ERROR: $*"
+    log "错误: $*"
     exit 1
 }
 
@@ -151,12 +151,12 @@ normalize_datetime() {
 }
 
 require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "missing dependency command: $1"
+    command -v "$1" >/dev/null 2>&1 || die "缺少依赖命令: $1"
 }
 
 check_password() {
     if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD is not set, cannot connect to MySQL"
+        die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL"
     fi
 }
 
@@ -187,14 +187,14 @@ path_is_safe() {
 safe_rm() {
     local path="$1"
     [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unexpected path: ${path}"
+    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
     rm -rf -- "${path}"
 }
 
 sudo_safe_rm() {
     local path="$1"
     [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unexpected path: ${path}"
+    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
     sudo rm -rf -- "${path}"
 }
 
@@ -204,7 +204,7 @@ copy_if_exists() {
     local label="${3:-$1}"
 
     if [ ! -e "${source}" ]; then
-        log "skip copy, missing ${label}: ${source}"
+        log "跳过复制，缺少 ${label}: ${source}"
         return 0
     fi
 
@@ -256,23 +256,23 @@ fetch_next_commit() {
     author="$(trim "${author}")"
     commit_date_time="$(normalize_datetime "${raw_commit_date_time}")"
     [ -n "${commit_id}" ] || return 1
-    [ -n "${commit_date_time}" ] || die "failed to parse commit_date_time"
+    [ -n "${commit_date_time}" ] || die "commit_date_time 解析失败"
 }
 
 check_benchmark_version() {
     local bm_new=""
     local bm_old=""
 
-    [ -f "${BM_REPOS_PATH}/git.properties" ] || die "missing benchmark git.properties: ${BM_REPOS_PATH}/git.properties"
+    [ -f "${BM_REPOS_PATH}/git.properties" ] || die "缺少 benchmark git.properties: ${BM_REPOS_PATH}/git.properties"
     bm_new="$(awk -F= '/git.commit.id.abbrev/ {print $2}' "${BM_REPOS_PATH}/git.properties")"
-    [ -n "${bm_new}" ] || die "failed to read benchmark version"
+    [ -n "${bm_new}" ] || die "无法读取 benchmark 版本信息"
 
     if [ -f "${BM_PATH}/git.properties" ]; then
         bm_old="$(awk -F= '/git.commit.id.abbrev/ {print $2}' "${BM_PATH}/git.properties")"
     fi
 
     if [ ! -d "${BM_PATH}" ] || [ "${bm_old}" != "${bm_new}" ]; then
-        log "sync benchmark directory to latest version"
+        log "同步 benchmark 目录到最新版本"
         mkdir -p "${INIT_PATH}"
         safe_rm "${BM_PATH}"
         cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
@@ -321,7 +321,7 @@ check_pid_and_kill() {
 
     pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
     if [ -z "${pids}" ]; then
-        log "did not detect ${desc}"
+        log "未检测到${desc}"
         return 0
     fi
 
@@ -330,17 +330,17 @@ check_pid_and_kill() {
         kill -9 "${pid}"
     done <<< "${pids}"
 
-    log "${desc} stopped"
+    log "${desc}已停止"
 }
 
 check_benchmark_pid() {
-    check_pid_and_kill "App" "benchmark process"
+    check_pid_and_kill "App" "benchmark 进程"
 }
 
 check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode process"
-    check_pid_and_kill "ConfigNode" "ConfigNode process"
-    check_pid_and_kill "IoTDB" "IoTDB process"
+    check_pid_and_kill "DataNode" "DataNode 进程"
+    check_pid_and_kill "ConfigNode" "ConfigNode 进程"
+    check_pid_and_kill "IoTDB" "IoTDB 进程"
 }
 
 cleanup_processes() {
@@ -350,7 +350,7 @@ cleanup_processes() {
 
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
-    [ -d "${source_path}" ] || die "missing target commit directory: ${source_path}"
+    [ -d "${source_path}" ] || die "缺少待测版本目录: ${source_path}"
 
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
@@ -363,8 +363,8 @@ modify_iotdb_config() {
     local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
 
-    [ -f "${datanode_env}" ] || die "missing config file: ${datanode_env}"
-    [ -f "${properties_file}" ] || die "missing config file: ${properties_file}"
+    [ -f "${datanode_env}" ] || die "缺少配置文件: ${datanode_env}"
+    [ -f "${properties_file}" ] || die "缺少配置文件: ${properties_file}"
 
     sed -i 's/^#\?ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY="20G"/' "${datanode_env}"
 
@@ -411,7 +411,7 @@ copy_query_dataset() {
     local current_ts_type="$2"
     local source_path="${QUERY_DATASET_PATH}/${protocol_code}/${current_ts_type}/data"
 
-    [ -d "${source_path}" ] || die "missing query dataset: ${source_path}"
+    [ -d "${source_path}" ] || die "缺少查询数据集: ${source_path}"
     cp -rf -- "${source_path}" "${TEST_IOTDB_PATH}/"
 }
 
@@ -511,7 +511,7 @@ monitor_test_status() {
         csv_file="$(find_result_csv || true)"
         if [ -n "${csv_file}" ]; then
             end_time="$(current_datetime)"
-            log "${current_query} query finished"
+            log "${current_query} 查询已完成"
             return 0
         fi
 
@@ -519,7 +519,7 @@ monitor_test_status() {
         elapsed=$((now_epoch - m_start_time))
         if [ "${elapsed}" -ge "${MONITOR_TIMEOUT_SECONDS}" ]; then
             end_time="$(current_datetime)"
-            log "${current_query} query timed out, writing fallback result"
+            log "${current_query} 查询超时，写入兜底结果"
             create_stuck_result_csv "${BM_PATH}/data/csvOutput/Stuck_result.csv" "${query_label}"
             return 1
         fi
@@ -590,13 +590,13 @@ backup_test_data() {
     local backup_dir="${backup_parent}/${commit_date_time}_${commit_id}"
 
     sudo_safe_rm "${backup_dir}"
-    path_is_safe "${backup_parent}" || die "refuse to use unexpected backup path: ${backup_parent}"
+    path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
     sudo mkdir -p -- "${backup_parent}"
-    path_is_safe "${backup_dir}" || die "refuse to use unexpected backup path: ${backup_dir}"
+    path_is_safe "${backup_dir}" || die "拒绝使用非预期备份路径: ${backup_dir}"
     sudo mkdir -p -- "${backup_dir}"
 
     sudo_safe_rm "${TEST_IOTDB_PATH}/data"
-    path_is_safe "${TEST_IOTDB_PATH}" || die "refuse to move unexpected path: ${TEST_IOTDB_PATH}"
+    path_is_safe "${TEST_IOTDB_PATH}" || die "拒绝移动非预期路径: ${TEST_IOTDB_PATH}"
     sudo mv "${TEST_IOTDB_PATH}" "${backup_dir}"
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
@@ -607,7 +607,7 @@ mv_config_file() {
     local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}/${current_query}"
     local config_target="${BM_PATH}/conf/config.properties"
 
-    [ -f "${config_source}" ] || die "missing benchmark config file: ${config_source}"
+    [ -f "${config_source}" ] || die "缺少 benchmark 配置文件: ${config_source}"
     safe_rm "${config_target}"
     cp -rf "${config_source}" "${config_target}"
 }
@@ -745,13 +745,13 @@ test_operation() {
     local operation_failed=0
 
     for current_ts_type in "${QUERY_DATA_TYPES[@]}"; do
-        log "start query suite for protocol ${protocol_code}, ts_type ${current_ts_type}"
+        log "开始执行协议 ${protocol_code}、时间序列类型 ${current_ts_type} 的查询测试"
         cleanup_processes
         set_env
         modify_iotdb_config
 
         if ! set_protocol_class "${protocol_code}"; then
-            log "protocol configuration is invalid: ${protocol_code}"
+            log "协议配置无效: ${protocol_code}"
             return 1
         fi
 
@@ -766,14 +766,14 @@ test_operation() {
             query_type="${current_query}"
             monitor_failed=0
 
-            log "start query ${current_query} for ${current_ts_type}"
+            log "开始执行 ${current_ts_type} 的 ${current_query} 查询"
             check_iotdb_pid
             sleep 1
             start_iotdb
             sleep "${STARTUP_GRACE_SECONDS}"
 
             if ! wait_for_iotdb_ready; then
-                log "IoTDB failed to start normally, record failure result"
+                log "IoTDB 未能正常启动，记录失败结果"
                 end_time="$(current_datetime)"
                 cost_time=-3
                 throughput=-3
@@ -803,7 +803,7 @@ test_operation() {
 
             csv_file="$(find_result_csv || true)"
             if [ -z "${csv_file}" ] || ! parse_query_result "${csv_file}" "${query_label}"; then
-                log "failed to parse benchmark result, record fallback failure result"
+                log "benchmark 结果解析失败，记录兜底失败结果"
                 [ -n "${end_time}" ] || end_time="$(current_datetime)"
                 cost_time=-2
                 throughput=-2
@@ -819,7 +819,7 @@ test_operation() {
             [ -n "${end_time}" ] || end_time="$(current_datetime)"
             cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
             insert_result_row "${protocol_code}"
-            log "${commit_id} ${current_ts_type} ${current_query}: ${Latency} ms for ${okPoint} points"
+            log "${commit_id} ${current_ts_type} ${current_query}: ${okPoint} 个点耗时 ${Latency} ms"
 
             archive_query_logs "${current_query}"
             stop_iotdb
@@ -831,7 +831,7 @@ test_operation() {
             fi
         done
 
-        log "query suite finished for ${current_ts_type}"
+        log "${current_ts_type} 查询测试已完成"
         [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}"
     done
 
@@ -854,7 +854,7 @@ main() {
 
     ensure_runtime_dependencies
     check_password
-    [ "${#QUERY_LIST[@]}" -eq "${#QUERY_LABELS[@]}" ] || die "QUERY_LIST and QUERY_LABELS size mismatch"
+    [ "${#QUERY_LIST[@]}" -eq "${#QUERY_LABELS[@]}" ] || die "QUERY_LIST 和 QUERY_LABELS 的数量不一致"
     if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then
         check_benchmark_version
     fi
@@ -866,7 +866,7 @@ main() {
     fi
 
     update_task_status "ontesting"
-    log "current commit ${commit_id} has not been tested, start query workflow"
+    log "当前版本 ${commit_id} 未执行过测试，开始查询测试流程"
 
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
@@ -875,7 +875,7 @@ main() {
         fi
     done
 
-    log "query run ${test_date_time} finished"
+    log "本轮查询测试 ${test_date_time} 已结束"
     if [ "${task_failed}" -eq 0 ]; then
         update_task_status "done"
         mark_older_commits_skip
