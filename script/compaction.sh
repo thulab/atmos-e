@@ -12,42 +12,13 @@ set -o pipefail
 readonly TEST_IP="172.20.31.28"
 readonly TEST_TYPE="compaction"
 readonly DATA_PATH="/nasdata/compaction/DataSet"
+readonly DATASET_PATH="${DATA_PATH}"
 readonly -a PROTOCOL_LIST=(211)
 readonly -a TS_LIST=(common aligned)
-readonly METRIC_SERVER="172.20.70.11:9090"
-
-readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
-readonly DATASET_PATH="${DATA_PATH}"
-
-readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
-readonly REPOS_PATH="/nasdata/repository/master"
-
-readonly TEST_INIT_PATH="/data/qa"
-readonly TEST_IOTDB_PATH="${TEST_INIT_PATH}/apache-iotdb"
-
-readonly MYSQLHOSTNAME="111.200.37.158"
-readonly PORT="13306"
-readonly USERNAME="iotdbatm"
-readonly PASSWORD="${ATMOS_DB_PASSWORD:-}"
-readonly DBNAME="QA_ATM"
-readonly TABLENAME="test_result_${TEST_TYPE}"
-readonly TASK_TABLENAME="commit_history"
-
-readonly -a PROTOCOL_CLASS=(
-    ""
-    "org.apache.iotdb.consensus.simple.SimpleConsensus"
-    "org.apache.iotdb.consensus.ratis.RatisConsensus"
-    "org.apache.iotdb.consensus.iot.IoTConsensus"
-    "org.apache.iotdb.consensus.iot.IoTConsensusV2"
-)
-
-readonly STARTUP_GRACE_SECONDS=10
 readonly STOP_WAIT_SECONDS=30
 readonly COMPACTION_INITIAL_WAIT_SECONDS=30
 readonly COMPACTION_IDLE_CONFIRM_SECONDS=70
 readonly COMPACTION_TIMEOUT_SECONDS=7200
-readonly MONITOR_POLL_INTERVAL_SECONDS=10
 readonly DEFAULT_TARGET_COMPACTION_FILE_SIZE=1073741824
 readonly CROSS_TARGET_COMPACTION_FILE_SIZE=2147483648
 readonly SEQ_READY_RETRIES=20
@@ -58,13 +29,13 @@ readonly CROSS_READY_RETRIES=20
 readonly CROSS_READY_INTERVAL_SECONDS=30
 readonly DEFAULT_DISK_ID_REGEX="^vdc$"
 
-commit_id=""
-author=""
-commit_date_time=""
-test_date_time=""
-ts_type=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=script/runtime_common.sh
+source "${SCRIPT_DIR}/runtime_common.sh"
+
+readonly TABLENAME="test_result_${TEST_TYPE}"
+
 comp_type=""
-cost_time=0
 numOfSe0Level_before=0
 numOfSe0Level_after=0
 numOfUnse0Level_before=0
@@ -76,151 +47,35 @@ comp_start_time="0"
 comp_end_time="0"
 dataFileSize_before="0"
 dataFileSize_after="0"
-maxNumofOpenFiles=0
-maxNumofThread=0
-errorLogSize=0
 maxCPULoad=0
 avgCPULoad=0
 maxDiskIOOpsRead=0
 maxDiskIOOpsWrite=0
 maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
-m_start_time=0
-m_end_time=0
-
-log() {
-    printf '[%s] %s\n' "$(date '+%F %T')" "$*"
-}
-
-die() {
-    log "ERROR: $*"
-    exit 1
-}
-
-trim() {
-    local value="${1:-}"
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-    printf '%s' "${value}"
-}
-
-normalize_datetime() {
-    printf '%s' "$1" | tr -cd '0-9'
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "missing dependency command: $1"
-}
 
 ensure_runtime_dependencies() {
-    local cmd
-    for cmd in awk cat cp curl date du find grep jq jps kill mkdir mv mysql rm sed sudo tail tr wc; do
-        require_command "${cmd}"
-    done
+    ensure_base_runtime_dependencies
+    require_command find
+    require_command tail
 }
 
-check_password() {
-    if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD is not set, cannot connect to MySQL"
-    fi
-}
+append_iotdb_properties() {
+    local properties_file="$1"
 
-path_is_safe() {
-    local path="$1"
-    [ -n "${path}" ] || return 1
-
-    case "${path}" in
-        "/"|"/data"|"/nasdata"|".")
-            return 1
-            ;;
-        "${INIT_PATH}"/*|"${TEST_INIT_PATH}"/*|"${BACKUP_PATH}"/*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-safe_rm() {
-    local path="$1"
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unexpected path: ${path}"
-    rm -rf -- "${path}"
-}
-
-sudo_safe_rm() {
-    local path="$1"
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unexpected path: ${path}"
-    sudo rm -rf -- "${path}"
-}
-
-copy_if_exists() {
-    local source="$1"
-    local target="$2"
-    local label="${3:-$1}"
-
-    if [ ! -e "${source}" ]; then
-        log "skip copy, missing ${label}: ${source}"
-        return 0
-    fi
-
-    cp -rf -- "${source}" "${target}"
-}
-
-mysql_exec() {
-    local sql="$1"
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
-}
-
-sql_quote() {
-    local value="${1:-}"
-    value="${value//\\/\\\\}"
-    value="$(printf '%s' "${value}" | sed "s/'/''/g")"
-    printf "'%s'" "${value}"
-}
-
-update_task_status() {
-    local status="$1"
-    mysql_exec "update ${TASK_TABLENAME} set ${TEST_TYPE} = $(sql_quote "${status}") where commit_id = $(sql_quote "${commit_id}")"
-}
-
-mark_older_commits_skip() {
-    mysql_exec "update ${TASK_TABLENAME} set ${TEST_TYPE} = 'skip' where ${TEST_TYPE} is NULL and commit_date_time < $(sql_quote "${commit_date_time}")"
-}
-
-query_next_commit() {
-    local status_filter="$1"
-
-    if [ "${status_filter}" = "retest" ]; then
-        mysql_exec "SELECT commit_id, author, commit_date_time FROM ${TASK_TABLENAME} WHERE ${TEST_TYPE} = 'retest' ORDER BY commit_date_time desc LIMIT 1"
-    else
-        mysql_exec "SELECT commit_id, author, commit_date_time FROM ${TASK_TABLENAME} WHERE ${TEST_TYPE} is NULL ORDER BY commit_date_time desc LIMIT 1"
-    fi
-}
-
-fetch_next_commit() {
-    local row=""
-    local raw_commit_date_time=""
-
-    row="$(query_next_commit "retest")"
-    if [ -z "${row}" ]; then
-        row="$(query_next_commit "pending")"
-    fi
-    [ -n "${row}" ] || return 1
-
-    IFS=$'\t' read -r commit_id author raw_commit_date_time <<< "${row}"
-    author="$(trim "${author}")"
-    commit_date_time="$(normalize_datetime "${raw_commit_date_time}")"
-    [ -n "${commit_id}" ] || return 1
-    [ -n "${commit_date_time}" ] || die "failed to parse commit_date_time"
+    cat >> "${properties_file}" <<EOF
+series_slot_num=10000
+target_compaction_file_size=${DEFAULT_TARGET_COMPACTION_FILE_SIZE}
+enable_seq_space_compaction=false
+enable_unseq_space_compaction=false
+enable_cross_space_compaction=false
+EOF
 }
 
 init_items() {
+    init_common_items
     ts_type=""
     comp_type=""
-    cost_time=0
     numOfSe0Level_before=0
     numOfSe0Level_after=0
     numOfUnse0Level_before=0
@@ -232,114 +87,16 @@ init_items() {
     comp_end_time="0"
     dataFileSize_before="0"
     dataFileSize_after="0"
-    maxNumofOpenFiles=0
-    maxNumofThread=0
-    errorLogSize=0
     maxCPULoad=0
     avgCPULoad=0
     maxDiskIOOpsRead=0
     maxDiskIOOpsWrite=0
     maxDiskIOSizeRead=0
     maxDiskIOSizeWrite=0
-    m_start_time=0
-    m_end_time=0
-}
-
-check_pid_and_kill() {
-    local pname="$1"
-    local desc="$2"
-    local pids=""
-    local pid=""
-
-    pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
-    if [ -z "${pids}" ]; then
-        log "did not detect ${desc}"
-        return 0
-    fi
-
-    while IFS= read -r pid; do
-        [ -n "${pid}" ] || continue
-        kill -9 "${pid}"
-    done <<< "${pids}"
-
-    log "${desc} stopped"
-}
-
-check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode process"
-    check_pid_and_kill "ConfigNode" "ConfigNode process"
-    check_pid_and_kill "IoTDB" "IoTDB process"
 }
 
 cleanup_processes() {
     check_iotdb_pid
-}
-
-replace_or_append_property() {
-    local file="$1"
-    local key="$2"
-    local value="$3"
-
-    if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "${file}"; then
-        sed -i "s|^[[:space:]]*${key}[[:space:]]*=.*$|${key}=${value}|" "${file}"
-    else
-        printf '%s=%s\n' "${key}" "${value}" >> "${file}"
-    fi
-}
-
-apply_base_iotdb_config() {
-    local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
-    local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
-
-    [ -f "${datanode_env}" ] || die "missing config file: ${datanode_env}"
-    [ -f "${properties_file}" ] || die "missing config file: ${properties_file}"
-
-    sed -i 's/^#\?ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY="20G"/' "${datanode_env}"
-    replace_or_append_property "${properties_file}" "series_slot_num" "10000"
-    replace_or_append_property "${properties_file}" "target_compaction_file_size" "${DEFAULT_TARGET_COMPACTION_FILE_SIZE}"
-    replace_or_append_property "${properties_file}" "enable_seq_space_compaction" "false"
-    replace_or_append_property "${properties_file}" "enable_unseq_space_compaction" "false"
-    replace_or_append_property "${properties_file}" "enable_cross_space_compaction" "false"
-    replace_or_append_property "${properties_file}" "cluster_name" "${TEST_TYPE}"
-    replace_or_append_property "${properties_file}" "cn_enable_metric" "true"
-    replace_or_append_property "${properties_file}" "cn_enable_performance_stat" "true"
-    replace_or_append_property "${properties_file}" "cn_metric_reporter_list" "PROMETHEUS"
-    replace_or_append_property "${properties_file}" "cn_metric_level" "ALL"
-    replace_or_append_property "${properties_file}" "cn_metric_prometheus_reporter_port" "9081"
-    replace_or_append_property "${properties_file}" "dn_enable_metric" "true"
-    replace_or_append_property "${properties_file}" "dn_enable_performance_stat" "true"
-    replace_or_append_property "${properties_file}" "dn_metric_reporter_list" "PROMETHEUS"
-    replace_or_append_property "${properties_file}" "dn_metric_level" "ALL"
-    replace_or_append_property "${properties_file}" "dn_metric_prometheus_reporter_port" "9091"
-}
-
-set_env() {
-    local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
-    [ -d "${source_path}" ] || die "missing target commit directory: ${source_path}"
-
-    safe_rm "${TEST_IOTDB_PATH}"
-    mkdir -p "${TEST_IOTDB_PATH}/activation"
-    cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
-    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/" "license"
-    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env" "env"
-    apply_base_iotdb_config
-}
-
-set_protocol_class() {
-    local protocol_code="$1"
-    local config_node="${protocol_code:0:1}"
-    local schema_region="${protocol_code:1:1}"
-    local data_region="${protocol_code:2:1}"
-    local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
-
-    [ "${#protocol_code}" -eq 3 ] || return 1
-    [ -n "${PROTOCOL_CLASS[${config_node}]:-}" ] || return 1
-    [ -n "${PROTOCOL_CLASS[${schema_region}]:-}" ] || return 1
-    [ -n "${PROTOCOL_CLASS[${data_region}]:-}" ] || return 1
-
-    replace_or_append_property "${properties_file}" "config_node_consensus_protocol_class" "${PROTOCOL_CLASS[${config_node}]}"
-    replace_or_append_property "${properties_file}" "schema_region_consensus_protocol_class" "${PROTOCOL_CLASS[${schema_region}]}"
-    replace_or_append_property "${properties_file}" "data_region_consensus_protocol_class" "${PROTOCOL_CLASS[${data_region}]}"
 }
 
 copy_dataset() {
@@ -347,7 +104,7 @@ copy_dataset() {
     local current_ts_type="$2"
     local source_path="${DATASET_PATH}/${protocol_code}/${current_ts_type}/data"
 
-    [ -d "${source_path}" ] || die "missing dataset path: ${source_path}"
+    [ -d "${source_path}" ] || die "缺少数据集目录: ${source_path}"
     cp -rf -- "${source_path}" "${TEST_IOTDB_PATH}/"
 }
 
@@ -375,41 +132,15 @@ configure_compaction_mode() {
             ;;
     esac
 
-    replace_or_append_property "${properties_file}" "target_compaction_file_size" "${target_file_size}"
-    replace_or_append_property "${properties_file}" "enable_seq_space_compaction" "${seq_enabled}"
-    replace_or_append_property "${properties_file}" "enable_unseq_space_compaction" "${unseq_enabled}"
-    replace_or_append_property "${properties_file}" "enable_cross_space_compaction" "${cross_enabled}"
+    cat >> "${properties_file}" <<EOF
+target_compaction_file_size=${target_file_size}
+enable_seq_space_compaction=${seq_enabled}
+enable_unseq_space_compaction=${unseq_enabled}
+enable_cross_space_compaction=${cross_enabled}
+EOF
 }
 
-start_iotdb() {
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/start-confignode.sh >/dev/null 2>&1 &
-    )
-    sleep "${STARTUP_GRACE_SECONDS}"
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/start-datanode.sh -H "${TEST_IOTDB_PATH}/dn_dump.hprof" >/dev/null 2>&1 &
-    )
-}
-
-stop_iotdb() {
-    if [ ! -d "${TEST_IOTDB_PATH}" ]; then
-        return 0
-    fi
-
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/stop-datanode.sh >/dev/null 2>&1 &
-    )
-    sleep "${STARTUP_GRACE_SECONDS}"
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/stop-confignode.sh >/dev/null 2>&1 &
-    )
-}
-
-wait_for_iotdb_ready() {
+wait_for_compaction_ready() {
     local retries="$1"
     local interval_seconds="$2"
     local attempt=0
@@ -426,34 +157,11 @@ wait_for_iotdb_ready() {
     return 1
 }
 
-directory_size_bytes() {
-    local target_path="$1"
-    du -sb -- "${target_path}" 2>/dev/null | awk 'NR==1 { print $1 }'
-}
-
-bytes_to_gib() {
-    awk -v value="${1:-0}" 'BEGIN { printf "%.2f\n", value / 1073741824 }'
-}
-
-to_int() {
-    awk -v value="${1:-0}" 'BEGIN { printf "%d\n", value }'
-}
-
-count_level0_files() {
-    local target_dir="$1"
-
-    if [ ! -d "${target_dir}" ]; then
-        printf '0\n'
-        return 0
-    fi
-
-    find "${target_dir}" -name "*-0-*.tsfile" | wc -l
-}
-
-collect_data_before() {
-    dataFileSize_before="$(bytes_to_gib "$(directory_size_bytes "${TEST_IOTDB_PATH}/data")")"
-    numOfSe0Level_before="$(count_level0_files "${TEST_IOTDB_PATH}/data/datanode/data/sequence")"
-    numOfUnse0Level_before="$(count_level0_files "${TEST_IOTDB_PATH}/data/datanode/data/unsequence")"
+collect_before_monitor_metrics() {
+    collect_monitor_snapshot "${TEST_IP}" "$(date +%s)"
+    dataFileSize_before="${dataFileSize}"
+    numOfSe0Level_before="${numOfSe0Level}"
+    numOfUnse0Level_before="${numOfUnse0Level}"
 }
 
 append_timeout_compaction_log() {
@@ -496,8 +204,9 @@ monitor_compaction_completion() {
             else
                 active_count=0
             fi
+
             if [ "${active_count}" -le 0 ] && [ -f "${log_file}" ]; then
-                log "${current_compaction_type} compaction finished"
+                log "${current_compaction_type} 压实完成"
                 return 0
             fi
         fi
@@ -505,7 +214,7 @@ monitor_compaction_completion() {
         now_epoch="$(date +%s)"
         elapsed=$((now_epoch - m_start_time))
         if [ "${elapsed}" -ge "${COMPACTION_TIMEOUT_SECONDS}" ]; then
-            log "${current_compaction_type} compaction timed out, writing fallback log"
+            log "${current_compaction_type} 压实超时，写入兜底日志"
             append_timeout_compaction_log "${current_compaction_type}"
             return 1
         fi
@@ -520,7 +229,7 @@ parse_compaction_log() {
 
     [ -f "${log_file}" ] || return 1
 
-    comp_start_time="$(awk 'NR==1 { print substr($1 " " $2, 1, 19); exit }' "${log_file}")"
+    comp_start_time="$(awk 'NR == 1 { print substr($1 " " $2, 1, 19); exit }' "${log_file}")"
     comp_end_time="$(awk 'END { print substr($1 " " $2, 1, 19) }' "${log_file}")"
     line="$(grep -E 'InnerSpaceCompaction task finishes successfully|CrossSpaceCompaction task finishes successfully' "${log_file}" | tail -n 1 || true)"
     [ -n "${line}" ] || return 1
@@ -532,12 +241,6 @@ parse_compaction_log() {
 }
 
 collect_data_after() {
-    local datanode_error_bytes=0
-    local confignode_error_bytes=0
-
-    dataFileSize_after="$(bytes_to_gib "$(directory_size_bytes "${TEST_IOTDB_PATH}/data")")"
-    numOfSe0Level_after="$(count_level0_files "${TEST_IOTDB_PATH}/data/datanode/data/sequence")"
-    numOfUnse0Level_after="$(count_level0_files "${TEST_IOTDB_PATH}/data/datanode/data/unsequence")"
     compaction_rate=0
     ts_dataSize=0
     ts_numOfPoints=0
@@ -548,59 +251,18 @@ collect_data_after() {
         comp_end_time="0"
         return 1
     fi
+}
 
-    datanode_error_bytes="$(du -sb "${TEST_IOTDB_PATH}/logs/log_datanode_error.log" 2>/dev/null | awk 'NR==1 { print $1 }')"
-    confignode_error_bytes="$(du -sb "${TEST_IOTDB_PATH}/logs/log_confignode_error.log" 2>/dev/null | awk 'NR==1 { print $1 }')"
-    if [ "${datanode_error_bytes:-0}" -gt 0 ] || [ "${confignode_error_bytes:-0}" -gt 0 ]; then
+collect_monitor_metrics() {
+    collect_resource_monitor_data "${TEST_IP}" "${DEFAULT_DISK_ID_REGEX}" "${m_start_time}" "${m_end_time}"
+    dataFileSize_after="${dataFileSize}"
+    numOfSe0Level_after="${numOfSe0Level}"
+    numOfUnse0Level_after="${numOfUnse0Level}"
+    if [ "${errorLogSize:-0}" -gt 0 ]; then
         errorLogSize=1
     else
         errorLogSize=0
     fi
-}
-
-get_single_index() {
-    local query="$1"
-    local end="$2"
-    local index_value=""
-
-    index_value="$(
-        curl -G -s "http://${METRIC_SERVER}/api/v1/query" \
-            --data-urlencode "query=${query}" \
-            --data-urlencode "time=${end}" \
-            | jq -r '.data.result[0].value[1] // 0'
-    )"
-
-    if [ "${index_value}" = "null" ] || [ -z "${index_value}" ]; then
-        index_value=0
-    fi
-
-    printf '%s\n' "${index_value}"
-}
-
-collect_monitor_metrics() {
-    local ip="$1"
-    local metric_window=$((m_end_time - m_start_time))
-    local max_open_files_c=0
-    local max_open_files_d=0
-    local max_threads_c=0
-    local max_threads_d=0
-
-    if [ "${metric_window}" -le 0 ]; then
-        metric_window=1
-    fi
-
-    max_open_files_c="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9081\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
-    max_open_files_d="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
-    maxNumofOpenFiles=$(( $(to_int "${max_open_files_c}") + $(to_int "${max_open_files_d}") ))
-    max_threads_c="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9081\"}[${metric_window}s])" "${m_end_time}")"
-    max_threads_d="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxNumofThread=$(( $(to_int "${max_threads_c}") + $(to_int "${max_threads_d}") ))
-    maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsRead="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DEFAULT_DISK_ID_REGEX}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
-    maxDiskIOOpsWrite="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${DEFAULT_DISK_ID_REGEX}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
-    maxDiskIOSizeRead="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DEFAULT_DISK_ID_REGEX}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
-    maxDiskIOSizeWrite="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${DEFAULT_DISK_ID_REGEX}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
 }
 
 insert_result_row() {
@@ -648,7 +310,7 @@ EOF
 )
 
     mysql_exec "${insert_sql}"
-    log "${ts_type} ${comp_type} compaction cost ${cost_time} s"
+    log "${ts_type} ${comp_type} 压实耗时 ${cost_time} 秒"
 }
 
 archive_compaction_artifacts() {
@@ -671,13 +333,13 @@ backup_test_data() {
     local backup_dir="${backup_parent}/${commit_date_time}_${commit_id}_${protocol_code}"
 
     sudo_safe_rm "${backup_dir}"
-    path_is_safe "${backup_parent}" || die "refuse to use unexpected backup path: ${backup_parent}"
+    path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
     sudo mkdir -p -- "${backup_parent}"
-    path_is_safe "${backup_dir}" || die "refuse to use unexpected backup path: ${backup_dir}"
+    path_is_safe "${backup_dir}" || die "拒绝使用非预期备份路径: ${backup_dir}"
     sudo mkdir -p -- "${backup_dir}"
 
     sudo_safe_rm "${TEST_IOTDB_PATH}/data"
-    path_is_safe "${TEST_IOTDB_PATH}" || die "refuse to move unexpected path: ${TEST_IOTDB_PATH}"
+    path_is_safe "${TEST_IOTDB_PATH}" || die "拒绝移动非预期路径: ${TEST_IOTDB_PATH}"
     sudo mv "${TEST_IOTDB_PATH}" "${backup_dir}"
 }
 
@@ -716,18 +378,16 @@ run_compaction_case() {
             ready_interval_seconds="${CROSS_READY_INTERVAL_SECONDS}"
             ;;
         *)
-            die "unsupported compaction type: ${current_compaction_type}"
+            die "不支持的压实类型: ${current_compaction_type}"
             ;;
     esac
 
-    configure_compaction_mode "${current_compaction_type}" || die "failed to configure ${current_compaction_type}"
-    collect_data_before
+    configure_compaction_mode "${current_compaction_type}" || die "压实配置失败: ${current_compaction_type}"
     start_iotdb
-    m_start_time="$(date +%s)"
     sleep "${STARTUP_GRACE_SECONDS}"
 
-    if ! wait_for_iotdb_ready "${ready_retries}" "${ready_interval_seconds}"; then
-        log "IoTDB failed to start for ${current_compaction_type}, record failure result"
+    if ! wait_for_compaction_ready "${ready_retries}" "${ready_interval_seconds}"; then
+        log "${current_compaction_type} 启动失败，记录失败结果"
         record_startup_failure "${protocol_code}"
         stop_iotdb
         sleep "${STOP_WAIT_SECONDS}"
@@ -735,21 +395,22 @@ run_compaction_case() {
         return 1
     fi
 
+    collect_before_monitor_metrics
+    m_start_time="$(date +%s)"
     sleep "${COMPACTION_INITIAL_WAIT_SECONDS}"
     if ! monitor_compaction_completion "${current_compaction_type}"; then
         case_failed=1
     fi
 
+    m_end_time="$(date +%s)"
+    collect_monitor_metrics
     stop_iotdb
     sleep "${STOP_WAIT_SECONDS}"
     cleanup_processes
-
-    m_end_time="$(date +%s)"
     if ! collect_data_after; then
-        log "failed to parse compaction result log for ${current_compaction_type}"
+        log "${current_compaction_type} 压实日志解析失败"
         case_failed=1
     fi
-    collect_monitor_metrics "${TEST_IP}"
     insert_result_row "${protocol_code}"
     archive_compaction_artifacts "${current_compaction_type}"
 
@@ -762,11 +423,12 @@ test_operation() {
     local compaction_case=""
     local operation_failed=0
 
-    log "start compaction workflow for protocol ${protocol_code}, ts_type ${current_ts_type}"
+    log "开始执行协议 ${protocol_code}、时序类型 ${current_ts_type} 的压实流程"
     cleanup_processes
     set_env
+    modify_iotdb_config
     if ! set_protocol_class "${protocol_code}"; then
-        log "invalid protocol configuration: ${protocol_code}"
+        log "协议配置无效: ${protocol_code}"
         return 1
     fi
     copy_dataset "${protocol_code}" "${current_ts_type}"
@@ -779,14 +441,6 @@ test_operation() {
 
     [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_ts_type}" "${protocol_code}"
     return "${operation_failed}"
-}
-
-mark_test_in_progress() {
-    printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
-}
-
-restore_test_type_file() {
-    printf '%s\n' "${TEST_TYPE}" > "${INIT_PATH}/test_type_file"
 }
 
 main() {
@@ -806,7 +460,7 @@ main() {
     fi
 
     update_task_status "ontesting"
-    log "current commit ${commit_id} has not been tested, start compaction workflow"
+    log "当前版本 ${commit_id} 未执行过测试，开始 compaction 流程"
 
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
@@ -817,7 +471,7 @@ main() {
         done
     done
 
-    log "compaction run ${test_date_time} finished"
+    log "本轮 compaction 测试 ${test_date_time} 已结束"
     if [ "${task_failed}" -eq 0 ]; then
         update_task_status "done"
         mark_older_commits_skip

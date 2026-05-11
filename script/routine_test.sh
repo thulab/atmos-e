@@ -77,19 +77,7 @@ copy_routine_config() {
 }
 
 collect_monitor_data() {
-    local metric_window=$((m_end_time - m_start_time))
-
-    if [ "${metric_window}" -le 0 ]; then
-        metric_window=1
-    fi
-
-    collect_common_monitor_data "${TEST_IP}"
-    maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${TEST_IP}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${TEST_IP}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsRead="$(get_single_index "rate(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"${MONITOR_DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOOpsWrite="$(get_single_index "rate(disk_io_ops{instance=~\"${TEST_IP}:9091\",disk_id=~\"${MONITOR_DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeRead="$(get_single_index "rate(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"${MONITOR_DISK_ID}\",type=~\"read\"}[${metric_window}s])" "${m_end_time}")"
-    maxDiskIOSizeWrite="$(get_single_index "rate(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"${MONITOR_DISK_ID}\",type=~\"write\"}[${metric_window}s])" "${m_end_time}")"
+    collect_resource_monitor_data "${TEST_IP}" "${MONITOR_DISK_ID}" "${m_start_time}" "${m_end_time}"
 }
 
 backup_test_data() {

@@ -567,33 +567,81 @@ to_int() {
     awk -v value="${1:-0}" 'BEGIN { printf "%d\n", value }'
 }
 
-collect_common_monitor_data() {
-    local ip="$1"
-    local metric_window=$((m_end_time - m_start_time))
-    local max_num_thread_c=0
-    local max_num_thread_d=0
+collect_error_log_size() {
     local datanode_error_log_file="${TEST_IOTDB_PATH}/logs/log_datanode_error.log"
     local confignode_error_log_file="${TEST_IOTDB_PATH}/logs/log_confignode_error.log"
     local datanode_error_log_size=0
     local confignode_error_log_size=0
 
+    datanode_error_log_size="$(du -sb "${datanode_error_log_file}" 2>/dev/null | awk '{print $1}')"
+    confignode_error_log_size="$(du -sb "${confignode_error_log_file}" 2>/dev/null | awk '{print $1}')"
+    printf '%s\n' "$(( ${datanode_error_log_size:-0} + ${confignode_error_log_size:-0} ))"
+}
+
+collect_monitor_snapshot() {
+    local ip="${1:-${TEST_IP}}"
+    local metric_time="${2:-$(date +%s)}"
+
+    dataFileSize="$(get_single_index "sum(file_global_size{instance=~\"${ip}:9091\"})" "${metric_time}")"
+    dataFileSize="$(bytes_to_gib "${dataFileSize}")"
+    numOfSe0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"seq\"})" "${metric_time}")"
+    numOfUnse0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"unseq\"})" "${metric_time}")"
+}
+
+collect_monitor_window_data() {
+    local ip="${1:-${TEST_IP}}"
+    local window_start_time="${2:-${m_start_time}}"
+    local window_end_time="${3:-${m_end_time}}"
+    local metric_window=$((window_end_time - window_start_time))
+    local max_num_thread_c=0
+    local max_num_thread_d=0
+
     if [ "${metric_window}" -le 0 ]; then
         metric_window=1
     fi
 
-    dataFileSize="$(get_single_index "sum(file_global_size{instance=~\"${ip}:9091\"})" "${m_end_time}")"
-    dataFileSize="$(bytes_to_gib "${dataFileSize}")"
-    numOfSe0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"seq\"})" "${m_end_time}")"
-    numOfUnse0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"unseq\"})" "${m_end_time}")"
-    max_num_thread_c="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9081\"}[${metric_window}s])" "${m_end_time}")"
-    max_num_thread_d="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
+    collect_monitor_snapshot "${ip}" "${window_end_time}"
+    max_num_thread_c="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9081\"}[${metric_window}s])" "${window_end_time}")"
+    max_num_thread_d="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${window_end_time}")"
     maxNumofThread=$(( $(to_int "${max_num_thread_c}") + $(to_int "${max_num_thread_d}") ))
-    maxNumofOpenFiles="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
-    walFileSize="$(get_single_index "max_over_time(file_size{instance=~\"${ip}:9091\",name=~\"wal\"}[${metric_window}s])" "${m_end_time}")"
+    maxNumofOpenFiles="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${window_end_time}")"
+    walFileSize="$(get_single_index "max_over_time(file_size{instance=~\"${ip}:9091\",name=~\"wal\"}[${metric_window}s])" "${window_end_time}")"
     walFileSize="$(bytes_to_gib "${walFileSize}")"
-    datanode_error_log_size="$(du -sb "${datanode_error_log_file}" 2>/dev/null | awk '{print $1}')"
-    confignode_error_log_size="$(du -sb "${confignode_error_log_file}" 2>/dev/null | awk '{print $1}')"
-    errorLogSize=$(( ${datanode_error_log_size:-0} + ${confignode_error_log_size:-0} ))
+    errorLogSize="$(collect_error_log_size)"
+}
+
+collect_resource_monitor_data() {
+    local ip="${1:-${TEST_IP}}"
+    local disk_id_pattern="${2:-}"
+    local window_start_time="${3:-${m_start_time}}"
+    local window_end_time="${4:-${m_end_time}}"
+    local metric_window=$((window_end_time - window_start_time))
+
+    if [ "${metric_window}" -le 0 ]; then
+        metric_window=1
+    fi
+
+    collect_monitor_window_data "${ip}" "${window_start_time}" "${window_end_time}"
+    maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${window_end_time}")"
+    avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${window_end_time}")"
+
+    if [ -n "${disk_id_pattern}" ]; then
+        maxDiskIOOpsRead="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_pattern}\",type=~\"read\"}[${metric_window}s]))" "${window_end_time}")"
+        maxDiskIOOpsWrite="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_pattern}\",type=~\"write\"}[${metric_window}s]))" "${window_end_time}")"
+        maxDiskIOSizeRead="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_pattern}\",type=~\"read\"}[${metric_window}s]))" "${window_end_time}")"
+        maxDiskIOSizeWrite="$(get_single_index "sum(rate(disk_io_size{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_pattern}\",type=~\"write\"}[${metric_window}s]))" "${window_end_time}")"
+    else
+        maxDiskIOOpsRead=0
+        maxDiskIOOpsWrite=0
+        maxDiskIOSizeRead=0
+        maxDiskIOSizeWrite=0
+    fi
+}
+
+collect_common_monitor_data() {
+    local ip="${1:-${TEST_IP}}"
+
+    collect_monitor_window_data "${ip}" "${m_start_time}" "${m_end_time}"
 }
 
 copy_benchmark_config() {
