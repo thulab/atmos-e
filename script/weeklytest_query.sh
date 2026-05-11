@@ -68,7 +68,7 @@ query_log_dir_suffix() {
     printf '%s_%s\n' "${current_query}" "${sensor_type}"
 }
 
-append_iotdb_properties() {
+append_query_specific_iotdb_properties() {
     local properties_file="$1"
 
     printf 'query_timeout_threshold=6000000\n' >> "${properties_file}"

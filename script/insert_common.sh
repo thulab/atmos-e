@@ -12,28 +12,6 @@ fi
 : "${TEST_IP:?在 source insert_common.sh 之前必须设置 TEST_IP}"
 : "${TEST_TYPE:?在 source insert_common.sh 之前必须设置 TEST_TYPE}"
 
-readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
-readonly TABLENAME="test_result_${TEST_TYPE}"
-readonly TABLENAME_T="test_result_${TEST_TYPE}"
-
-readonly IOTDB_PW="TimechoDB@2021"
-
-readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
-readonly BM_PATH="${INIT_PATH}/iot-benchmark"
-readonly REPOS_PATH="/nasdata/repository/master"
-readonly BM_REPOS_PATH="/nasdata/repository/iot-benchmark"
-
-readonly TEST_INIT_PATH="/data/qa"
-readonly TEST_IOTDB_PATH="${TEST_INIT_PATH}/apache-iotdb"
-
-readonly -a PROTOCOL_CLASS=(
-    ""
-    "org.apache.iotdb.consensus.simple.SimpleConsensus"
-    "org.apache.iotdb.consensus.ratis.RatisConsensus"
-    "org.apache.iotdb.consensus.iot.IoTConsensus"
-    "org.apache.iotdb.consensus.iot.IoTConsensusV2"
-)
 if ! declare -p PROTOCOL_LIST >/dev/null 2>&1; then
     readonly -a PROTOCOL_LIST=(223)
 fi
@@ -43,155 +21,61 @@ fi
 if ! declare -p API_LIST >/dev/null 2>&1; then
     readonly -a API_LIST=(SESSION_BY_TABLET)
 fi
-if ! declare -p ENABLE_BENCHMARK_VERSION_CHECK >/dev/null 2>&1; then
-    readonly ENABLE_BENCHMARK_VERSION_CHECK=1
+if ! declare -p METRIC_SERVER >/dev/null 2>&1; then
+    readonly METRIC_SERVER="111.200.37.158:19090"
 else
-    readonly ENABLE_BENCHMARK_VERSION_CHECK
+    readonly METRIC_SERVER
+fi
+if ! declare -p BENCHMARK_WARMUP_SECONDS >/dev/null 2>&1; then
+    readonly BENCHMARK_WARMUP_SECONDS=60
+else
+    readonly BENCHMARK_WARMUP_SECONDS
 fi
 
-readonly MYSQLHOSTNAME="111.200.37.158"
-readonly PORT="13306"
-readonly USERNAME="iotdbatm"
-readonly PASSWORD="${ATMOS_DB_PASSWORD:-}"
-readonly DBNAME="QA_ATM"
-readonly TASK_TABLENAME="commit_history"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=script/runtime_common.sh
+source "${SCRIPT_DIR}/runtime_common.sh"
 
-readonly METRIC_SERVER="111.200.37.158:19090"
+readonly TABLENAME="test_result_${TEST_TYPE}"
+readonly TABLENAME_T="test_result_${TEST_TYPE}"
+readonly IOTDB_PW="TimechoDB@2021"
 readonly DEFAULT_DISK_ID="vdc"
 
-readonly MONITOR_TIMEOUT_SECONDS=7200
-readonly MONITOR_POLL_INTERVAL_SECONDS=10
-readonly IOTDB_READY_RETRIES=10
-readonly IOTDB_READY_INTERVAL_SECONDS=5
-readonly STARTUP_GRACE_SECONDS=10
-readonly BENCHMARK_WARMUP_SECONDS=60
-readonly BENCHMARK_STOP_WAIT_SECONDS=30
-
 result_table="${TABLENAME}"
-commit_id=""
-author=""
-commit_date_time=""
-test_date_time=""
-
-okPoint=0
-okOperation=0
-failPoint=0
-failOperation=0
-throughput=0
-Latency=0
-MIN=0
-P10=0
-P25=0
-MEDIAN=0
-P75=0
-P90=0
-P95=0
-P99=0
-P999=0
-MAX=0
-numOfSe0Level=0
-start_time=""
-end_time=""
-cost_time=0
-numOfUnse0Level=0
-dataFileSize=0
-maxNumofOpenFiles=0
-maxNumofThread=0
-errorLogSize=0
-walFileSize=0
+disk_id_regex="^${DEFAULT_DISK_ID}$"
 maxCPULoad=0
 avgCPULoad=0
 maxDiskIOOpsRead=0
 maxDiskIOOpsWrite=0
 maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
-m_start_time=0
-m_end_time=0
-disk_id_regex="^${DEFAULT_DISK_ID}$"
-log() {
-    printf '[%s] %s\n' "$(date '+%F %T')" "$*"
-}
-
-die() {
-    log "错误: $*"
-    exit 1
-}
-
-trim() {
-    local value="${1:-}"
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-    printf '%s' "$value"
-}
-
-current_datetime() {
-    date '+%Y-%m-%d %H:%M:%S'
-}
-
-datetime_to_epoch() {
-    date -d "$1" +%s
-}
-
-normalize_datetime() {
-    printf '%s' "$1" | tr -cd '0-9'
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "缺少依赖命令: $1"
-}
-
-check_password() {
-    if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL。"
-    fi
-}
 
 ensure_runtime_dependencies() {
-    local cmd
-    # 在改动运行环境之前先把依赖校验完，避免只在监控或失败分支才会用到的
-    # 数学计算、结果解析工具缺失时，脚本运行到中途才报错。
-    for cmd in awk bc cat cp curl date grep jq jps kill mkdir mv mysql rm sed sudo tr wc; do
-        require_command "$cmd"
-    done
+    ensure_base_runtime_dependencies
+    require_command bc
 }
 
-# 将删除类操作限制在已知工作目录内，避免变量展开异常时误删宿主机上的
-# 非预期路径。
-path_is_safe() {
-    local path="$1"
-    [ -n "$path" ] || return 1
+append_iotdb_properties() {
+    local properties_file="$1"
 
-    case "$path" in
-        "/"|"/data"|"/nasdata"|".")
-            return 1
-            ;;
-        "${INIT_PATH}"/*|"${TEST_INIT_PATH}"/*|"${BACKUP_PATH}"/*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    cat >> "${properties_file}" <<EOF
+enable_seq_space_compaction=false
+enable_unseq_space_compaction=false
+enable_cross_space_compaction=false
+EOF
 }
 
-safe_rm() {
-    local path="$1"
-    [ -e "$path" ] || return 0
-    path_is_safe "$path" || die "拒绝删除非预期路径: $path"
-    rm -rf -- "$path"
-}
-
-copy_if_exists() {
-    local source="$1"
-    local target="$2"
-    local label="${3:-$1}"
-
-    if [ ! -e "${source}" ]; then
-        log "跳过复制，缺少 ${label}: ${source}"
-        return 0
-    fi
-
-    cp -rf -- "${source}" "${target}"
+normalize_decimal() {
+    awk -v value="${1:-0}" 'BEGIN {
+        value += 0
+        text = sprintf("%.10f", value)
+        sub(/0+$/, "", text)
+        sub(/\.$/, "", text)
+        if (text == "" || text == "-0") {
+            text = "0"
+        }
+        print text
+    }'
 }
 
 get_monitor_disk_fallback_path() {
@@ -209,8 +93,6 @@ get_iotdb_property_value() {
     local properties_file="$1"
     local property_key="$2"
 
-    # 与 IoTDB 的配置读取规则保持一致：同一个配置项如果出现多次，
-    # 以最后一条生效配置为准。
     awk -v property_key="${property_key}" '
         /^[[:space:]]*#/ { next }
         {
@@ -384,121 +266,39 @@ resolve_monitor_disk_id() {
 
     if [ "${#detected_disk_ids[@]:-}" -gt 0 ]; then
         disk_id_regex="$(build_disk_id_regex "${detected_disk_ids[@]:-}")"
-        log "已从 ${monitor_target_paths[*]:-} 解析出磁盘 ID: ${detected_disk_ids[*]:-}"
+        log "已从 ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}} 解析出磁盘 ID: ${detected_disk_ids[*]}"
     else
         log "无法从 ${monitor_target_paths[*]:-${TEST_IOTDB_PATH}} 解析磁盘 ID，回退到 ${DEFAULT_DISK_ID}"
     fi
 }
 
-sudo_safe_rm() {
-    local path="$1"
-    [ -e "$path" ] || return 0
-    path_is_safe "$path" || die "拒绝删除非预期路径: $path"
-    sudo rm -rf -- "$path"
-}
-
-mysql_exec() {
-    local sql="$1"
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
-}
-
-sql_quote() {
-    local value="${1:-}"
-    value="${value//\\/\\\\}"
-    value="$(printf '%s' "${value}" | sed "s/'/''/g")"
-    printf "'%s'" "$value"
-}
-
-update_task_status() {
-    local status="$1"
-    mysql_exec "update ${TASK_TABLENAME} set ${TEST_TYPE} = $(sql_quote "${status}") where commit_id = $(sql_quote "${commit_id}")"
-}
-
-mark_older_commits_skip() {
-    mysql_exec "update ${TASK_TABLENAME} set ${TEST_TYPE} = 'skip' where ${TEST_TYPE} is NULL and commit_date_time < $(sql_quote "${commit_date_time}")"
-}
-
-query_next_commit() {
-    local status_filter="$1"
-    if [ "${status_filter}" = "retest" ]; then
-        mysql_exec "SELECT commit_id, author, commit_date_time FROM ${TASK_TABLENAME} WHERE ${TEST_TYPE} = 'retest' ORDER BY commit_date_time desc LIMIT 1"
-    else
-        mysql_exec "SELECT commit_id, author, commit_date_time FROM ${TASK_TABLENAME} WHERE ${TEST_TYPE} is NULL ORDER BY commit_date_time desc LIMIT 1"
-    fi
-}
-
-fetch_next_commit() {
-    local row=""
-    local raw_commit_date_time=""
-
-    # 人工标记为 retest 的任务优先于未测试提交，方便在队列未清空前
-    # 直接重跑有问题的版本。
-    row="$(query_next_commit "retest")"
-    if [ -z "${row}" ]; then
-        row="$(query_next_commit "pending")"
-    fi
-    [ -n "${row}" ] || return 1
-
-    IFS=$'\t' read -r commit_id author raw_commit_date_time <<< "${row}"
-    author="$(trim "${author}")"
-    commit_date_time="$(normalize_datetime "${raw_commit_date_time}")"
-    [ -n "${commit_id}" ] || return 1
-    [ -n "${commit_date_time}" ] || die "commit_date_time 解析失败。"
-    return 0
-}
-
-check_benchmark_version() {
-    local bm_new=""
-    local bm_old=""
-
-    [ -f "${BM_REPOS_PATH}/git.properties" ] || die "缺少 benchmark git.properties: ${BM_REPOS_PATH}/git.properties"
-    bm_new="$(awk -F= '/git.commit.id.abbrev/ {print $2}' "${BM_REPOS_PATH}/git.properties")"
-    [ -n "${bm_new}" ] || die "无法读取 benchmark 版本信息。"
-
-    if [ -f "${BM_PATH}/git.properties" ]; then
-        bm_old="$(awk -F= '/git.commit.id.abbrev/ {print $2}' "${BM_PATH}/git.properties")"
-    fi
-
-    if [ ! -d "${BM_PATH}" ] || [ "${bm_old}" != "${bm_new}" ]; then
-        log "同步 benchmark 目录到最新版本。"
-        mkdir -p "${INIT_PATH}"
-        safe_rm "${BM_PATH}"
-        cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
-    fi
-}
-# -------------------- 告警通知函数 --------------------
 sendMsg() {
     local error_type="$1"
-    local date_time
-    local test_type="${test_type:-性能测试}"  # 默认值
-    local headline=''
-    local msgbody=''
-    
+    local date_time=""
+    local test_label="${TEST_TYPE:-性能测试}"
+    local headline=""
+    local msgbody=""
+    local dingtalk_token="f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62"
+    local dingtalk_url="https://oapi.dingtalk.com/robot/send?access_token=${dingtalk_token}"
+    local json_data=""
+
     date_time="$(date '+%Y-%m-%d %H:%M:%S')"
-    
+
     case "${error_type}" in
         1)
-            # 1. 吞吐量监控异常
             headline="吞吐量监控异常告警"
-            msgbody="[Atmos性能测试告警]\n错误类型：吞吐量异常\n告警时间：${date_time}\n测试类型：${test_type}\n当前吞吐量：${2}\n控制上限：${3}\n控制下限：${4}\n历史均值：${5}\n"
+            msgbody="[Atmos性能测试告警]\n错误类型：吞吐量异常\n告警时间：${date_time}\n测试类型：${test_label}\n当前吞吐量：${2}\n控制上限：${3}\n控制下限：${4}\n历史均值：${5}\n"
             ;;
         2)
-            # 2. 其他错误类型（可根据需要扩展）
-            headline="${test_type}代码编译失败"
-            msgbody="错误类型：${test_type}代码编译失败\n报错时间：${date_time}\n报错Commit：${commit_id:-N/A}\n提交人：${author:-N/A}\n报错信息：${comp_mvn:-N/A}"
+            headline="${test_label}代码编译失败"
+            msgbody="错误类型：${test_label}代码编译失败\n报错时间：${date_time}\n报错 Commit：${commit_id:-N/A}\n提交人：${author:-N/A}\n报错信息：${3:-N/A}"
             ;;
         *)
             log "未知错误类型: ${error_type}"
             return 1
             ;;
     esac
-    
-    # 发送钉钉消息
-    local dingtalk_token="f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62"
-    local dingtalk_url="https://oapi.dingtalk.com/robot/send?access_token=${dingtalk_token}"
-    
-    # 构建JSON数据
-    local json_data
+
     json_data=$(cat <<EOF
 {
     "msgtype": "text",
@@ -508,403 +308,122 @@ sendMsg() {
 }
 EOF
 )
-    
-    # 发送请求
+
     curl -s -X POST \
         -H 'Content-Type: application/json' \
         -d "${json_data}" \
-        "${dingtalk_url}" > /dev/null 2>&1 &
-    
+        "${dingtalk_url}" >/dev/null 2>&1 &
+
     log "已发送钉钉告警通知: ${headline}"
-    return 0
 }
-# -------------------- 监控控制函数 --------------------
+
 check_throughput_monitor() {
-    local commit_date_time="$1"
-    local throughput="$2"
+    local current_commit_date_time="$1"
+    local current_throughput="$2"
     local protocol_code="$3"
     local current_ts_type="$4"
     local current_api_type="$5"
+    local data=""
+    local data_count=0
+    local mean=""
+    local std=""
+    local ucl=""
+    local lcl=""
 
-    
-    # 获取最近100条同类型数据（排除本次测试结果）
-    local data
     data="$(mysql_exec "
-        SELECT throughput 
-        FROM ${result_table} 
-        WHERE commit_date_time < '${commit_date_time}' 
-        AND ts_type = '${current_ts_type}' 
+        SELECT throughput
+        FROM ${result_table}
+        WHERE commit_date_time < '${current_commit_date_time}'
+        AND ts_type = '${current_ts_type}'
         AND api_type = '${current_api_type}'
         AND protocol = '${protocol_code}'
-        AND throughput > 0  -- 只取有效数据
-        ORDER BY commit_date_time DESC 
+        AND throughput > 0
+        ORDER BY commit_date_time DESC
         LIMIT 100
     ")" || {
-        log "监控: 获取历史数据失败"
+        log "监控：获取历史数据失败"
         return 0
     }
-    
-    # 如果没有足够的历史数据，跳过监控
-    local data_count=$(echo "$data" | wc -l)
-    if [ "$data_count" -lt 20 ]; then
-        log "监控: 历史数据不足 ($data_count 条)，跳过监控检查"
+
+    data_count="$(printf '%s\n' "${data}" | awk 'NF { count++ } END { print count + 0 }')"
+    if [ "${data_count}" -lt 20 ]; then
+        log "监控：历史数据不足（${data_count} 条），跳过检查"
         return 0
     fi
-    
-    # 计算均值和标准差
-    local mean std
-    mean="$(echo "$data" | awk '
-        {sum+=$1; sumsq+=$1*$1} 
-        END {if(NR>0) printf "%.10f\n", sum/NR; else print 0}
-    ')"
-    
-    std="$(echo "$data" | awk '
-        {sum+=$1; sumsq+=$1*$1} 
+
+    mean="$(printf '%s\n' "${data}" | awk '
+        { sum += $1; sumsq += $1 * $1 }
         END {
-            if(NR>0) {
-                var = sumsq/NR - (sum/NR)^2
-                if(var < 0) var = 0
+            if (NR > 0) {
+                printf "%.10f\n", sum / NR
+            } else {
+                print 0
+            }
+        }
+    ')"
+    std="$(printf '%s\n' "${data}" | awk '
+        { sum += $1; sumsq += $1 * $1 }
+        END {
+            if (NR > 0) {
+                var = sumsq / NR - (sum / NR) ^ 2
+                if (var < 0) {
+                    var = 0
+                }
                 printf "%.10f\n", sqrt(var)
             } else {
                 print 0
             }
         }
     ')"
-    
-    # 计算控制限
-    local ucl lcl
+
     mean="$(normalize_decimal "${mean}")"
     std="$(normalize_decimal "${std}")"
     ucl="$(awk -v mean="${mean}" -v std="${std}" 'BEGIN { printf "%.10f\n", mean + 3 * std }')"
     lcl="$(awk -v mean="${mean}" -v std="${std}" 'BEGIN { value = mean - 3 * std; if (value < 0) value = 0; printf "%.10f\n", value }')"
-    
-    # 确保LCL不小于0
     ucl="$(normalize_decimal "${ucl}")"
     lcl="$(normalize_decimal "${lcl}")"
-    log "吞吐量 $throughput 控制限 [$lcl, $ucl] (均值: $mean, 标准差: $std)"
-    # 检查最新吞吐量是否超出控制限
-    if awk -v throughput="${throughput}" 'BEGIN { exit !((throughput + 0) > 0) }'; then
-        if awk -v throughput="${throughput}" -v ucl="${ucl}" 'BEGIN { exit !((throughput + 0) > (ucl + 0)) }' || \
-           awk -v throughput="${throughput}" -v lcl="${lcl}" 'BEGIN { exit !((throughput + 0) < (lcl + 0) && (lcl + 0) > 0) }'; then
-            log "监控警报: 吞吐量 $throughput 超出控制限 [$lcl, $ucl] (均值: $mean, 标准差: $std)"
-			sendMsg 1 "${throughput}" "${ucl}" "${lcl}" "${mean}"
+
+    log "吞吐量 ${current_throughput} 控制限 [${lcl}, ${ucl}]（均值 ${mean}，标准差 ${std}）"
+    if awk -v throughput="${current_throughput}" 'BEGIN { exit !((throughput + 0) > 0) }'; then
+        if awk -v throughput="${current_throughput}" -v ucl="${ucl}" 'BEGIN { exit !((throughput + 0) > (ucl + 0)) }' || \
+           awk -v throughput="${current_throughput}" -v lcl="${lcl}" 'BEGIN { exit !((throughput + 0) < (lcl + 0) && (lcl + 0) > 0) }'; then
+            log "监控报警：吞吐量 ${current_throughput} 超出控制限 [${lcl}, ${ucl}]（均值 ${mean}，标准差 ${std}）"
+            sendMsg 1 "${current_throughput}" "${ucl}" "${lcl}" "${mean}"
             return 1
-        else
-            log "监控正常: 吞吐量 $throughput 在控制限内 [$lcl, $ucl]"
-            return 0
         fi
-    else
-        log "监控: 当前吞吐量为非正数 ($throughput)，跳过监控检查"
+
+        log "监控正常：吞吐量 ${current_throughput} 在控制限内 [${lcl}, ${ucl}]"
         return 0
     fi
+
+    log "监控：当前吞吐量不是正数（${current_throughput}），跳过检查"
+    return 0
 }
+
 init_items() {
-    okPoint=0
-    okOperation=0
-    failPoint=0
-    failOperation=0
-    throughput=0
-    Latency=0
-    MIN=0
-    P10=0
-    P25=0
-    MEDIAN=0
-    P75=0
-    P90=0
-    P95=0
-    P99=0
-    P999=0
-    MAX=0
-    numOfSe0Level=0
-    start_time=""
-    end_time=""
-    cost_time=0
-    numOfUnse0Level=0
-    dataFileSize=0
-    maxNumofOpenFiles=0
-    maxNumofThread=0
-    errorLogSize=0
-    walFileSize=0
+    init_common_items
     maxCPULoad=0
     avgCPULoad=0
     maxDiskIOOpsRead=0
     maxDiskIOOpsWrite=0
     maxDiskIOSizeRead=0
     maxDiskIOSizeWrite=0
-    m_start_time=0
-    m_end_time=0
-}
-
-check_pid_and_kill() {
-    local pname="$1"
-    local desc="$2"
-    local pids=""
-    local pid=""
-
-    pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
-    if [ -z "${pids}" ]; then
-        log "未检测到${desc}。"
-        return 0
-    fi
-
-    while IFS= read -r pid; do
-        [ -n "${pid}" ] || continue
-        kill -9 "${pid}"
-    done <<< "${pids}"
-    log "${desc} 已停止。"
-}
-
-check_benchmark_pid() {
-    check_pid_and_kill "App" "BM程序"
-}
-
-check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode程序"
-    check_pid_and_kill "ConfigNode" "ConfigNode程序"
-    check_pid_and_kill "IoTDB" "IoTDB程序"
-}
-
-set_env() {
-    local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
-    [ -d "${source_path}" ] || die "缺少待测版本目录: ${source_path}"
-
-    safe_rm "${TEST_IOTDB_PATH}"
-    mkdir -p "${TEST_IOTDB_PATH}/activation"
-    cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
-    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/" "license"
-    copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env" "env"
-}
-
-modify_iotdb_config() {
-    local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
-    local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
-
-    [ -f "${datanode_env}" ] || die "缺少配置文件: ${datanode_env}"
-    [ -f "${properties_file}" ] || die "缺少配置文件: ${properties_file}"
-
-    sed -i 's/^#\?ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY="20G"/' "${datanode_env}"
-
-    # 每次测试都会从干净源码重新准备工作目录，因此这里直接追加覆盖配置，
-    # 不会在不同 commit 之间持续累积。
-    cat >> "${properties_file}" <<EOF
-enable_seq_space_compaction=false
-enable_unseq_space_compaction=false
-enable_cross_space_compaction=false
-cluster_name=${TEST_TYPE}
-cn_enable_metric=true
-cn_enable_performance_stat=true
-cn_metric_reporter_list=PROMETHEUS
-cn_metric_level=ALL
-cn_metric_prometheus_reporter_port=9081
-dn_enable_metric=true
-dn_enable_performance_stat=true
-dn_metric_reporter_list=PROMETHEUS
-dn_metric_level=ALL
-dn_metric_prometheus_reporter_port=9091
-EOF
-}
-
-set_protocol_class() {
-    local protocol_code="$1"
-    local config_node="${protocol_code:0:1}"
-    local schema_region="${protocol_code:1:1}"
-    local data_region="${protocol_code:2:1}"
-    local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
-
-    [ "${#protocol_code}" -eq 3 ] || return 1
-    [ -n "${PROTOCOL_CLASS[${config_node}]:-}" ] || return 1
-    [ -n "${PROTOCOL_CLASS[${schema_region}]:-}" ] || return 1
-    [ -n "${PROTOCOL_CLASS[${data_region}]:-}" ] || return 1
-
-    cat >> "${properties_file}" <<EOF
-config_node_consensus_protocol_class=${PROTOCOL_CLASS[${config_node}]}
-schema_region_consensus_protocol_class=${PROTOCOL_CLASS[${schema_region}]}
-data_region_consensus_protocol_class=${PROTOCOL_CLASS[${data_region}]}
-EOF
-}
-
-start_iotdb() {
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/start-confignode.sh >/dev/null 2>&1 &
-    )
-    sleep "${STARTUP_GRACE_SECONDS}"
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/start-datanode.sh -H "${TEST_IOTDB_PATH}/dn_dump.hprof" >/dev/null 2>&1 &
-    )
-}
-
-stop_iotdb() {
-    if [ ! -d "${TEST_IOTDB_PATH}" ]; then
-        return 0
-    fi
-
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/stop-datanode.sh >/dev/null 2>&1 &
-    )
-    sleep "${STARTUP_GRACE_SECONDS}"
-    (
-        cd "${TEST_IOTDB_PATH}" || exit 1
-        ./sbin/stop-confignode.sh >/dev/null 2>&1 &
-    )
-}
-
-start_benchmark() {
-    safe_rm "${BM_PATH}/logs"
-    safe_rm "${BM_PATH}/data"
-    (
-        cd "${BM_PATH}" || exit 1
-        ./benchmark.sh >/dev/null 2>&1 &
-    )
-}
-
-wait_for_iotdb_ready() {
-    local attempt=0
-    local iotdb_state=""
-
-    for ((attempt = 1; attempt <= IOTDB_READY_RETRIES; attempt++)); do
-        iotdb_state="$("${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "show cluster" 2>/dev/null | grep -F 'Total line number = 2' || true)"
-        if [ "${iotdb_state}" = "Total line number = 2" ]; then
-            return 0
-        fi
-        sleep "${IOTDB_READY_INTERVAL_SECONDS}"
-    done
-
-    return 1
 }
 
 change_root_password() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1
 }
 
-find_result_csv() {
-    local had_nullglob=0
-    local files=()
-
-    if shopt -q nullglob; then
-        had_nullglob=1
-    else
-        shopt -s nullglob
-    fi
-
-    files=("${BM_PATH}/data/csvOutput/"*result.csv)
-
-    if [ "${had_nullglob}" -eq 0 ]; then
-        shopt -u nullglob
-    fi
-
-    if [ "${#files[@]}" -gt 0 ]; then
-        printf '%s\n' "${files[0]}"
-    fi
-}
-
-create_stuck_result_csv() {
-    local csv_file="$1"
-    local index=0
-
-    mkdir -p "${csv_file%/*}"
-    : > "${csv_file}"
-    for ((index = 0; index < 100; index++)); do
-        echo "INGESTION ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1" >> "${csv_file}"
-    done
-}
-
-monitor_test_status() {
-    local current_ts_type="$1"
-    local csv_file=""
-    local now_epoch=0
-    local elapsed=0
-
-    # 这里没有可直接复用的 IoT-Benchmark 完成回调，因此以结果 CSV 是否生成
-    # 作为测试完成的唯一判定依据。超时后会补写一个 stuck 结果文件，确保后续
-    # 解析和入库仍能留下可见的失败记录。
-    while true; do
-        csv_file="$(find_result_csv || true)"
-        if [ -n "${csv_file}" ]; then
-            end_time="$(current_datetime)"
-            log "${current_ts_type} 写入已完成。"
-            return 0
-        fi
-
-        now_epoch="$(date +%s)"
-        elapsed=$((now_epoch - m_start_time))
-        if [ "${elapsed}" -ge "${MONITOR_TIMEOUT_SECONDS}" ]; then
-            end_time="$(current_datetime)"
-            log "${current_ts_type} 写入超时，写入兜底结果。"
-            create_stuck_result_csv "${BM_PATH}/data/csvOutput/Stuck_result.csv"
-            return 1
-        fi
-
-        sleep "${MONITOR_POLL_INTERVAL_SECONDS}"
-    done
-}
-
-get_single_index() {
-    local query="$1"
-    local end="$2"
-    local index_value=""
-
-    index_value="$(
-        curl -G -s "http://${METRIC_SERVER}/api/v1/query" \
-            --data-urlencode "query=${query}" \
-            --data-urlencode "time=${end}" \
-            | jq -r '.data.result[0].value[1] // 0'
-    )"
-
-    if [ "${index_value}" = "null" ] || [ -z "${index_value}" ]; then
-        index_value=0
-    fi
-
-    printf '%s\n' "${index_value}"
-}
-
-bytes_to_gib() {
-    awk -v value="${1:-0}" 'BEGIN { printf "%.2f\n", value / 1073741824 }'
-}
-
-to_int() {
-    awk -v value="${1:-0}" 'BEGIN { printf "%d\n", value }'
-}
-
-normalize_decimal() {
-    awk -v value="${1:-0}" 'BEGIN {
-        value += 0
-        text = sprintf("%.10f", value)
-        sub(/0+$/, "", text)
-        sub(/\.$/, "", text)
-        if (text == "" || text == "-0") {
-            text = "0"
-        }
-        print text
-    }'
-}
-
 collect_monitor_data() {
-    local ip="$1"
+    local ip="${1:-${TEST_IP}}"
     local metric_window=$((m_end_time - m_start_time))
-    local maxNumofThread_C=0
-    local maxNumofThread_D=0
-    local datanode_error_log_file="${TEST_IOTDB_PATH}/logs/log_datanode_error.log"
-    local confignode_error_log_file="${TEST_IOTDB_PATH}/logs/log_confignode_error.log"
-    local datanode_error_log_size=0
-    local confignode_error_log_size=0
+
+    if [ "${metric_window}" -le 0 ]; then
+        metric_window=1
+    fi
 
     resolve_monitor_disk_id
-    dataFileSize="$(get_single_index "sum(file_global_size{instance=~\"${ip}:9091\"})" "${m_end_time}")"
-    dataFileSize="$(bytes_to_gib "${dataFileSize}")"
-    numOfSe0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"seq\"})" "${m_end_time}")"
-    numOfUnse0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"unseq\"})" "${m_end_time}")"
-    maxNumofThread_C="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9081\"}[${metric_window}s])" "${m_end_time}")"
-    maxNumofThread_D="$(get_single_index "max_over_time(process_threads_count{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
-    maxNumofThread=$(( $(to_int "${maxNumofThread_C}") + $(to_int "${maxNumofThread_D}") ))
-    maxNumofOpenFiles="$(get_single_index "max_over_time(file_count{instance=~\"${ip}:9091\",name=\"open_file_handlers\"}[${metric_window}s])" "${m_end_time}")"
-    datanode_error_log_size="$(du -sb "${datanode_error_log_file}" 2>/dev/null | awk '{print $1}')"
-    confignode_error_log_size="$(du -sb "${confignode_error_log_file}" 2>/dev/null | awk '{print $1}')"
-    errorLogSize=$(( ${datanode_error_log_size:-0} + ${confignode_error_log_size:-0} ))
-    walFileSize="$(get_single_index "max_over_time(file_size{instance=~\"${ip}:9091\",name=~\"wal\"}[${metric_window}s])" "${m_end_time}")"
-    walFileSize="$(bytes_to_gib "${walFileSize}")"
+    collect_common_monitor_data "${ip}"
     maxCPULoad="$(get_single_index "max_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     avgCPULoad="$(get_single_index "avg_over_time(sys_cpu_load{instance=~\"${ip}:9091\"}[${metric_window}s])" "${m_end_time}")"
     maxDiskIOOpsRead="$(get_single_index "sum(rate(disk_io_ops{instance=~\"${ip}:9091\",disk_id=~\"${disk_id_regex}\",type=~\"read\"}[${metric_window}s]))" "${m_end_time}")"
@@ -917,8 +436,8 @@ backup_test_data() {
     local protocol_code="$1"
     local current_ts_type="$2"
     local current_api_type="$3"
-    local backup_dir="${BACKUP_PATH}/${current_ts_type}_${current_api_type}/${commit_date_time}_${commit_id}_${protocol_code}"
     local backup_parent="${BACKUP_PATH}/${current_ts_type}_${current_api_type}"
+    local backup_dir="${backup_parent}/${commit_date_time}_${commit_id}_${protocol_code}"
 
     sudo_safe_rm "${backup_dir}"
     path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
@@ -933,15 +452,10 @@ backup_test_data() {
 }
 
 mv_config_file() {
-    local protocol_code="$1"
-    local current_ts_type="$2"
-    local current_api_type="$3"
-    local config_source="${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}_${current_api_type}"
-    local config_target="${BM_PATH}/conf/config.properties"
+    local current_ts_type="$1"
+    local current_api_type="$2"
 
-    [ -f "${config_source}" ] || die "缺少 benchmark 配置文件: ${config_source}"
-    safe_rm "${config_target}"
-    cp -rf "${config_source}" "${config_target}"
+    copy_benchmark_config "${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}_${current_api_type}"
 }
 
 parse_benchmark_result() {
@@ -951,8 +465,6 @@ parse_benchmark_result() {
 
     [ -f "${csv_file}" ] || return 1
 
-    # IoT-Benchmark 会把吞吐和延迟写在不同的 INGESTION 行里，这里分开提取，
-    # 避免强依赖固定表头或列布局。
     throughput_line="$(
         awk -F, '
             /^INGESTION/ {
@@ -1038,17 +550,12 @@ insert into ${result_table} (
     ${maxDiskIOOpsRead},
     ${maxDiskIOOpsWrite},
     $(sql_quote "${current_api_type}"),
-    ${protocol_code}
+    $(sql_quote "${protocol_code}")
 )
 EOF
 )
 
     mysql_exec "${insert_sql}"
-}
-
-cleanup_processes() {
-    check_benchmark_pid
-    check_iotdb_pid
 }
 
 test_operation() {
@@ -1057,24 +564,23 @@ test_operation() {
     local current_api_type="$3"
     local csv_file=""
     local monitor_failed=0
-    # throughput / cost_time 的负值是约定好的哨兵值，用来在结果表中区分
-    # 启动失败、鉴权失败、结果解析失败等不同异常场景。
 
-    log "开始测试协议 ${protocol_code} 下的 ${current_ts_type} 时间序列。"
+    log "开始测试协议 ${protocol_code} 下的 ${current_ts_type} 时间序列"
     init_items
     cleanup_processes
     set_env
     modify_iotdb_config
 
     if ! set_protocol_class "${protocol_code}"; then
-        log "协议设置错误: ${protocol_code}"
+        log "协议配置无效: ${protocol_code}"
         return 1
     fi
 
     start_iotdb
     sleep "${STARTUP_GRACE_SECONDS}"
     if ! wait_for_iotdb_ready; then
-        log "IoTDB 未能正常启动，写入负值测试结果。"
+        end_time="$(current_datetime)"
+        log "IoTDB 未能正常启动，记录启动失败结果"
         cost_time=-3
         throughput=-3
         insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
@@ -1083,7 +589,8 @@ test_operation() {
     fi
 
     if ! change_root_password; then
-        log "root 密码修改失败，写入负值测试结果。"
+        end_time="$(current_datetime)"
+        log "root 密码修改失败，记录认证失败结果"
         cost_time=-4
         throughput=-4
         insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
@@ -1091,13 +598,13 @@ test_operation() {
         return 1
     fi
 
-    mv_config_file "${protocol_code}" "${current_ts_type}" "${current_api_type}"
+    mv_config_file "${current_ts_type}" "${current_api_type}"
     start_benchmark
     start_time="$(current_datetime)"
     m_start_time="$(date +%s)"
     sleep "${BENCHMARK_WARMUP_SECONDS}"
 
-    if ! monitor_test_status "${current_ts_type}"; then
+    if ! monitor_test_status "${current_ts_type}" "INGESTION"; then
         monitor_failed=1
     fi
 
@@ -1107,7 +614,7 @@ test_operation() {
 
     csv_file="$(find_result_csv || true)"
     if [ -z "${csv_file}" ] || ! parse_benchmark_result "${csv_file}"; then
-        log "benchmark 结果解析失败，写入负值测试结果。"
+        log "benchmark 结果解析失败，记录兜底失败结果"
         [ -n "${end_time}" ] || end_time="$(current_datetime)"
         cost_time=-2
         throughput=-2
@@ -1122,13 +629,12 @@ test_operation() {
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
     insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
-    
-    # 在插入结果后，调用监控函数检查是否报警
-    if (( $(echo "$throughput > 0" | bc -l 2>/dev/null) )); then
+
+    if (( $(echo "${throughput} > 0" | bc -l 2>/dev/null) )); then
         if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${protocol_code}" "${current_ts_type}" "${current_api_type}"; then
-            log "当前测试结果触发监控警报，但测试流程继续"
+            log "当前测试结果触发监控告警，但测试流程继续"
         else
-            log "当前测试结果吞吐符合规律"
+            log "当前测试结果吞吐符合历史波动范围"
         fi
     fi
 
@@ -1140,20 +646,10 @@ test_operation() {
     return "${monitor_failed}"
 }
 
-mark_test_in_progress() {
-    # 这个文件会被外层调度器读取，作为当前测试状态的粗粒度协同信号，
-    # 因此即使脚本提前退出，也要保证它被正确更新。
-    printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
-}
-
-# 调度器会读取这个文件，用来判断下一个要执行的测试套件。
-restore_test_type_file() {
-    printf '%s\n' "${TEST_TYPE}" > "${INIT_PATH}/test_type_file"
-}
-
 main() {
     local protocol=""
     local ts=""
+    local api=""
     local task_failed=0
 
     trap restore_test_type_file EXIT
@@ -1171,7 +667,7 @@ main() {
     fi
 
     update_task_status "ontesting"
-    log "当前版本 ${commit_id} 未执行过测试，即将启动测试流程。"
+    log "当前版本 ${commit_id} 尚未执行过测试，开始插入测试流程"
 
     if [ "${author}" = "Timecho" ]; then
         result_table="${TABLENAME_T}"
@@ -1190,7 +686,7 @@ main() {
         done
     done
 
-    log "本轮测试 ${test_date_time} 已结束。"
+    log "本轮测试 ${test_date_time} 已结束"
     if [ "${task_failed}" -eq 0 ]; then
         update_task_status "done"
         if [ "${author}" != "Timecho" ]; then
