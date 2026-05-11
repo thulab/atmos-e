@@ -25,7 +25,7 @@ PORT="13306"
 USERNAME="iotdbatm"
 PASSWORD=${ATMOS_DB_PASSWORD}
 DBNAME="QA_ATM"  #数据库名称
-TABLENAME="weeklytest_query" #数据库中表的名称
+TABLENAME="test_result_weeklytest_query" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="172.20.70.11:9090"
