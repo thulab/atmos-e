@@ -21,6 +21,9 @@ fi
 if ! declare -p API_LIST >/dev/null 2>&1; then
     readonly -a API_LIST=(SESSION_BY_TABLET)
 fi
+if ! declare -p INSERT_CASE_LIST >/dev/null 2>&1; then
+    readonly -a INSERT_CASE_LIST=()
+fi
 if ! declare -p METRIC_SERVER >/dev/null 2>&1; then
     readonly METRIC_SERVER="111.200.37.158:19090"
 else
@@ -43,6 +46,16 @@ readonly DEFAULT_DISK_ID="vdc"
 
 result_table="${TABLENAME}"
 disk_id_regex="^${DEFAULT_DISK_ID}$"
+insert_case_id=""
+insert_layout_type=""
+insert_write_mode=""
+insert_api_type=""
+insert_result_kind="ingestion"
+result_has_protocol_code=0
+result_has_insert_case_id=0
+result_has_insert_layout_type=0
+result_has_insert_write_mode=0
+result_has_result_kind=0
 maxCPULoad=0
 avgCPULoad=0
 maxDiskIOOpsRead=0
@@ -53,6 +66,197 @@ maxDiskIOSizeWrite=0
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
     require_command bc
+}
+
+build_insert_case_id() {
+    local current_layout_type="$1"
+    local current_write_mode="${2:-}"
+
+    if [ -n "${current_write_mode}" ]; then
+        printf '%s_%s\n' "${current_layout_type}" "${current_write_mode}"
+    else
+        printf '%s\n' "${current_layout_type}"
+    fi
+}
+
+prepare_insert_context() {
+    local current_case_id="$1"
+    local current_api_type="$2"
+
+    insert_case_id="${current_case_id}"
+    insert_layout_type="${current_case_id}"
+    insert_write_mode=""
+    insert_api_type="${current_api_type}"
+    insert_result_kind="ingestion"
+
+    if [[ "${current_case_id}" =~ ^(.+)_(seq_w|unseq_w|seq_rw|unseq_rw)$ ]]; then
+        insert_layout_type="${BASH_REMATCH[1]}"
+        insert_write_mode="${BASH_REMATCH[2]}"
+    fi
+}
+
+resolve_insert_config_source() {
+    local current_case_id="$1"
+    local current_api_type="$2"
+    local config_root="${ATMOS_PATH}/conf/${TEST_TYPE}"
+    local -a search_roots=()
+    local -a candidate_names=()
+    local root=""
+    local candidate_name=""
+    local candidate_path=""
+
+    prepare_insert_context "${current_case_id}" "${current_api_type}"
+
+    if [ -n "${insert_layout_type}" ] && [ -n "${insert_write_mode}" ]; then
+        search_roots+=("${config_root}/insert/${insert_layout_type}/${insert_write_mode}")
+    fi
+    if [ -n "${insert_layout_type}" ]; then
+        search_roots+=("${config_root}/insert/${insert_layout_type}")
+    fi
+    search_roots+=("${config_root}")
+
+    candidate_names+=("${current_api_type}")
+    if [ -n "${insert_write_mode}" ]; then
+        candidate_names+=("${insert_layout_type}_${insert_write_mode}_${current_api_type}")
+    fi
+    candidate_names+=("${insert_layout_type}_${current_api_type}")
+    if [ "${current_case_id}" != "${insert_layout_type}" ]; then
+        candidate_names+=("${current_case_id}_${current_api_type}")
+    fi
+
+    for root in "${search_roots[@]}"; do
+        [ -n "${root}" ] || continue
+        for candidate_name in "${candidate_names[@]}"; do
+            [ -n "${candidate_name}" ] || continue
+            candidate_path="${root}/${candidate_name}"
+            if [ -f "${candidate_path}" ]; then
+                printf '%s\n' "${candidate_path}"
+                return 0
+            fi
+        done
+    done
+
+    die "缺少 benchmark 配置文件: case=${current_case_id}, api=${current_api_type}"
+}
+
+emit_insert_cases() {
+    local current_ts_type=""
+    local current_api_type=""
+    local case_spec=""
+    local current_layout_type=""
+    local current_write_mode=""
+    local current_case_id=""
+
+    if [ "${#INSERT_CASE_LIST[@]}" -gt 0 ]; then
+        for case_spec in "${INSERT_CASE_LIST[@]}"; do
+            IFS='|' read -r current_layout_type current_write_mode current_api_type <<< "${case_spec}"
+            current_layout_type="$(trim "${current_layout_type}")"
+            current_write_mode="$(trim "${current_write_mode}")"
+            current_api_type="$(trim "${current_api_type}")"
+
+            [ -n "${current_layout_type}" ] || die "INSERT_CASE_LIST 存在空的 layout 配置: ${case_spec}"
+            if [ -z "${current_api_type}" ]; then
+                if [ "${#API_LIST[@]}" -eq 0 ]; then
+                    die "INSERT_CASE_LIST 未指定 api，且 API_LIST 为空: ${case_spec}"
+                fi
+                current_api_type="${API_LIST[0]}"
+            fi
+
+            current_case_id="$(build_insert_case_id "${current_layout_type}" "${current_write_mode}")"
+            printf '%s\t%s\n' "${current_case_id}" "${current_api_type}"
+        done
+        return 0
+    fi
+
+    for current_ts_type in "${TS_LIST[@]}"; do
+        for current_api_type in "${API_LIST[@]}"; do
+            printf '%s\t%s\n' "${current_ts_type}" "${current_api_type}"
+        done
+    done
+}
+
+result_table_has_column() {
+    local column_name="$1"
+    local count="0"
+
+    count="$(mysql_exec "
+        SELECT COUNT(*)
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = $(sql_quote "${result_table}")
+          AND column_name = $(sql_quote "${column_name}")
+    " | awk 'NF { print $1; exit }')" || return 1
+
+    [ "${count:-0}" -gt 0 ]
+}
+
+detect_result_table_metadata_columns() {
+    result_has_protocol_code=0
+    result_has_insert_case_id=0
+    result_has_insert_layout_type=0
+    result_has_insert_write_mode=0
+    result_has_result_kind=0
+
+    if result_table_has_column "protocol_code"; then
+        result_has_protocol_code=1
+    fi
+    if result_table_has_column "insert_case_id"; then
+        result_has_insert_case_id=1
+    fi
+    if result_table_has_column "insert_layout_type"; then
+        result_has_insert_layout_type=1
+    fi
+    if result_table_has_column "insert_write_mode"; then
+        result_has_insert_write_mode=1
+    fi
+    if result_table_has_column "result_kind"; then
+        result_has_result_kind=1
+    fi
+}
+
+result_extra_columns() {
+    local extra_columns=""
+
+    if [ "${result_has_protocol_code}" -eq 1 ]; then
+        extra_columns="${extra_columns},protocol_code"
+    fi
+    if [ "${result_has_insert_case_id}" -eq 1 ]; then
+        extra_columns="${extra_columns},insert_case_id"
+    fi
+    if [ "${result_has_insert_layout_type}" -eq 1 ]; then
+        extra_columns="${extra_columns},insert_layout_type"
+    fi
+    if [ "${result_has_insert_write_mode}" -eq 1 ]; then
+        extra_columns="${extra_columns},insert_write_mode"
+    fi
+    if [ "${result_has_result_kind}" -eq 1 ]; then
+        extra_columns="${extra_columns},result_kind"
+    fi
+
+    printf '%s' "${extra_columns}"
+}
+
+result_extra_values() {
+    local protocol_code="$1"
+    local extra_values=""
+
+    if [ "${result_has_protocol_code}" -eq 1 ]; then
+        extra_values="${extra_values},$(sql_quote "${protocol_code}")"
+    fi
+    if [ "${result_has_insert_case_id}" -eq 1 ]; then
+        extra_values="${extra_values},$(sql_quote "${insert_case_id}")"
+    fi
+    if [ "${result_has_insert_layout_type}" -eq 1 ]; then
+        extra_values="${extra_values},$(sql_quote "${insert_layout_type}")"
+    fi
+    if [ "${result_has_insert_write_mode}" -eq 1 ]; then
+        extra_values="${extra_values},$(sql_maybe_quote "${insert_write_mode}")"
+    fi
+    if [ "${result_has_result_kind}" -eq 1 ]; then
+        extra_values="${extra_values},$(sql_quote "${insert_result_kind}")"
+    fi
+
+    printf '%s' "${extra_values}"
 }
 
 append_iotdb_properties() {
@@ -402,6 +606,11 @@ check_throughput_monitor() {
 
 init_items() {
     init_common_items
+    insert_case_id=""
+    insert_layout_type=""
+    insert_write_mode=""
+    insert_api_type=""
+    insert_result_kind="ingestion"
     maxCPULoad=0
     avgCPULoad=0
     maxDiskIOOpsRead=0
@@ -421,7 +630,7 @@ collect_monitor_data() {
     collect_resource_monitor_data "${ip}" "${disk_id_regex}" "${m_start_time}" "${m_end_time}"
 }
 
-backup_test_data() {
+legacy_backup_test_data_compat() {
     local protocol_code="$1"
     local current_ts_type="$2"
     local current_api_type="$3"
@@ -440,11 +649,36 @@ backup_test_data() {
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
 
-mv_config_file() {
+legacy_mv_config_file_compat() {
     local current_ts_type="$1"
     local current_api_type="$2"
 
     copy_benchmark_config "${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}_${current_api_type}"
+}
+
+backup_test_data() {
+    local protocol_code="$1"
+    local current_case_id="$2"
+    local current_api_type="$3"
+    local backup_dir=""
+
+    prepare_insert_context "${current_case_id}" "${current_api_type}"
+    backup_dir="$(build_scoped_path \
+        "${BACKUP_PATH}" \
+        "protocol=${protocol_code}" \
+        "case=${insert_case_id}" \
+        "layout=${insert_layout_type}" \
+        "write=${insert_write_mode}" \
+        "api=${insert_api_type}" \
+        "commit=${commit_date_time}_${commit_id}")"
+    archive_test_runtime_artifacts "${backup_dir}"
+}
+
+mv_config_file() {
+    local current_case_id="$1"
+    local current_api_type="$2"
+
+    copy_benchmark_config "$(resolve_insert_config_source "${current_case_id}" "${current_api_type}")"
 }
 
 parse_benchmark_result() {
@@ -490,22 +724,28 @@ parse_benchmark_result() {
 
 insert_result_row() {
     local protocol_code="$1"
-    local current_ts_type="$2"
+    local current_case_id="$2"
     local current_api_type="$3"
+    local extra_columns=""
+    local extra_values=""
     local insert_sql=""
+
+    prepare_insert_context "${current_case_id}" "${current_api_type}"
+    extra_columns="$(result_extra_columns)"
+    extra_values="$(result_extra_values "${protocol_code}")"
 
     insert_sql=$(cat <<EOF
 insert into ${result_table} (
     commit_date_time,test_date_time,commit_id,author,ts_type,okPoint,okOperation,failPoint,failOperation,throughput,
     Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,
     numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,avgCPULoad,maxCPULoad,
-    maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,api_type,protocol
+    maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,api_type,protocol${extra_columns}
 ) values (
     ${commit_date_time},
     ${test_date_time},
     $(sql_quote "${commit_id}"),
     $(sql_quote "${author}"),
-    $(sql_quote "${current_ts_type}"),
+    $(sql_quote "${current_case_id}"),
     ${okPoint},
     ${okOperation},
     ${failPoint},
@@ -539,7 +779,7 @@ insert into ${result_table} (
     ${maxDiskIOOpsRead},
     ${maxDiskIOOpsWrite},
     $(sql_quote "${current_api_type}"),
-    $(sql_quote "${protocol_code}")
+    $(sql_quote "${protocol_code}")${extra_values}
 )
 EOF
 )
@@ -549,13 +789,16 @@ EOF
 
 test_operation() {
     local protocol_code="$1"
-    local current_ts_type="$2"
+    local current_case_id="$2"
     local current_api_type="$3"
+    local current_ts_type="${current_case_id}"
     local csv_file=""
     local monitor_failed=0
+    prepare_insert_context "${current_case_id}" "${current_api_type}"
 
     log "开始测试协议 ${protocol_code} 下的 ${current_ts_type} 时间序列"
     init_items
+    prepare_insert_context "${current_case_id}" "${current_api_type}"
     cleanup_processes
     set_env
     modify_iotdb_config
@@ -637,8 +880,8 @@ test_operation() {
 
 main() {
     local protocol=""
-    local ts=""
-    local api=""
+    local current_case_id=""
+    local current_api_type=""
     local task_failed=0
 
     trap restore_test_type_file EXIT
@@ -663,16 +906,16 @@ main() {
     else
         result_table="${TABLENAME}"
     fi
+    detect_result_table_metadata_columns
 
     test_date_time="$(date +%Y%m%d%H%M%S)"
     for protocol in "${PROTOCOL_LIST[@]}"; do
-        for ts in "${TS_LIST[@]}"; do
-            for api in "${API_LIST[@]}"; do
-                if ! test_operation "${protocol}" "${ts}" "${api}"; then
-                    task_failed=1
-                fi
-            done
-        done
+        while IFS=$'\t' read -r current_case_id current_api_type; do
+            [ -n "${current_case_id}" ] || continue
+            if ! test_operation "${protocol}" "${current_case_id}" "${current_api_type}"; then
+                task_failed=1
+            fi
+        done < <(emit_insert_cases)
     done
 
     log "本轮测试 ${test_date_time} 已结束"

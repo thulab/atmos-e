@@ -12,13 +12,13 @@ set -o pipefail
 readonly TEST_IP="172.20.31.32"
 readonly TEST_TYPE="weeklytest_insert"
 readonly -a PROTOCOL_LIST=(223 224)
-readonly -a TS_LIST=(
-    tempaligned_seq_w
-    tempaligned_unseq_w
-	tempaligned_seq_rw
-    tablemode_seq_w
-    tablemode_unseq_w
-	tablemode_seq_rw
+readonly -a INSERT_CASE_LIST=(
+    "tempaligned|seq_w|SESSION_BY_TABLET"
+    "tempaligned|unseq_w|SESSION_BY_TABLET"
+    "tempaligned|seq_rw|SESSION_BY_TABLET"
+    "tablemode|seq_w|SESSION_BY_TABLET"
+    "tablemode|unseq_w|SESSION_BY_TABLET"
+    "tablemode|seq_rw|SESSION_BY_TABLET"
 )
 readonly -a API_LIST=(SESSION_BY_TABLET)
 
