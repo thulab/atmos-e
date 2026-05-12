@@ -111,8 +111,36 @@ resolve_query_dataset_source() {
 resolve_query_config_source() {
     local current_suite_type="$1"
     local current_query="$2"
+    local current_sensor_type="${3:-}"
+    local config_root="${ATMOS_PATH}/conf/${TEST_TYPE}"
+    local -a search_roots=()
+    local resolved_path=""
 
-    printf '%s\n' "${ATMOS_PATH}/conf/${TEST_TYPE}/${current_suite_type}/${current_query}"
+    if [ -n "${current_suite_type}" ] && [ -n "${current_sensor_type}" ]; then
+        search_roots+=("${config_root}/query/${current_suite_type}/${current_sensor_type}")
+    fi
+    if [ -n "${current_suite_type}" ]; then
+        search_roots+=("${config_root}/query/${current_suite_type}")
+    fi
+    if [ -n "${current_sensor_type}" ]; then
+        search_roots+=("${config_root}/query/${current_sensor_type}")
+    fi
+    search_roots+=("${config_root}/query")
+
+    if [ -n "${current_suite_type}" ] && [ -n "${current_sensor_type}" ]; then
+        search_roots+=("${config_root}/${current_suite_type}/${current_sensor_type}")
+    fi
+    if [ -n "${current_suite_type}" ]; then
+        search_roots+=("${config_root}/${current_suite_type}")
+    fi
+    if [ -n "${current_sensor_type}" ]; then
+        search_roots+=("${config_root}/${current_sensor_type}")
+    fi
+    search_roots+=("${config_root}")
+
+    resolved_path="$(resolve_config_from_roots "${current_query}" "${search_roots[@]}")" || \
+        die "缺少 benchmark 配置文件: ${current_query} (suite=${current_suite_type:-default}, sensor=${current_sensor_type:-default})"
+    printf '%s\n' "${resolved_path}"
 }
 
 prepare_query_context() {
@@ -139,7 +167,11 @@ result_extra_values() {
 query_log_dir_suffix() {
     local current_query="$1"
 
-    printf '%s\n' "${current_query}"
+    if [ -n "${sensor_type:-}" ]; then
+        printf '%s_%s\n' "${current_query}" "${sensor_type}"
+    else
+        printf '%s\n' "${current_query}"
+    fi
 }
 
 append_query_specific_iotdb_properties() {
@@ -199,6 +231,27 @@ mv_config_file() {
     local current_query="$2"
 
     copy_benchmark_config "$(resolve_query_config_source "${current_suite_type}" "${current_query}")"
+}
+
+backup_test_data() {
+    local protocol_code="$1"
+    local current_suite_type="$2"
+    local backup_dir=""
+
+    backup_dir="$(build_scoped_path \
+        "${BACKUP_PATH}" \
+        "protocol=${protocol_code}" \
+        "suite=${current_suite_type}" \
+        "commit=${commit_date_time}_${commit_id}")"
+    archive_test_runtime_artifacts "${backup_dir}"
+}
+
+mv_config_file() {
+    local current_suite_type="$1"
+    local current_query="$2"
+    local current_sensor_type="${3:-}"
+
+    copy_benchmark_config "$(resolve_query_config_source "${current_suite_type}" "${current_query}" "${current_sensor_type}")"
 }
 
 append_tablemode_config_if_needed() {
@@ -393,7 +446,7 @@ test_operation() {
                     continue
                 fi
 
-                mv_config_file "${current_suite_type}" "${current_query}"
+                mv_config_file "${current_suite_type}" "${current_query}" "${current_sensor_type}"
                 append_tablemode_config_if_needed "${current_suite_type}"
                 sleep 3
 
@@ -446,7 +499,7 @@ test_operation() {
         done
 
         log "${current_suite_type} 查询测试已完成"
-        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${current_suite_type}"
+        [ -d "${TEST_IOTDB_PATH}" ] && backup_test_data "${protocol_code}" "${current_suite_type}"
     done
 
     return "${operation_failed}"

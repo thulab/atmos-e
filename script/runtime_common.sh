@@ -225,6 +225,88 @@ copy_if_exists() {
     cp -rf -- "${source}" "${target}"
 }
 
+emit_query_name_candidates() {
+    local current_name="$1"
+    local alternate_name=""
+
+    printf '%s\n' "${current_name}"
+    if [[ "${current_name}" =~ ^(Q[0-9]+)-([ab])([0-9]+)$ ]]; then
+        alternate_name="${BASH_REMATCH[1]}${BASH_REMATCH[2]}-${BASH_REMATCH[3]}"
+    elif [[ "${current_name}" =~ ^(Q[0-9]+)([ab])-([0-9]+)$ ]]; then
+        alternate_name="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+    fi
+
+    if [ -n "${alternate_name}" ] && [ "${alternate_name}" != "${current_name}" ]; then
+        printf '%s\n' "${alternate_name}"
+    fi
+}
+
+resolve_config_from_roots() {
+    local config_name="$1"
+    shift
+    local root=""
+    local candidate_name=""
+    local candidate_path=""
+
+    for root in "$@"; do
+        [ -n "${root}" ] || continue
+        while IFS= read -r candidate_name; do
+            [ -n "${candidate_name}" ] || continue
+            candidate_path="${root}/${candidate_name}"
+            if [ -f "${candidate_path}" ]; then
+                printf '%s\n' "${candidate_path}"
+                return 0
+            fi
+        done < <(emit_query_name_candidates "${config_name}")
+    done
+
+    return 1
+}
+
+build_scoped_path() {
+    local base_path="${1%/}"
+    shift
+    local current_segment=""
+    local path="${base_path}"
+
+    for current_segment in "$@"; do
+        current_segment="$(trim "${current_segment}")"
+        [ -n "${current_segment}" ] || continue
+        current_segment="${current_segment// /_}"
+        current_segment="${current_segment//\//_}"
+        path="${path}/${current_segment}"
+    done
+
+    printf '%s\n' "${path}"
+}
+
+prepare_backup_directory() {
+    local backup_dir="$1"
+    local backup_parent="${backup_dir%/*}"
+
+    sudo_safe_rm "${backup_dir}"
+    path_is_safe "${backup_parent}" || die "拒绝使用非预期备份路径: ${backup_parent}"
+    sudo mkdir -p -- "${backup_parent}"
+    path_is_safe "${backup_dir}" || die "拒绝使用非预期备份路径: ${backup_dir}"
+    sudo mkdir -p -- "${backup_dir}"
+}
+
+archive_test_runtime_artifacts() {
+    local backup_dir="$1"
+    local csv_source="${2:-${BM_PATH}/data/csvOutput}"
+    local iotdb_target="${backup_dir}/iotdb"
+
+    prepare_backup_directory "${backup_dir}"
+
+    sudo_safe_rm "${TEST_IOTDB_PATH}/data"
+    path_is_safe "${TEST_IOTDB_PATH}" || die "拒绝移动非预期路径: ${TEST_IOTDB_PATH}"
+    sudo mv "${TEST_IOTDB_PATH}" "${iotdb_target}"
+
+    if [ -d "${csv_source}" ]; then
+        sudo cp -rf "${csv_source}" "${backup_dir}/"
+    fi
+}
+
 mysql_exec() {
     local sql="$1"
 

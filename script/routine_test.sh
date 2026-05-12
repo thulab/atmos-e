@@ -66,8 +66,12 @@ flush_iotdb() {
 
 resolve_config_source() {
     local config_name="$1"
+    local config_root="${ATMOS_PATH}/conf/${TEST_TYPE}"
+    local resolved_path=""
 
-    printf '%s\n' "${ATMOS_PATH}/conf/${TEST_TYPE}/${config_name}"
+    resolved_path="$(resolve_config_from_roots "${config_name}" "${config_root}/query" "${config_root}")" || \
+        die "缺少 benchmark 配置文件: ${config_name}"
+    printf '%s\n' "${resolved_path}"
 }
 
 copy_routine_config() {
@@ -95,6 +99,18 @@ backup_test_data() {
     path_is_safe "${TEST_IOTDB_PATH}" || die "拒绝移动非预期路径: ${TEST_IOTDB_PATH}"
     sudo mv "${TEST_IOTDB_PATH}" "${backup_dir}"
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
+}
+
+backup_test_data() {
+    local current_insert_type="$1"
+    local backup_dir=""
+
+    backup_dir="$(build_scoped_path \
+        "${BACKUP_PATH}" \
+        "protocol=${current_protocol_code}" \
+        "case=${current_insert_type}" \
+        "commit=${commit_date_time}_${commit_id}")"
+    archive_test_runtime_artifacts "${backup_dir}"
 }
 
 parse_ingestion_result() {

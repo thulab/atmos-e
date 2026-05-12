@@ -263,9 +263,9 @@ QUERY_SENSOR_NUM=1
 # 每条查询语句中查询涉及到的设备数量
 QUERY_DEVICE_NUM=1
 # 在聚集查询中使用的聚集函数，比如count
-QUERY_AGGREGATE_FUN=max_time
+QUERY_AGGREGATE_FUN=count
 # 含起止时间的查询中开始时间与结束时间之间的时间间隔，和Group By中的时间间隔（单位按照精度决定）
-QUERY_INTERVAL=50000000
+QUERY_INTERVAL=500000
 # 条件查询子句时的参数，where xxx > QUERY_LOWER_VALUE
 QUERY_LOWER_VALUE=-5
 # Group by语句中的组的大小
@@ -303,7 +303,7 @@ TEST_DATA_WRITE_TIME_OUT=300000
 # 数据库写入并发池最多限制
 TEST_DATA_MAX_CONNECTION=1
 # 对本次实验的备注，作为表名的一部分存入数据库(如MySQL)中，注意不要有.等特殊字符
-REMARK=Q4-b2
+REMARK=Q4a-1
 
 ############ 输出结果：MySQL数据库补充参数 #################
 # 真实写入到MySQL数据库的比例

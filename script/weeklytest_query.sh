@@ -19,8 +19,8 @@ readonly IOTDB_PW="TimechoDB@2021"
 readonly QUERY_REPEAT_COUNT=2
 readonly BENCHMARK_WARMUP_SECONDS=10
 readonly -a QUERY_LIST=(
-    Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3
-    Q4-b1 Q4-b2 Q4-b3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3
+    Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4a-1 Q4a-2 Q4a-3
+    Q4b-1 Q4b-2 Q4b-3 Q5 Q6-1 Q6-2 Q6-3 Q7-1 Q7-2 Q7-3
     Q7-4 Q8 Q9-1 Q9-2 Q9-3 Q10
 )
 readonly -a QUERY_LABELS=(
@@ -37,13 +37,6 @@ source "${SCRIPT_DIR}/query_common.sh"
 
 IOTDB_READY_USER="root"
 IOTDB_READY_PASSWORD="${IOTDB_PW}"
-
-resolve_query_config_source() {
-    local current_suite_type="$1"
-    local current_query="$2"
-
-    printf '%s\n' "${ATMOS_PATH}/conf/${TEST_TYPE}/${sensor_type}/${current_query}"
-}
 
 prepare_query_context() {
     local current_suite_type="$1"
@@ -64,12 +57,6 @@ result_extra_columns() {
 
 result_extra_values() {
     printf ',%s,%s' "$(sql_quote "${sensor_type}")" "${query_num}"
-}
-
-query_log_dir_suffix() {
-    local current_query="$1"
-
-    printf '%s_%s\n' "${current_query}" "${sensor_type}"
 }
 
 append_query_specific_iotdb_properties() {

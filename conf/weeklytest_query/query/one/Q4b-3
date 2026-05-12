@@ -31,7 +31,7 @@ TOPIC_NAME=test-topic
 
 ################## Benchmark配置 #######################
 # 总操作次数：具体每种类型操作会按OPERATION_PROPORTION定义的比例划分，例如OPERATION_PROPORTION=1:1:1:1:1:1:1:1:1:1:1
-LOOP=10
+LOOP=5
 # 目前Benchmark支持多种运行模式，支持模式如下
 # testWithDefaultPath   常规测试模式，支持多种读和写操作的混合负载
 # generateDataMode      生成数据模式，生成Benchmark本身识别的数据
@@ -257,15 +257,15 @@ MAX_K=170000
 # 在读写混合的场景下，是否优先查询最近写入的数据
 IS_RECENT_QUERY=false
 # 时间过滤条件的时间起点变化步长，若设为0则每个查询的时间过滤条件是一样的
-STEP_SIZE=100000
+STEP_SIZE=0
 # 每条查询语句中查询涉及到的传感器数量
-QUERY_SENSOR_NUM=5
+QUERY_SENSOR_NUM=1
 # 每条查询语句中查询涉及到的设备数量
 QUERY_DEVICE_NUM=1
 # 在聚集查询中使用的聚集函数，比如count
-QUERY_AGGREGATE_FUN=count
+QUERY_AGGREGATE_FUN=max_time
 # 含起止时间的查询中开始时间与结束时间之间的时间间隔，和Group By中的时间间隔（单位按照精度决定）
-QUERY_INTERVAL=50000000
+QUERY_INTERVAL=5000000000
 # 条件查询子句时的参数，where xxx > QUERY_LOWER_VALUE
 QUERY_LOWER_VALUE=-5
 # Group by语句中的组的大小
@@ -303,7 +303,7 @@ TEST_DATA_WRITE_TIME_OUT=300000
 # 数据库写入并发池最多限制
 TEST_DATA_MAX_CONNECTION=1
 # 对本次实验的备注，作为表名的一部分存入数据库(如MySQL)中，注意不要有.等特殊字符
-REMARK=Q4-a2
+REMARK=Q4b-3
 
 ############ 输出结果：MySQL数据库补充参数 #################
 # 真实写入到MySQL数据库的比例
