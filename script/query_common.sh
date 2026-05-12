@@ -76,8 +76,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/runtime_common.sh
 source "${SCRIPT_DIR}/runtime_common.sh"
 
-IOTDB_READY_USER="root"
-IOTDB_READY_PASSWORD="root"
+if [ -z "${IOTDB_READY_USER:-}" ]; then
+    IOTDB_READY_USER="root"
+fi
+if [ -z "${IOTDB_READY_PASSWORD:-}" ]; then
+    IOTDB_READY_PASSWORD="root"
+fi
 
 query_type=""
 sensor_type=""

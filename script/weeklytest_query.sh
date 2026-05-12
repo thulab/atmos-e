@@ -15,6 +15,7 @@ readonly DATA_PATH="/nasdata/weeklytest_query/original"
 readonly -a PROTOCOL_LIST=(111)
 readonly -a QUERY_DATA_TYPES=(sequence unsequence)
 readonly -a QUERY_SENSOR_TYPES=(one more)
+readonly IOTDB_PW="TimechoDB@2021"
 readonly QUERY_REPEAT_COUNT=2
 readonly BENCHMARK_WARMUP_SECONDS=10
 readonly -a QUERY_LIST=(
@@ -33,6 +34,9 @@ readonly METRIC_SERVER="172.20.70.11:9090"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/query_common.sh
 source "${SCRIPT_DIR}/query_common.sh"
+
+IOTDB_READY_USER="root"
+IOTDB_READY_PASSWORD="${IOTDB_PW}"
 
 resolve_query_config_source() {
     local current_suite_type="$1"
