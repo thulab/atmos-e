@@ -43,10 +43,13 @@ prepare_query_context() {
     local current_query="$2"
     local current_sensor_type="$3"
     local current_repeat="$4"
+    local current_query_label="${5:-}"
 
     ts_type="common"
     data_type="${current_suite_type}"
-    query_type="${current_query}"
+    query_type="$(normalize_query_name "${current_query}")"
+    query_label_name="${current_query_label}"
+    query_suite_type="${current_suite_type}"
     sensor_type="${current_sensor_type}"
     query_num="${current_repeat}"
 }

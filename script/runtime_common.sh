@@ -241,6 +241,17 @@ emit_query_name_candidates() {
     fi
 }
 
+normalize_query_name() {
+    local current_name="$1"
+
+    if [[ "${current_name}" =~ ^(Q[0-9]+)-([ab])([0-9]+)$ ]]; then
+        printf '%s%s-%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+        return 0
+    fi
+
+    printf '%s\n' "${current_name}"
+}
+
 resolve_config_from_roots() {
     local config_name="$1"
     shift
@@ -319,6 +330,16 @@ sql_quote() {
     value="${value//\\/\\\\}"
     value="$(printf '%s' "${value}" | sed "s/'/''/g")"
     printf "'%s'" "${value}"
+}
+
+sql_maybe_quote() {
+    local value="${1:-}"
+
+    if [ -n "${value}" ]; then
+        sql_quote "${value}"
+    else
+        printf 'NULL'
+    fi
 }
 
 update_task_status() {

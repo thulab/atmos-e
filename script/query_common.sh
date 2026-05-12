@@ -84,6 +84,8 @@ if [ -z "${IOTDB_READY_PASSWORD:-}" ]; then
 fi
 
 query_type=""
+query_label_name=""
+query_suite_type=""
 sensor_type=""
 query_num=1
 
@@ -92,6 +94,8 @@ init_items() {
     ts_type=""
     data_type="${DEFAULT_DATA_TYPE}"
     query_type=""
+    query_label_name=""
+    query_suite_type=""
     sensor_type=""
     query_num=1
 }
@@ -148,10 +152,13 @@ prepare_query_context() {
     local current_query="$2"
     local current_sensor_type="$3"
     local current_repeat="$4"
+    local current_query_label="${5:-}"
 
     ts_type="${current_suite_type}"
     data_type="${DEFAULT_DATA_TYPE}"
-    query_type="${current_query}"
+    query_type="$(normalize_query_name "${current_query}")"
+    query_label_name="${current_query_label}"
+    query_suite_type="${current_suite_type}"
     sensor_type="${current_sensor_type}"
     query_num="${current_repeat}"
 }
@@ -209,7 +216,7 @@ collect_monitor_data() {
     collect_common_monitor_data "${ip}"
 }
 
-backup_test_data() {
+legacy_backup_test_data_compat() {
     local current_suite_type="$1"
     local backup_parent="${BACKUP_PATH}/${current_suite_type}"
     local backup_dir="${backup_parent}/${commit_date_time}_${commit_id}"
@@ -226,7 +233,7 @@ backup_test_data() {
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
 
-mv_config_file() {
+legacy_mv_config_file_compat() {
     local current_suite_type="$1"
     local current_query="$2"
 
@@ -325,7 +332,9 @@ insert into ${RESULT_TABLE_NAME} (
     commit_date_time,test_date_time,commit_id,author,ts_type,data_type,query_type,
     okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,
     MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,
-    numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,remark${extra_columns}
+    numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,
+    avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,
+    protocol_code,query_suite_type,query_sensor_type,query_repeat_no,query_id,query_label,result_kind,remark${extra_columns}
 ) values (
     ${commit_date_time},
     ${test_date_time},
@@ -359,6 +368,20 @@ insert into ${RESULT_TABLE_NAME} (
     ${maxNumofOpenFiles},
     ${maxNumofThread},
     ${errorLogSize},
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    $(sql_quote "${protocol_code}"),
+    $(sql_maybe_quote "${query_suite_type}"),
+    $(sql_maybe_quote "${sensor_type}"),
+    ${query_num},
+    $(sql_maybe_quote "${query_type}"),
+    $(sql_maybe_quote "${query_label_name}"),
+    'query',
     $(sql_quote "${protocol_code}")${extra_values}
 )
 EOF
@@ -433,7 +456,7 @@ test_operation() {
 
                 if ! wait_for_iotdb_ready; then
                     init_items
-                    prepare_query_context "${current_suite_type}" "${current_query}" "${current_sensor_type}" 1
+                    prepare_query_context "${current_suite_type}" "${current_query}" "${current_sensor_type}" 1 "${query_label}"
                     log "IoTDB 未能正常启动，记录失败结果"
                     end_time="$(current_datetime)"
                     cost_time=-3
@@ -452,7 +475,7 @@ test_operation() {
 
                 for ((current_repeat = 1; current_repeat <= QUERY_REPEAT_COUNT; current_repeat++)); do
                     init_items
-                    prepare_query_context "${current_suite_type}" "${current_query}" "${current_sensor_type}" "${current_repeat}"
+                    prepare_query_context "${current_suite_type}" "${current_query}" "${current_sensor_type}" "${current_repeat}" "${query_label}"
                     monitor_failed=0
 
                     start_benchmark

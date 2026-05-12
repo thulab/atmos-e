@@ -39,6 +39,12 @@ source "${SCRIPT_DIR}/runtime_common.sh"
 
 op_type=""
 current_protocol_code=""
+query_id=""
+query_label_name=""
+query_suite_type=""
+query_sensor_type=""
+query_repeat_no=""
+result_kind=""
 maxCPULoad=0
 avgCPULoad=0
 maxDiskIOOpsRead=0
@@ -48,6 +54,12 @@ maxDiskIOSizeWrite=0
 
 init_items() {
     init_common_items
+    query_id=""
+    query_label_name=""
+    query_suite_type=""
+    query_sensor_type=""
+    query_repeat_no=""
+    result_kind=""
     maxCPULoad=0
     avgCPULoad=0
     maxDiskIOOpsRead=0
@@ -84,7 +96,7 @@ collect_monitor_data() {
     collect_resource_monitor_data "${TEST_IP}" "${MONITOR_DISK_ID}" "${m_start_time}" "${m_end_time}"
 }
 
-backup_test_data() {
+legacy_backup_test_data_compat() {
     local current_insert_type="$1"
     local backup_parent="${BACKUP_PATH}/${current_insert_type}"
     local backup_dir="${backup_parent}/${commit_date_time}_${commit_id}_${current_protocol_code}"
@@ -111,6 +123,27 @@ backup_test_data() {
         "case=${current_insert_type}" \
         "commit=${commit_date_time}_${commit_id}")"
     archive_test_runtime_artifacts "${backup_dir}"
+}
+
+prepare_ingestion_result_context() {
+    query_id=""
+    query_label_name=""
+    query_suite_type=""
+    query_sensor_type=""
+    query_repeat_no=""
+    result_kind="ingestion"
+}
+
+prepare_query_result_context() {
+    local current_query="$1"
+    local current_query_label="$2"
+
+    query_id="$(normalize_query_name "${current_query}")"
+    query_label_name="${current_query_label}"
+    query_suite_type="${data_type}"
+    query_sensor_type=""
+    query_repeat_no="1"
+    result_kind="query"
 }
 
 parse_ingestion_result() {
@@ -205,14 +238,20 @@ parse_query_result() {
 }
 
 insert_result_row() {
+    local query_repeat_value="NULL"
     local insert_sql=""
+
+    if [ -n "${query_repeat_no}" ]; then
+        query_repeat_value="${query_repeat_no}"
+    fi
 
     insert_sql=$(cat <<EOF
 insert into ${RESULT_TABLE_NAME} (
     commit_date_time,test_date_time,commit_id,author,ts_type,data_type,op_type,okPoint,okOperation,failPoint,
     failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,
     end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,
-    avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark
+    avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,
+    protocol_code,query_suite_type,query_sensor_type,query_repeat_no,query_id,query_label,result_kind,remark
 ) values (
     ${commit_date_time},
     ${test_date_time},
@@ -253,6 +292,13 @@ insert into ${RESULT_TABLE_NAME} (
     ${maxDiskIOSizeWrite},
     ${maxDiskIOOpsRead},
     ${maxDiskIOOpsWrite},
+    $(sql_quote "${current_protocol_code}"),
+    $(sql_maybe_quote "${query_suite_type}"),
+    $(sql_maybe_quote "${query_sensor_type}"),
+    ${query_repeat_value},
+    $(sql_maybe_quote "${query_id}"),
+    $(sql_maybe_quote "${query_label_name}"),
+    $(sql_maybe_quote "${result_kind}"),
     $(sql_quote "${current_protocol_code}")
 )
 EOF
@@ -332,6 +378,7 @@ run_query_case() {
 
     init_items
     ts_type="common"
+    prepare_query_result_context "${current_query}" "${query_label}"
     op_type="${current_query}"
     IOTDB_READY_USER="root"
     IOTDB_READY_PASSWORD="${IOTDB_PW}"
@@ -371,6 +418,7 @@ run_insert_case() {
     ts_type="common"
     data_type="${current_insert_type}"
     op_type="INGESTION"
+    prepare_ingestion_result_context
 
     log "开始执行协议 ${current_protocol_code} 的 ${current_insert_type} 插入测试"
     cleanup_processes
