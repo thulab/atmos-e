@@ -571,6 +571,8 @@ wait_for_iotdb_ready() {
         cli_args+=(-pw "${IOTDB_READY_PASSWORD}")
     fi
 
+    log "wait_for_iotdb_ready 使用 IOTDB_READY_PASSWORD=${IOTDB_READY_PASSWORD}"
+
     for ((attempt = 1; attempt <= IOTDB_READY_RETRIES; attempt++)); do
         if [ "${#cli_args[@]}" -gt 0 ]; then
             iotdb_state="$("${TEST_IOTDB_PATH}/sbin/start-cli.sh" "${cli_args[@]}" -e "show cluster" 2>/dev/null | grep -F 'Total line number = 2' || true)"
