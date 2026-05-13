@@ -80,7 +80,7 @@ if [ -z "${IOTDB_READY_USER:-}" ]; then
     IOTDB_READY_USER="root"
 fi
 if [ -z "${IOTDB_READY_PASSWORD:-}" ]; then
-    IOTDB_READY_PASSWORD="root"
+    IOTDB_READY_PASSWORD="${IOTDB_PW:-root}"
 fi
 
 query_type=""
