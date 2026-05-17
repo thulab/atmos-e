@@ -48,6 +48,8 @@ readonly NODE_RESET_WAIT_SECONDS=120
 readonly STARTUP_GRACE_SECONDS=5
 readonly IOTDB_READY_RETRIES=50
 readonly IOTDB_READY_INTERVAL_SECONDS=3
+readonly PIPE_READY_RETRIES=20
+readonly PIPE_READY_INTERVAL_SECONDS=3
 readonly MONITOR_TIMEOUT_SECONDS=3600
 readonly MONITOR_POLL_INTERVAL_SECONDS=10
 readonly REPLICATION_STABLE_SECONDS=600
@@ -119,6 +121,12 @@ trim() {
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
     printf '%s' "${value}"
+}
+
+format_log_output() {
+    local value="${1:-}"
+
+    printf '%s' "${value}" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//'
 }
 
 current_datetime() {
@@ -720,6 +728,42 @@ build_pipe_create_sql() {
         "${PIPE_NAME}" "${source_properties}" "${IOTDB_PW}" "${sink_host}"
 }
 
+pipe_is_running_in_show_output() {
+    local output="$1"
+    local pipe_row=""
+
+    pipe_row="$(
+        printf '%s\n' "${output}" \
+            | grep -Ei "(^|\\|)[[:space:]]*${PIPE_NAME}[[:space:]]*(\\||$)|(^|[^[:alnum:]_])${PIPE_NAME}([^[:alnum:]_]|$)" \
+            | sed -n '1p'
+    )"
+    [ -n "${pipe_row}" ] || return 1
+
+    printf '%s\n' "${pipe_row}" | grep -Eiq '\bRUNNING\b'
+}
+
+wait_for_remote_pipe_ready() {
+    local host="$1"
+    local dialect="$2"
+    local attempt=0
+    local show_output=""
+
+    for ((attempt = 1; attempt <= PIPE_READY_RETRIES; attempt++)); do
+        show_output="$(remote_cli "${host}" "${dialect}" "show pipes;" 2>/dev/null || true)"
+        if pipe_is_running_in_show_output "${show_output}"; then
+            return 0
+        fi
+        sleep "${PIPE_READY_INTERVAL_SECONDS}"
+    done
+
+    if [ -n "${show_output}" ]; then
+        log "Pipe ${PIPE_NAME} is not RUNNING on ${host}: $(format_log_output "${show_output}")"
+    else
+        log "show pipes returned empty output on ${host}"
+    fi
+    return 1
+}
+
 create_all_pipes() {
     local current_ts_type="$1"
     local dialect=""
@@ -727,7 +771,6 @@ create_all_pipes() {
     local host=""
     local peer=""
     local create_sql=""
-    local show_output=""
     local ready_count=0
 
     dialect="$(pipe_dialect "${current_ts_type}")"
@@ -737,11 +780,15 @@ create_all_pipes() {
         create_sql="$(build_pipe_create_sql "${current_ts_type}" "${peer}")"
 
         log "Create pipe on ${host} -> ${peer}"
-        remote_cli "${host}" "${dialect}" "${create_sql}" >/dev/null 2>&1 || continue
-        remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" >/dev/null 2>&1 || continue
-        show_output="$(remote_cli "${host}" "${dialect}" "show pipes;" 2>/dev/null || true)"
-        log "查看 ${show_output}"
-        if printf '%s\n' "${show_output}" | grep -Eq 'Total line number = (1|2)'; then
+        if ! remote_cli "${host}" "${dialect}" "${create_sql}" >/dev/null 2>&1; then
+            log "Create pipe command failed on ${host}"
+            continue
+        fi
+        if ! remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" >/dev/null 2>&1; then
+            log "Start pipe command failed on ${host}"
+            continue
+        fi
+        if wait_for_remote_pipe_ready "${host}" "${dialect}"; then
             ready_count=$((ready_count + 1))
         fi
     done
