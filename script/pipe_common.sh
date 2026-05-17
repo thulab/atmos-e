@@ -38,6 +38,7 @@ readonly TASK_TABLE_NAME="commit_history"
 readonly METRIC_SERVER="172.20.70.11:9090"
 readonly DEFAULT_DISK_ID="vdc"
 readonly DISK_ID_REGEX="^${DEFAULT_DISK_ID}$"
+readonly -a SSH_OPTIONS=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new)
 readonly PIPE_NAME="test"
 readonly ENABLE_BENCHMARK_VERSION_CHECK="${ENABLE_BENCHMARK_VERSION_CHECK:-1}"
 readonly PIPE_CREATE_WARMUP_SECONDS=60
@@ -298,7 +299,21 @@ remote_exec() {
     local host="$1"
     shift
 
-    ssh "${ACCOUNT}@${host}" "$@"
+    ssh -n "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" "$@"
+}
+
+remote_start_in_dir() {
+    local host="$1"
+    local work_dir="$2"
+    shift 2
+
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${work_dir}" "$@" <<'EOF'
+work_dir="$1"
+shift
+
+cd "${work_dir}" || exit 1
+nohup "$@" >/dev/null 2>&1 </dev/null &
+EOF
 }
 
 build_remote_cli_command() {
@@ -324,7 +339,7 @@ remote_cli() {
     local command=""
 
     command="$(build_remote_cli_command "${host}" "${dialect}" "${sql}")"
-    ssh "${ACCOUNT}@${host}" "${command}"
+    remote_exec "${host}" "${command}"
 }
 
 remote_benchmark_running_count() {
@@ -342,7 +357,7 @@ remote_benchmark_running_count() {
 remote_collect_error_log_size() {
     local host="$1"
 
-    ssh "${ACCOUNT}@${host}" sh -s -- "${TEST_IOTDB_PATH}" <<'EOF'
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${TEST_IOTDB_PATH}" <<'EOF'
 test_iotdb_path="$1"
 total=0
 
@@ -612,7 +627,7 @@ deploy_all_nodes() {
         stage_dir="$(prepare_node_stage "${protocol_code}" "${current_ts_type}" "${host}" "${index}")" || return 1
         log "Deploy payload to ${host}"
         remote_exec "${host}" "rm -rf ${TEST_INIT_PATH}; mkdir -p ${TEST_INIT_PATH}" || return 1
-        scp -r "${stage_dir}/." "${ACCOUNT}@${host}:${TEST_INIT_PATH}/" >/dev/null || return 1
+        scp "${SSH_OPTIONS[@]}" -r "${stage_dir}/." "${ACCOUNT}@${host}:${TEST_INIT_PATH}/" >/dev/null || return 1
     done
 }
 
@@ -642,11 +657,11 @@ start_remote_node() {
     local host="$1"
 
     log "Start ConfigNode on ${host}"
-    remote_exec "${host}" "cd ${TEST_IOTDB_PATH} && ./sbin/start-confignode.sh >/dev/null 2>&1 &" || return 1
+    remote_start_in_dir "${host}" "${TEST_IOTDB_PATH}" ./sbin/start-confignode.sh || return 1
     sleep "${STARTUP_GRACE_SECONDS}"
 
     log "Start DataNode on ${host}"
-    remote_exec "${host}" "cd ${TEST_IOTDB_PATH} && ./sbin/start-datanode.sh -H ${TEST_IOTDB_PATH}/dn_dump.hprof >/dev/null 2>&1 &" || return 1
+    remote_start_in_dir "${host}" "${TEST_IOTDB_PATH}" ./sbin/start-datanode.sh -H "${TEST_IOTDB_PATH}/dn_dump.hprof" || return 1
 
     wait_for_remote_iotdb_ready "${host}" || return 1
     change_remote_root_password "${host}" || return 1
@@ -738,7 +753,7 @@ start_remote_benchmarks() {
 
     for host in "${NODE_IPS[@]}"; do
         log "Start benchmark on ${host}"
-        remote_exec "${host}" "cd ${TEST_BM_PATH} && ./benchmark.sh >/dev/null 2>&1 &" || return 1
+        remote_start_in_dir "${host}" "${TEST_BM_PATH}" ./benchmark.sh || return 1
     done
 
     sleep 3
@@ -766,7 +781,7 @@ query_node_device_counts() {
     local host="$1"
     local current_ts_type="$2"
 
-    ssh "${ACCOUNT}@${host}" sh -s -- "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${current_ts_type}" "${DEVICE_COUNT}" <<'EOF'
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${current_ts_type}" "${DEVICE_COUNT}" <<'EOF'
 test_iotdb_path="$1"
 iotdb_pw="$2"
 current_ts_type="$3"
@@ -1043,7 +1058,7 @@ collect_node_result() {
     local csv_file=""
 
     mkdir -p "${node_result_dir}" || return 1
-    scp -r "${ACCOUNT}@${host}:${TEST_BM_PATH}/data/csvOutput/*result.csv" "${node_result_dir}/" >/dev/null 2>&1 || true
+    scp "${SSH_OPTIONS[@]}" -r "${ACCOUNT}@${host}:${TEST_BM_PATH}/data/csvOutput/*result.csv" "${node_result_dir}/" >/dev/null 2>&1 || true
     csv_file="$(find_first_result_csv "${node_result_dir}" || true)"
     [ -n "${csv_file}" ] || return 0
     parse_ingestion_result "${csv_file}" "${index}" || return 1
@@ -1148,7 +1163,7 @@ backup_case_data() {
         sudo mkdir -p -- "${backup_dir}/${host}" || return 1
 
         remote_exec "${host}" "rm -rf ${TEST_IOTDB_PATH}/data" >/dev/null 2>&1 || true
-        scp -r "${ACCOUNT}@${host}:${TEST_IOTDB_PATH}/" "${host_tmp_dir}/" >/dev/null 2>&1 || {
+        scp "${SSH_OPTIONS[@]}" -r "${ACCOUNT}@${host}:${TEST_IOTDB_PATH}/" "${host_tmp_dir}/" >/dev/null 2>&1 || {
             log "Skip backup copy from ${host}"
             continue
         }
