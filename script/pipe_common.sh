@@ -38,7 +38,8 @@ readonly TASK_TABLE_NAME="commit_history"
 readonly METRIC_SERVER="172.20.70.11:9090"
 readonly DEFAULT_DISK_ID="vdc"
 readonly DISK_ID_REGEX="^${DEFAULT_DISK_ID}$"
-readonly -a SSH_OPTIONS=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+# Older OpenSSH clients used in some test environments do not support `accept-new`.
+readonly -a SSH_OPTIONS=(-o BatchMode=yes -o StrictHostKeyChecking=no)
 readonly PIPE_NAME="test"
 readonly ENABLE_BENCHMARK_VERSION_CHECK="${ENABLE_BENCHMARK_VERSION_CHECK:-1}"
 readonly PIPE_CREATE_WARMUP_SECONDS=60
