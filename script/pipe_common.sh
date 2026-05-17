@@ -740,6 +740,7 @@ create_all_pipes() {
         remote_cli "${host}" "${dialect}" "${create_sql}" >/dev/null 2>&1 || continue
         remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" >/dev/null 2>&1 || continue
         show_output="$(remote_cli "${host}" "${dialect}" "show pipes;" 2>/dev/null || true)"
+        log "查看 ${show_output}"
         if printf '%s\n' "${show_output}" | grep -Eq 'Total line number = (1|2)'; then
             ready_count=$((ready_count + 1))
         fi
