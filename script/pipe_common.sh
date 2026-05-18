@@ -54,6 +54,11 @@ readonly MONITOR_TIMEOUT_SECONDS=3600
 readonly MONITOR_POLL_INTERVAL_SECONDS=10
 readonly REPLICATION_STABLE_SECONDS=600
 readonly DEVICE_COUNT=50
+readonly EXPECTED_DB_NAME="test"
+readonly EXPECTED_GROUP_NAME_PREFIX="g_"
+readonly EXPECTED_TABLE_NAME_PREFIX="table_"
+readonly EXPECTED_DEVICE_NAME_PREFIX="d_"
+readonly EXPECTED_SENSOR_NAME_PREFIX="s_"
 
 readonly -a PROTOCOL_CLASS=(
     ""
@@ -105,6 +110,7 @@ declare -a max_disk_io_size_read
 declare -a max_disk_io_size_write
 declare -a node_a_counts
 declare -a node_b_counts
+declare -a resolved_query_templates
 
 log() {
     printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -282,6 +288,24 @@ numeric_or_zero() {
     else
         printf '0'
     fi
+}
+
+extract_count_from_query_output() {
+    local output="$1"
+
+    printf '%s\n' "${output}" | awk '
+        /\|/ {
+            field_count = split($0, fields, /\|/)
+            for (i = 1; i <= field_count; i++) {
+                field = fields[i]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", field)
+                if (field ~ /^[0-9]+$/) {
+                    print field
+                    exit
+                }
+            }
+        }
+    '
 }
 
 query_next_commit() {
@@ -494,10 +518,36 @@ init_case_state() {
 
     node_a_counts=()
     node_b_counts=()
+    resolved_query_templates=()
     for ((device = 0; device < DEVICE_COUNT; device++)); do
         node_a_counts[$device]=""
         node_b_counts[$device]=""
     done
+    for idx in 0 1; do
+        resolved_query_templates[$idx]=""
+    done
+}
+
+upsert_benchmark_config_value() {
+    local config_file="$1"
+    local key="$2"
+    local value="$3"
+
+    [ -f "${config_file}" ] || return 1
+    sed -i "/^${key}=.*/d" "${config_file}" || return 1
+    printf '%s=%s\n' "${key}" "${value}" >> "${config_file}" || return 1
+}
+
+ensure_pipe_benchmark_schema_config() {
+    local config_file="$1"
+
+    upsert_benchmark_config_value "${config_file}" "DB_NAME" "${EXPECTED_DB_NAME}" || return 1
+    upsert_benchmark_config_value "${config_file}" "GROUP_NAME_PREFIX" "${EXPECTED_GROUP_NAME_PREFIX}" || return 1
+    upsert_benchmark_config_value "${config_file}" "IoTDB_TABLE_NAME_PREFIX" "${EXPECTED_TABLE_NAME_PREFIX}" || return 1
+    upsert_benchmark_config_value "${config_file}" "DEVICE_NAME_PREFIX" "${EXPECTED_DEVICE_NAME_PREFIX}" || return 1
+    upsert_benchmark_config_value "${config_file}" "SENSOR_NAME_PREFIX" "${EXPECTED_SENSOR_NAME_PREFIX}" || return 1
+    upsert_benchmark_config_value "${config_file}" "GROUP_NUMBER" "1" || return 1
+    upsert_benchmark_config_value "${config_file}" "IoTDB_TABLE_NUMBER" "1" || return 1
 }
 
 append_common_iotdb_properties() {
@@ -622,6 +672,7 @@ copy_pipe_benchmark_config() {
 
     safe_rm "${config_target}"
     cp -rf "${config_source}" "${config_target}" || return 1
+    ensure_pipe_benchmark_schema_config "${config_target}" || return 1
 }
 
 copy_pipe_license() {
@@ -896,24 +947,94 @@ flush_remote_nodes() {
     done
 }
 
+build_device_count_sql_candidates() {
+    local current_ts_type="$1"
+
+    if [ "${current_ts_type}" = "tablemode" ]; then
+        cat <<EOF
+select count(s_0) from ${EXPECTED_DB_NAME}_${EXPECTED_GROUP_NAME_PREFIX}0.${EXPECTED_TABLE_NAME_PREFIX}0 where device_id = '${EXPECTED_DEVICE_NAME_PREFIX}__DEVICE__'
+select count(s_0) from ${EXPECTED_DB_NAME}.${EXPECTED_TABLE_NAME_PREFIX}0 where device_id = '${EXPECTED_DEVICE_NAME_PREFIX}__DEVICE__'
+select count(s_0) from ${EXPECTED_TABLE_NAME_PREFIX}0 where device_id = '${EXPECTED_DEVICE_NAME_PREFIX}__DEVICE__'
+EOF
+    else
+        cat <<EOF
+select count(s_0) from root.${EXPECTED_DB_NAME}.${EXPECTED_GROUP_NAME_PREFIX}0.${EXPECTED_DEVICE_NAME_PREFIX}__DEVICE__
+select count(s_0) from root.${EXPECTED_DB_NAME}.${EXPECTED_DEVICE_NAME_PREFIX}__DEVICE__
+select count(s_0) from root.${EXPECTED_GROUP_NAME_PREFIX}0.${EXPECTED_DEVICE_NAME_PREFIX}__DEVICE__
+EOF
+    fi
+}
+
+resolve_device_count_query_template() {
+    local host="$1"
+    local current_ts_type="$2"
+    local dialect=""
+    local sql_template=""
+    local sql=""
+    local output=""
+    local value=""
+    local fallback_template=""
+    local fallback_value=""
+
+    dialect="$(pipe_dialect "${current_ts_type}")"
+
+    while IFS= read -r sql_template; do
+        [ -n "${sql_template}" ] || continue
+
+        sql="${sql_template//__DEVICE__/0}"
+        output="$(remote_cli "${host}" "${dialect}" "${sql}" 2>/dev/null || true)"
+        value="$(extract_count_from_query_output "${output}")"
+
+        if [[ "${value}" =~ ^[0-9]+$ ]]; then
+            if [ "${value}" -gt 0 ]; then
+                log "Resolved point count SQL on ${host}: value=${value}, sql=$(format_log_output "${sql}")"
+                printf '%s\n' "${sql_template}"
+                return 0
+            fi
+
+            if [ -z "${fallback_template}" ]; then
+                fallback_template="${sql_template}"
+                fallback_value="${value}"
+            fi
+            log "Count SQL candidate returned zero on ${host}: sql=$(format_log_output "${sql}")"
+            continue
+        fi
+
+        log "Count SQL candidate parse failed on ${host}: sql=$(format_log_output "${sql}") output=$(format_log_output "${output}")"
+    done < <(build_device_count_sql_candidates "${current_ts_type}")
+
+    if [ -n "${fallback_template}" ]; then
+        log "Fallback to zero-count SQL on ${host}: value=${fallback_value}, template=$(format_log_output "${fallback_template}")"
+        printf '%s\n' "${fallback_template}"
+        return 0
+    fi
+
+    return 1
+}
+
 query_node_device_counts() {
     local host="$1"
     local current_ts_type="$2"
+    local sql_template="$3"
+    local dialect=""
 
-    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${host}" "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${current_ts_type}" "${DEVICE_COUNT}" <<'EOF'
+    dialect="$(pipe_dialect "${current_ts_type}")"
+
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${host}" "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${dialect}" "${DEVICE_COUNT}" "${sql_template}" <<'EOF'
 host="$1"
 test_iotdb_path="$2"
 iotdb_pw="$3"
-current_ts_type="$4"
+dialect="$4"
 device_count="$5"
+sql_template="$6"
 device=0
 
 while [ "${device}" -lt "${device_count}" ]; do
-        if [ "${current_ts_type}" = "tablemode" ]; then
-            sql="select count(s_0) from test_g_0.table_0 where device_id = 'd_${device}'"
+        sql="$(printf '%s' "${sql_template}" | sed "s/__DEVICE__/${device}/g")"
+
+        if [ "${dialect}" = "table" ]; then
             output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -sql_dialect table -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
         else
-            sql="select count(s_0) from root.test.g_0.d_${device}"
             output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
         fi
 
@@ -937,6 +1058,12 @@ while [ "${device}" -lt "${device_count}" ]; do
                 compact_output="$(printf '%s' "${output}" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')"
                 printf '[query-count] host=%s device=d_%s parse_failed sql=%s output=%s\n' "${host}" "${device}" "${sql}" "${compact_output}" >&2
                 value=""
+                ;;
+            *)
+                if [ "${device}" -eq 0 ]; then
+                    compact_output="$(printf '%s' "${output}" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')"
+                    printf '[query-count] host=%s device=d_%s value=%s sql=%s output=%s\n' "${host}" "${device}" "${value}" "${sql}" "${compact_output}" >&2
+                fi
                 ;;
         esac
         printf '%s\n' "${value}"
@@ -1067,10 +1194,23 @@ monitor_pipe_case() {
             continue
         fi
 
+        if [ -z "${resolved_query_templates[0]:-}" ]; then
+            resolved_query_templates[0]="$(resolve_device_count_query_template "${NODE_IPS[0]}" "${ts_type}" || true)"
+        fi
+        if [ -z "${resolved_query_templates[1]:-}" ]; then
+            resolved_query_templates[1]="$(resolve_device_count_query_template "${NODE_IPS[1]}" "${ts_type}" || true)"
+        fi
+        if [ -z "${resolved_query_templates[0]:-}" ] || [ -z "${resolved_query_templates[1]:-}" ]; then
+            log "Failed to resolve point count SQL template for ts_type=${ts_type}: templateA=${resolved_query_templates[0]:-<empty>} templateB=${resolved_query_templates[1]:-<empty>}"
+            end_time="$(current_datetime)"
+            cost_time=-2
+            return 1
+        fi
+
         flush_remote_nodes "${ts_type}"
 
-        mapfile -t current_counts_a < <(query_node_device_counts "${NODE_IPS[0]}" "${ts_type}")
-        mapfile -t current_counts_b < <(query_node_device_counts "${NODE_IPS[1]}" "${ts_type}")
+        mapfile -t current_counts_a < <(query_node_device_counts "${NODE_IPS[0]}" "${ts_type}" "${resolved_query_templates[0]}")
+        mapfile -t current_counts_b < <(query_node_device_counts "${NODE_IPS[1]}" "${ts_type}" "${resolved_query_templates[1]}")
 
         changed=1
         if store_counts_a "${current_counts_a[@]}"; then
