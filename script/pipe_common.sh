@@ -129,6 +129,54 @@ format_log_output() {
     printf '%s' "${value}" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//'
 }
 
+normalize_pipe_state() {
+    local value="${1:-}"
+
+    printf '%s' "${value}" | tr '[:lower:]' '[:upper:]'
+}
+
+extract_pipe_row_from_show_output() {
+    local output="$1"
+
+    printf '%s\n' "${output}" | awk -v pipe_name="${PIPE_NAME}" '
+        function trim(value) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            return value
+        }
+
+        $0 ~ /\|/ {
+            field_count = split($0, fields, /\|/)
+            first_value = ""
+            for (i = 1; i <= field_count; i++) {
+                candidate = trim(fields[i])
+                if (candidate != "") {
+                    first_value = candidate
+                    break
+                }
+            }
+            if (index(tolower(first_value), tolower(pipe_name)) > 0) {
+                print
+                exit
+            }
+        }
+
+        END {
+            if (NR > 0 && first_value == "") {
+                # no-op, keeps awk exit status at 0 for empty results
+            }
+        }
+    '
+}
+
+extract_pipe_state_from_row() {
+    local pipe_row="$1"
+
+    printf '%s\n' "${pipe_row}" \
+        | tr '|[:space:]' '\n' \
+        | grep -Eio 'RUNNING|STOPPED|DROPPED|EXCEPTION|PARTIAL_CREATE|PARTIAL_START|STARTING|CREATED|STARTED' \
+        | sed -n '1p'
+}
+
 current_datetime() {
     date '+%Y-%m-%d %H:%M:%S'
 }
@@ -731,15 +779,14 @@ build_pipe_create_sql() {
 pipe_is_running_in_show_output() {
     local output="$1"
     local pipe_row=""
+    local pipe_state=""
 
-    pipe_row="$(
-        printf '%s\n' "${output}" \
-            | grep -Ei "(^|\\|)[[:space:]]*${PIPE_NAME}[[:space:]]*(\\||$)|(^|[^[:alnum:]_])${PIPE_NAME}([^[:alnum:]_]|$)" \
-            | sed -n '1p'
-    )"
+    pipe_row="$(extract_pipe_row_from_show_output "${output}")"
     [ -n "${pipe_row}" ] || return 1
 
-    printf '%s\n' "${pipe_row}" | grep -Eiq '\bRUNNING\b'
+    pipe_state="$(extract_pipe_state_from_row "${pipe_row}")"
+
+    [ "$(normalize_pipe_state "${pipe_state}")" = "RUNNING" ]
 }
 
 wait_for_remote_pipe_ready() {
@@ -747,9 +794,20 @@ wait_for_remote_pipe_ready() {
     local dialect="$2"
     local attempt=0
     local show_output=""
+    local pipe_row=""
+    local pipe_state=""
 
     for ((attempt = 1; attempt <= PIPE_READY_RETRIES; attempt++)); do
         show_output="$(remote_cli "${host}" "${dialect}" "show pipes;" 2>/dev/null || true)"
+        pipe_row="$(extract_pipe_row_from_show_output "${show_output}")"
+        pipe_state="$(extract_pipe_state_from_row "${pipe_row}")"
+
+        if [ -n "${pipe_row}" ]; then
+            log "show pipes attempt ${attempt}/${PIPE_READY_RETRIES} on ${host}: state=${pipe_state:-unknown}, row=$(format_log_output "${pipe_row}")"
+        else
+            log "show pipes attempt ${attempt}/${PIPE_READY_RETRIES} on ${host}: no pipe row, output=$(format_log_output "${show_output}")"
+        fi
+
         if pipe_is_running_in_show_output "${show_output}"; then
             return 0
         fi
@@ -771,6 +829,8 @@ create_all_pipes() {
     local host=""
     local peer=""
     local create_sql=""
+    local create_output=""
+    local start_output=""
     local ready_count=0
 
     dialect="$(pipe_dialect "${current_ts_type}")"
@@ -780,16 +840,26 @@ create_all_pipes() {
         create_sql="$(build_pipe_create_sql "${current_ts_type}" "${peer}")"
 
         log "Create pipe on ${host} -> ${peer}"
-        if ! remote_cli "${host}" "${dialect}" "${create_sql}" >/dev/null 2>&1; then
-            log "Create pipe command failed on ${host}"
+        create_output="$(remote_cli "${host}" "${dialect}" "${create_sql}" 2>&1)" || {
+            log "Create pipe command failed on ${host}: $(format_log_output "${create_output}")"
             continue
+        }
+        if [ -n "${create_output}" ]; then
+            log "Create pipe output on ${host}: $(format_log_output "${create_output}")"
         fi
-        if ! remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" >/dev/null 2>&1; then
-            log "Start pipe command failed on ${host}"
+
+        start_output="$(remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" 2>&1)" || {
+            log "Start pipe command failed on ${host}: $(format_log_output "${start_output}")"
             continue
+        }
+        if [ -n "${start_output}" ]; then
+            log "Start pipe output on ${host}: $(format_log_output "${start_output}")"
         fi
+
         if wait_for_remote_pipe_ready "${host}" "${dialect}"; then
             ready_count=$((ready_count + 1))
+        else
+            log "Pipe ${PIPE_NAME} failed readiness check on ${host}"
         fi
     done
 
@@ -906,12 +976,31 @@ calculate_min_point_num() {
     printf '%s\n' "${min_value}"
 }
 
+calculate_array_min() {
+    local min_value=1000000
+    local current_value=0
+
+    for current_value in "$@"; do
+        if [ -z "${current_value}" ]; then
+            continue
+        fi
+        if [ "${min_value}" -ge "${current_value}" ]; then
+            min_value="${current_value}"
+        fi
+    done
+
+    printf '%s\n' "${min_value}"
+}
+
 monitor_pipe_case() {
     local start_epoch=0
     local last_update_epoch=0
     local now_epoch=0
     local bm_finished=0
     local changed=1
+    local updated="no"
+    local min_count_a=0
+    local min_count_b=0
     local -a current_counts_a=()
     local -a current_counts_b=()
 
@@ -935,6 +1024,7 @@ monitor_pipe_case() {
         fi
 
         if [ "${bm_finished}" -lt "${#NODE_IPS[@]}" ]; then
+            log "Waiting benchmark finish: ${bm_finished}/${#NODE_IPS[@]} completed after $((now_epoch - start_epoch))s"
             sleep "${MONITOR_POLL_INTERVAL_SECONDS}"
             continue
         fi
@@ -952,9 +1042,15 @@ monitor_pipe_case() {
             changed=0
         fi
 
+        updated="no"
         if [ "${changed}" -eq 0 ]; then
             last_update_epoch="${now_epoch}"
+            updated="yes"
         fi
+
+        min_count_a="$(calculate_array_min "${current_counts_a[@]}")"
+        min_count_b="$(calculate_array_min "${current_counts_b[@]}")"
+        log "Replication poll: elapsed=$((now_epoch - start_epoch))s stable_for=$((now_epoch - last_update_epoch))s updated=${updated} minA=${min_count_a} minB=${min_count_b} firstA=${current_counts_a[0]:-0} firstB=${current_counts_b[0]:-0}"
 
         if [ $((now_epoch - last_update_epoch)) -ge "${REPLICATION_STABLE_SECONDS}" ]; then
             end_time="$(current_datetime)"
