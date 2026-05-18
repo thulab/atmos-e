@@ -495,8 +495,8 @@ init_case_state() {
     node_a_counts=()
     node_b_counts=()
     for ((device = 0; device < DEVICE_COUNT; device++)); do
-        node_a_counts[$device]=0
-        node_b_counts[$device]=0
+        node_a_counts[$device]=""
+        node_b_counts[$device]=""
     done
 }
 
@@ -900,28 +900,47 @@ query_node_device_counts() {
     local host="$1"
     local current_ts_type="$2"
 
-    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${current_ts_type}" "${DEVICE_COUNT}" <<'EOF'
-test_iotdb_path="$1"
-iotdb_pw="$2"
-current_ts_type="$3"
-device_count="$4"
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${host}" "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${current_ts_type}" "${DEVICE_COUNT}" <<'EOF'
+host="$1"
+test_iotdb_path="$2"
+iotdb_pw="$3"
+current_ts_type="$4"
+device_count="$5"
 device=0
 
 while [ "${device}" -lt "${device_count}" ]; do
-    if [ "${current_ts_type}" = "tablemode" ]; then
-        sql="select count(s_0) from test_g_0.table_0 where device_id = 'd_${device}'"
-        output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -sql_dialect table -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
-    else
-        sql="select count(s_0) from root.test.g_0.d_${device}"
-        output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
-    fi
+        if [ "${current_ts_type}" = "tablemode" ]; then
+            sql="select count(s_0) from test_g_0.table_0 where device_id = 'd_${device}'"
+            output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -sql_dialect table -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
+        else
+            sql="select count(s_0) from root.test.g_0.d_${device}"
+            output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
+        fi
 
-    value="$(printf '%s\n' "${output}" | sed -n '4p' | tr -d '|[:space:]')"
-    if [ -z "${value}" ]; then
-        value=0
-    fi
-    printf '%s\n' "${value}"
-    device=$((device + 1))
+        value="$(
+            printf '%s\n' "${output}" | awk '
+                /\|/ {
+                    field_count = split($0, fields, /\|/)
+                    for (i = 1; i <= field_count; i++) {
+                        field = fields[i]
+                        gsub(/^[[:space:]]+|[[:space:]]+$/, "", field)
+                        if (field ~ /^[0-9]+$/) {
+                            print field
+                            exit
+                        }
+                    }
+                }
+            '
+        )"
+        case "${value}" in
+            ''|*[!0-9]*)
+                compact_output="$(printf '%s' "${output}" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')"
+                printf '[query-count] host=%s device=d_%s parse_failed sql=%s output=%s\n' "${host}" "${device}" "${sql}" "${compact_output}" >&2
+                value=""
+                ;;
+        esac
+        printf '%s\n' "${value}"
+        device=$((device + 1))
 done
 EOF
 }
@@ -930,10 +949,15 @@ store_counts_a() {
     local new_counts=("$@")
     local device=0
     local changed=1
+    local new_value=""
 
     for ((device = 0; device < DEVICE_COUNT; device++)); do
-        if [ "${node_a_counts[$device]:-0}" != "${new_counts[$device]:-0}" ]; then
-            node_a_counts[$device]="${new_counts[$device]:-0}"
+        new_value="${new_counts[$device]:-}"
+        if [[ ! "${new_value}" =~ ^[0-9]+$ ]]; then
+            continue
+        fi
+        if [ "${node_a_counts[$device]:-}" != "${new_value}" ]; then
+            node_a_counts[$device]="${new_value}"
             changed=0
         fi
     done
@@ -945,10 +969,15 @@ store_counts_b() {
     local new_counts=("$@")
     local device=0
     local changed=1
+    local new_value=""
 
     for ((device = 0; device < DEVICE_COUNT; device++)); do
-        if [ "${node_b_counts[$device]:-0}" != "${new_counts[$device]:-0}" ]; then
-            node_b_counts[$device]="${new_counts[$device]:-0}"
+        new_value="${new_counts[$device]:-}"
+        if [[ ! "${new_value}" =~ ^[0-9]+$ ]]; then
+            continue
+        fi
+        if [ "${node_b_counts[$device]:-}" != "${new_value}" ]; then
+            node_b_counts[$device]="${new_value}"
             changed=0
         fi
     done
@@ -958,38 +987,47 @@ store_counts_b() {
 
 calculate_min_point_num() {
     local device=0
-    local min_value=1000000
-    local current_value=0
+    local min_value=""
+    local current_value=""
 
     for ((device = 0; device < DEVICE_COUNT; device++)); do
-        current_value="${node_a_counts[$device]:-0}"
-        if [ "${min_value}" -ge "${current_value}" ]; then
+        current_value="${node_a_counts[$device]:-}"
+        if [[ "${current_value}" =~ ^[0-9]+$ ]] && { [ -z "${min_value}" ] || [ "${min_value}" -ge "${current_value}" ]; }; then
             min_value="${current_value}"
         fi
 
-        current_value="${node_b_counts[$device]:-0}"
-        if [ "${min_value}" -ge "${current_value}" ]; then
+        current_value="${node_b_counts[$device]:-}"
+        if [[ "${current_value}" =~ ^[0-9]+$ ]] && { [ -z "${min_value}" ] || [ "${min_value}" -ge "${current_value}" ]; }; then
             min_value="${current_value}"
         fi
     done
 
-    printf '%s\n' "${min_value}"
+    printf '%s\n' "${min_value:-0}"
 }
 
 calculate_array_min() {
-    local min_value=1000000
-    local current_value=0
+    local min_value=""
+    local current_value=""
 
     for current_value in "$@"; do
-        if [ -z "${current_value}" ]; then
+        if [[ ! "${current_value}" =~ ^[0-9]+$ ]]; then
             continue
         fi
-        if [ "${min_value}" -ge "${current_value}" ]; then
+        if [ -z "${min_value}" ] || [ "${min_value}" -ge "${current_value}" ]; then
             min_value="${current_value}"
         fi
     done
 
-    printf '%s\n' "${min_value}"
+    printf '%s\n' "${min_value:-0}"
+}
+
+calculate_cost_time_seconds() {
+    if [ -z "${start_time}" ] || [ -z "${end_time}" ]; then
+        printf '0\n'
+        return 0
+    fi
+
+    printf '%s\n' "$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))"
 }
 
 monitor_pipe_case() {
@@ -1054,7 +1092,7 @@ monitor_pipe_case() {
 
         if [ $((now_epoch - last_update_epoch)) -ge "${REPLICATION_STABLE_SECONDS}" ]; then
             end_time="$(current_datetime)"
-            cost_time=$((last_update_epoch - start_epoch))
+            cost_time="$(calculate_cost_time_seconds)"
             min_point_num="$(calculate_min_point_num)"
             return 0
         fi
