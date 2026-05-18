@@ -848,13 +848,13 @@ create_all_pipes() {
             log "Create pipe output on ${host}: $(format_log_output "${create_output}")"
         fi
 
-        start_output="$(remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" 2>&1)" || {
-            log "Start pipe command failed on ${host}: $(format_log_output "${start_output}")"
-            continue
-        }
-        if [ -n "${start_output}" ]; then
-            log "Start pipe output on ${host}: $(format_log_output "${start_output}")"
-        fi
+#        start_output="$(remote_cli "${host}" "${dialect}" "start pipe ${PIPE_NAME};" 2>&1)" || {
+#            log "Start pipe command failed on ${host}: $(format_log_output "${start_output}")"
+#            continue
+#        }
+#        if [ -n "${start_output}" ]; then
+#            log "Start pipe output on ${host}: $(format_log_output "${start_output}")"
+#        fi
 
         if wait_for_remote_pipe_ready "${host}" "${dialect}"; then
             ready_count=$((ready_count + 1))
