@@ -80,6 +80,7 @@ init_items
 PROCESSED_DIR="/root/zk_test/release/processed"  # 已处理文件存放目录
 # 创建必要的目录
 mkdir -p "$PROCESSED_DIR"
+rm -rf /root/zk_test/release/*-zh.zip
 
 # 检查文件夹中是否有csv文件
 csv_files=("$IOTDB_PATH"/*.csv)
