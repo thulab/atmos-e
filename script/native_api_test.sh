@@ -65,6 +65,7 @@ check_timechodb_pid() { # 检查timechodb的pid，有就停止
 start_timechodb() { # 启动iotdb
 	cd ${TEST_TIMECHODB_PATH}/timechodb-*-SNAPSHOT-bin
   cp -rf ${ATMOS_PATH}/conf/${test_type}/license activation/
+  cp -rf ${ATMOS_PATH}/conf/${test_type}/.env .
 	conf_start=$(./sbin/start-confignode.sh >/dev/null 2>&1 &)
 	sleep 10
 	data_start=$(./sbin/start-datanode.sh -H ${TEST_TIMECHODB_PATH}/dn_dump.hprof >/dev/null 2>&1 &)
