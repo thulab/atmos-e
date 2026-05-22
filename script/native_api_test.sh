@@ -99,7 +99,7 @@ test_python_native_api_test() { # 测试Python原生接口
 		skipped_num=-3
 		successRate=-3
 		#结果写入mysql
-		insert_sql_python="insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark) values(${test_date_time},'${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'0','0',0,'PYTHON')"
+		insert_sql_python="insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark) values('${test_date_time}','${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'0','0',0,'PYTHON')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql_python}"
 		deactivate
 		return 1
@@ -159,7 +159,7 @@ test_python_native_api_test() { # 测试Python原生接口
     fi
 		#结果写入mysql
 		cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-		insert_sql_python="insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark) values(${test_date_time},'${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'${start_time}','${end_time}',${cost_time},'PYTHON')"
+		insert_sql_python="insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark) values('${test_date_time}','${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'${start_time}','${end_time}',${cost_time},'PYTHON')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql_python}"
 		if [ $? -ne 0 ]; then
 			echo "执行mysql命令失败"
@@ -172,13 +172,13 @@ test_python_native_api_test() { # 测试Python原生接口
 			#结果写入mysql
 			cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 			sql=$(cat <<EOF
-			insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark,insert_sql) values(${test_date_time},'${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'${start_time}','${end_time}',${cost_time},'PYTHON',"${insert_sql_python}")
+			insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark,insert_sql) values('${test_date_time}','${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'${start_time}','${end_time}',${cost_time},'PYTHON',"${insert_sql_python}")
 EOF
 			)
 			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "$sql"
 			echo "备份Python原生接口测试报告"
-      		mkdir -p /data/qa/backup/python/${last_cid_iotdb}_${failures_num}
-      		cp -rf  ${TEST_PYTHON_TOOL_PATH}/reports/* /data/qa/backup/python/${last_cid_iotdb}_${failures_num}
+      		mkdir -p /data/qa/backup/python/${commit_id_iotdb}_${failures_num}
+      		cp -rf  ${TEST_PYTHON_TOOL_PATH}/reports/* /data/qa/backup/python/${commit_id_iotdb}_${failures_num}
 			return 1
 		fi
 	else
@@ -191,7 +191,7 @@ EOF
 		successRate=-4
 		#结果写入mysql
 		cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
-		insert_sql_python="insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark) values(${test_date_time},'${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'${start_time}','${end_time}',${cost_time},'PYTHON')"
+		insert_sql_python="insert into ${TABLENAME} (test_date_time,commit_id,tests_num,errors_num,failures_num,skipped_num,successRate,start_time,end_time,cost_time,remark) values('${test_date_time}','${commit_id_iotdb}',${tests_num},${errors_num},${failures_num},${skipped_num},${successRate},'${start_time}','${end_time}',${cost_time},'PYTHON')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql_python}"
 	fi
 	#备份本次测试
