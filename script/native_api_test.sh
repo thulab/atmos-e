@@ -90,7 +90,7 @@ test_python_native_api_test() { # 测试Python原生接口
 	pip3 install pandas==2.0.3
 	pip3 install greenlet==2.0.2
 	pip3 install ${BUILD_PATH}/python/apache_iotdb-*.dev0-py3-none-any.whl # 引入依赖
-	if [ $? -eq 0 ]; then
+	if [ $? -ne 0 ]; then
 		echo "引入iotdb依赖失败"
 		tests_num=-3
 		errors_num=-3
@@ -195,17 +195,13 @@ EOF
 	fi
 	#备份本次测试
 }
-if [ ! -d "${INIT_PATH}/test_type_file" ]; then
-	mkdir -p ${INIT_PATH}/test_type_file
-	echo "ontesting" > ${INIT_PATH}/test_type_file
-else
-	echo "ontesting" > ${INIT_PATH}/test_type_file
-fi
+mkdir -p "${INIT_PATH}"
+echo "ontesting" > "${INIT_PATH}/test_type_file"
 if [ ! -d "${BUILD_PATH}" ]; then
 	mkdir -p ${BUILD_PATH}
 fi
-if [ ! -d "${INIT_PATH}/test_identifier_file" ]; then
-	touch test_identifier_file
+if [ ! -f "${INIT_PATH}/test_identifier_file" ]; then
+	touch "${INIT_PATH}/test_identifier_file"
 	cat > "${INIT_PATH}/test_identifier_file" <<EOF
 is_update=false
 commitTime=
@@ -214,13 +210,14 @@ EOF
 fi
 # 初始化参数
 init_items
-# 获取当前测试对应的提交时间
+# 获取当前测试对应的提交时间和commitID
 test_date_time=$(sed -n 's/^commitTime=//p' "${INIT_PATH}/test_identifier_file" | head -n1 | tr -d '\r\n')
+commit_id_iotdb=$(sed -n 's/^commitId=//p' "${INIT_PATH}/test_identifier_file" | head -n1 | tr -d '\r\n')
 # 更新测试工具
 cd ${PYTHON_TOOL_PATH}
 git_pull=$(timeout 100s git pull)
 # 对比判定是否启动测试
-if [ "$(awk -F= '$1=="is_update"{print $2; exit}' "${INIT_PATH}/test_type_file" 2>/dev/null | tr -d '\r\n')" = "true" ]; then # 判断TimechoDB代码是否更新
+if [ "$(awk -F= '$1=="is_update"{print $2; exit}' "${INIT_PATH}/test_identifier_file" 2>/dev/null | tr -d '\r\n')" = "true" ]; then # 判断TimechoDB代码是否更新
 	echo "TimechoDB 有新commit合入，需要执行测试"
 	rm -rf ${BUILD_PATH}/*
 	cp -r ${INIT_PATH}/build/* ${BUILD_PATH}
