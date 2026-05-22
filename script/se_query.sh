@@ -12,6 +12,7 @@ set -o pipefail
 readonly TEST_IP="172.20.31.12"
 readonly TEST_TYPE="se_query"
 readonly DATA_PATH="/nasdata/se_query/DataSet"
+readonly IOTDB_PW="root"
 readonly -a PROTOCOL_LIST=(211)
 readonly -a QUERY_DATA_TYPES=(tablemode common aligned tempaligned)
 readonly -a QUERY_LIST=(
@@ -26,7 +27,7 @@ readonly -a QUERY_LABELS=(
     LATEST_POINT RANGE_QUERY_DESC RANGE_QUERY_DESC RANGE_QUERY_DESC VALUE_RANGE_QUERY_DESC
 )
 readonly METRIC_SERVER="172.20.70.11:9090"
-
+IOTDB_READY_PASSWORD="${IOTDB_PW}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/query_common.sh
 source "${SCRIPT_DIR}/query_common.sh"
