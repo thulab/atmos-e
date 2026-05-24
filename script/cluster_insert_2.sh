@@ -329,6 +329,11 @@ setup_cluster_nodes() {
 
     log "All ${check_config_num} ConfigNodes and ${check_data_num} DataNodes have been started"
     sleep 60
+}
+
+start_cluster_benchmarks() {
+    local bm_num="$1"
+    local j=0
 
     if [ "${bm_num}" -gt 0 ]; then
         for ((j = 1; j <= bm_num; j++)); do
@@ -524,8 +529,10 @@ test_operation() {
     sed -i "s/^HOST=.*$/HOST=${DATA_NODE_IP_LIST[1]}/g" "${BM_PATH}/conf/config.properties"
 
     setup_cluster_nodes -c "${CLUSTER_CONFIG_COUNT}" -d "${CLUSTER_DATA_COUNT}" -t "${CLUSTER_BENCHMARK_COUNT}"
-
-    "${TEST_DATANODE_PATH}/sbin/start-cli.sh" -h "${DATA_NODE_IP_LIST[1]}" -p 6667 -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1 || true
+    if ! "${TEST_DATANODE_PATH}/sbin/start-cli.sh" -h "${DATA_NODE_IP_LIST[1]}" -p 6667 -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1; then
+        die "Failed to set root password before starting benchmark"
+    fi
+    start_cluster_benchmarks "${CLUSTER_BENCHMARK_COUNT}"
 
     start_time="$(current_datetime)"
     m_start_time="$(date +%s)"
