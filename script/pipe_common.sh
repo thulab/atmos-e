@@ -987,7 +987,7 @@ resolve_device_count_query_template() {
 
         if [[ "${value}" =~ ^[0-9]+$ ]]; then
             if [ "${value}" -gt 0 ]; then
-                log "Resolved point count SQL on ${host}: value=${value}, sql=$(format_log_output "${sql}")"
+                log "Resolved point count SQL on ${host}: value=${value}, sql=$(format_log_output "${sql}")" >&2
                 printf '%s\n' "${sql_template}"
                 return 0
             fi
@@ -996,15 +996,15 @@ resolve_device_count_query_template() {
                 fallback_template="${sql_template}"
                 fallback_value="${value}"
             fi
-            log "Count SQL candidate returned zero on ${host}: sql=$(format_log_output "${sql}")"
+            log "Count SQL candidate returned zero on ${host}: sql=$(format_log_output "${sql}")" >&2
             continue
         fi
 
-        log "Count SQL candidate parse failed on ${host}: sql=$(format_log_output "${sql}") output=$(format_log_output "${output}")"
+        log "Count SQL candidate parse failed on ${host}: sql=$(format_log_output "${sql}") output=$(format_log_output "${output}")" >&2
     done < <(build_device_count_sql_candidates "${current_ts_type}")
 
     if [ -n "${fallback_template}" ]; then
-        log "Fallback to zero-count SQL on ${host}: value=${fallback_value}, template=$(format_log_output "${fallback_template}")"
+        log "Fallback to zero-count SQL on ${host}: value=${fallback_value}, template=$(format_log_output "${fallback_template}")" >&2
         printf '%s\n' "${fallback_template}"
         return 0
     fi
@@ -1213,11 +1213,15 @@ monitor_pipe_case() {
         mapfile -t current_counts_b < <(query_node_device_counts "${NODE_IPS[1]}" "${ts_type}" "${resolved_query_templates[1]}")
 
         changed=1
-        if store_counts_a "${current_counts_a[@]}"; then
-            changed=0
+        if [ "${#current_counts_a[@]}" -gt 0 ]; then
+            if store_counts_a "${current_counts_a[@]}"; then
+                changed=0
+            fi
         fi
-        if store_counts_b "${current_counts_b[@]}"; then
-            changed=0
+        if [ "${#current_counts_b[@]}" -gt 0 ]; then
+            if store_counts_b "${current_counts_b[@]}"; then
+                changed=0
+            fi
         fi
 
         updated="no"
@@ -1226,8 +1230,16 @@ monitor_pipe_case() {
             updated="yes"
         fi
 
-        min_count_a="$(calculate_array_min "${current_counts_a[@]}")"
-        min_count_b="$(calculate_array_min "${current_counts_b[@]}")"
+        if [ "${#current_counts_a[@]}" -gt 0 ]; then
+            min_count_a="$(calculate_array_min "${current_counts_a[@]}")"
+        else
+            min_count_a=0
+        fi
+        if [ "${#current_counts_b[@]}" -gt 0 ]; then
+            min_count_b="$(calculate_array_min "${current_counts_b[@]}")"
+        else
+            min_count_b=0
+        fi
         log "Replication poll: elapsed=$((now_epoch - start_epoch))s stable_for=$((now_epoch - last_update_epoch))s updated=${updated} minA=${min_count_a} minB=${min_count_b} firstA=${current_counts_a[0]:-0} firstB=${current_counts_b[0]:-0}"
 
         if [ $((now_epoch - last_update_epoch)) -ge "${REPLICATION_STABLE_SECONDS}" ]; then
