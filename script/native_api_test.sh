@@ -8,7 +8,7 @@ BUILD_PATH=${INIT_PATH}/save
 ATMOS_PATH=${INIT_PATH}/atmos-e
 TIMECHODB_PATH=${BUILD_PATH}/timecho
 PYTHON_TOOL_PATH=${INIT_PATH}/python-native-api-testcase-enterprise
-#BK_PATH=${INIT_PATH}/native_api_test_report
+BK_PATH=${INIT_PATH}/native_api_test_report
 #测试数据运行路径
 TEST_INIT_PATH=/data/qa
 TEST_TIMECHODB_PATH=${TEST_INIT_PATH}/timecho
@@ -107,21 +107,26 @@ test_python_native_api_test() { # 测试Python原生接口
 	# 开始测试
 	echo "Python开始测试"
 	cd ${TEST_PYTHON_TOOL_PATH}/tests
-	mkdir -p ../reports
 	start_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
-	timeout 7200s pytest --html=../reports/report.html
-	pytest_status=$?
-	cd ${TEST_PYTHON_TOOL_PATH}
-	result_file=${TEST_PYTHON_TOOL_PATH}/reports/report.html
-	if [ ${pytest_status} -eq 124 ]; then
-		echo "Python原生接口测试超时"
-		flag=1
-	elif [ ! -f "$result_file" ]; then
-		echo "Python原生接口测试未生成报告"
-		flag=1
-	else
-		echo "Python原生接口测试完成"
-	fi
+	start_test=$(timeout 7200s bash -c "pytest --html=../reports/report.html")
+	for (( t_wait = 0; t_wait <= 20; ))
+	do
+		cd ${TEST_PYTHON_TOOL_PATH}
+		result_file=${TEST_PYTHON_TOOL_PATH}/reports/report.html
+		if [ ! -f "$result_file" ]; then
+			now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+			t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
+			if [ $t_time -ge 14400 ]; then
+				echo "Python原生接口测试失败"
+				flag=1
+				break
+			fi
+			continue
+		else
+			echo "Python原生接口测试完成"
+			break
+		fi
+	done
 	end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 	# 防止测试报告文档内容还未生成完全，导致脚本获取空值
 	sleep 60
@@ -232,8 +237,7 @@ if [ "$(awk -F= '$1=="is_update"{print $2; exit}' "${INIT_PATH}/test_identifier_
 	check_timechodb_pid
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
-	echo "native_api_test" > ${INIT_PATH}/test_type_file
-else # 没有更新则等待下一轮测试
+else # 没有更新则等待下一轮测试w1y
 	echo "没有更新则等待下一轮更新"
 	echo "native_api_test" > ${INIT_PATH}/test_type_file
 	sleep 300
