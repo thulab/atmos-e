@@ -8,7 +8,7 @@ BUILD_PATH=${INIT_PATH}/save
 ATMOS_PATH=${INIT_PATH}/atmos-e
 TIMECHODB_PATH=${BUILD_PATH}/timecho
 PYTHON_TOOL_PATH=${INIT_PATH}/python-native-api-testcase-enterprise
-#BK_PATH=${INIT_PATH}/native_api_test_report
+BK_PATH=${INIT_PATH}/native_api_test_report
 #测试数据运行路径
 TEST_INIT_PATH=/data/qa
 TEST_TIMECHODB_PATH=${TEST_INIT_PATH}/timecho
