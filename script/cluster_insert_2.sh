@@ -491,10 +491,13 @@ backup_case_logs() {
     local node_id="$2"
     local node_backup_dir="${backup_dir}/${node_id}"
 
-    sudo mkdir -p "${node_backup_dir}/CN" "${node_backup_dir}/DN"
+    sudo mkdir -p "${node_backup_dir}/DN"
 
-    if ! scp -r "${ACCOUNT}@${CONFIG_NODE_IP_LIST[${node_id}]}:${TEST_CONFIGNODE_PATH}/logs" "${node_backup_dir}/CN"; then
-        log "复制 ConfigNode 日志失败: node=${node_id}"
+    if ((node_id <= CLUSTER_CONFIG_COUNT)); then
+        sudo mkdir -p "${node_backup_dir}/CN"
+        if ! scp -r "${ACCOUNT}@${CONFIG_NODE_IP_LIST[${node_id}]}:${TEST_CONFIGNODE_PATH}/logs" "${node_backup_dir}/CN"; then
+            log "复制 ConfigNode 日志失败: node=${node_id}"
+        fi
     fi
     if ! scp -r "${ACCOUNT}@${DATA_NODE_IP_LIST[${node_id}]}:${TEST_DATANODE_PATH}/logs" "${node_backup_dir}/DN"; then
         log "复制 DataNode 日志失败: node=${node_id}"
