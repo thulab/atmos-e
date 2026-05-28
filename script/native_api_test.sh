@@ -238,6 +238,7 @@ if [ "$(awk -F= '$1=="is_update"{print $2; exit}' "${INIT_PATH}/test_identifier_
 	###############################测试完成###############################
 	echo "本轮测试${test_date_time}已结束."
 	echo "native_api_test" > ${INIT_PATH}/test_type_file
+	sed -i 's/^is_update=.*/is_update=false/' "${INIT_PATH}/test_identifier_file"
 else # 没有更新则等待下一轮测试w1y
 	echo "没有更新则等待下一轮更新"
 	echo "native_api_test" > ${INIT_PATH}/test_type_file
