@@ -19,7 +19,7 @@ readonly BENCHMARK_WARMUP_SECONDS=10
 readonly QUERY_STARTUP_EXTRA_WAIT_SECONDS=20
 readonly MONITOR_DISK_ID="vdc"
 
-readonly -a PROTOCOL_LIST=(223 111)
+readonly -a PROTOCOL_LIST=(223)
 readonly -a INSERT_CONFIGS=(seq_w unseq_w seq_rw unseq_rw)
 readonly -a QUERY_LIST=(
     Q1 Q2-1 Q2-2 Q2-3 Q3-1 Q3-2 Q3-3 Q4-a1 Q4-a2 Q4-a3
