@@ -42,7 +42,7 @@ else
     readonly ENABLE_BENCHMARK_VERSION_CHECK
 fi
 if ! declare -p MONITOR_TIMEOUT_SECONDS >/dev/null 2>&1; then
-    readonly MONITOR_TIMEOUT_SECONDS=7200
+    readonly MONITOR_TIMEOUT_SECONDS=21600
 else
     readonly MONITOR_TIMEOUT_SECONDS
 fi
