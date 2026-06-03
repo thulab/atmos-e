@@ -314,6 +314,7 @@ function test_operation() {
     sleep 30
     check_benchmark_pid
     check_iotdb_pid
+    sudo rm -rf ${BUCKUP_PATH}/data
 	sudo mv ${TEST_IOTDB_PATH}/data ${BUCKUP_PATH}
     backup_test_data ${ts_type}
 }
