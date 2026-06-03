@@ -33,7 +33,7 @@ protocol_class=(0 org.apache.iotdb.consensus.simple.SimpleConsensus org.apache.i
 protocol_list=(223)
 ts_list=(aligned tablemode)
 insert_list=(unseq_rw)
-op_type_csv=(INGESTION,PRECISE_POINT, TIME_RANGE, VALUE_RANGE, AGG_RANGE, AGG_VALUE, AGG_RANGE_VALUE, GROUP_BY, LATEST_POINT, RANGE_QUERY_DESC, VALUE_RANGE_QUERY_DESC, GROUP_BY_DESC)
+op_type_csv=(INGESTION, PRECISE_POINT, TIME_RANGE, VALUE_RANGE, AGG_RANGE, AGG_VALUE, AGG_RANGE_VALUE, GROUP_BY, LATEST_POINT, RANGE_QUERY_DESC, VALUE_RANGE_QUERY_DESC, GROUP_BY_DESC)
 op_type_name=(INGESTION PRECISE_POINT TIME_RANGE VALUE_RANGE AGG_RANGE AGG_VALUE AGG_RANGE_VALUE GROUP_BY LATEST_POINT RANGE_QUERY_DESC VALUE_RANGE_QUERY_DESC GROUP_BY_DESC)
 # -------------------- MySQL 配置信息 --------------------
 MYSQLHOSTNAME="111.200.37.158"   # 数据库主机
@@ -341,6 +341,7 @@ else
     update_sql="update ${TASK_TABLENAME} set ${test_type} = 'ontesting' where commit_id = '${commit_id}'"
     mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}"
     echo "当前版本${commit_id}未执行过测试，即将编译后启动"
+    init_items
 	if [ "${author}" != "Timecho" ]; then
 		TABLENAME=${TABLENAME}
 	else
