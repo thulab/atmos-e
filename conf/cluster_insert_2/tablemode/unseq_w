@@ -172,7 +172,7 @@ SENSOR_NUMBER=500
 # IS_CLIENT_BIND=true
 
 # schema 客户端总数，schema_client 负责注册元数据
-# SCHEMA_CLIENT_NUMBER=20
+SCHEMA_CLIENT_NUMBER=10
 
 # data 客户端总数, data_client 负责读写数据
 # iotdb表模型下，client数为table数的整数倍
