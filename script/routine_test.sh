@@ -9,7 +9,7 @@ fi
 set -u
 set -o pipefail
 
-readonly TEST_IP="172.20.31.64"
+readonly TEST_IP="172.20.31.32"
 readonly TEST_TYPE="routine_test"
 readonly IOTDB_PW="TimechoDB@2021"
 readonly RESULT_TABLE_NAME="test_result_${TEST_TYPE}"
