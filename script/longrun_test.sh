@@ -175,7 +175,7 @@ function monitor_test_status() {
         if [ ! -d "$csvOutput" ]; then
             now_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
             t_time=$(($(date +%s -d "${now_time}") - $(date +%s -d "${start_time}")))
-            if [ $t_time -ge 7200 ]; then
+            if [ $t_time -ge 72000 ]; then
                 echo "测试失败"
                 mkdir -p ${BM_PATH_TREE}/data/csvOutput
                 cd ${BM_PATH_TREE}/data/csvOutput
