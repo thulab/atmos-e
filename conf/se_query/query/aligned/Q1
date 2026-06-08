@@ -411,7 +411,7 @@ BATCH_SIZE_PER_WRITE=1
 # DEVICE_NUM_PER_WRITE=1
 
 # 是否在写入数据前，创建SCHEMA
-# CREATE_SCHEMA=true
+CREATE_SCHEMA=false
 
 # 开始写入数据的时间戳
 START_TIME=2021-11-21T00:00:00+08:00
@@ -470,25 +470,25 @@ QUERY_SENSOR_NUM=1
 QUERY_DEVICE_NUM=1
 
 # 在聚集查询中使用的聚集函数，比如count
-# QUERY_AGGREGATE_FUN=count
+QUERY_AGGREGATE_FUN=count
 
 # 指定集合查询的类型，包括 union, intersect, except, 可以加上 all或者distinct, 默认是union
-# QUERY_SET_OP_TYPE=union
+QUERY_SET_OP_TYPE=union
 
 # 集合查询中的子集合数量，必须大于等于2
-# QUERY_SET_OP_NUM=2
+QUERY_SET_OP_NUM=2
 
 # 含起止时间的查询中开始时间与结束时间之间的时间间隔，和Group By中的时间间隔（单位按照精度决定）
 QUERY_INTERVAL=100000
 
 # 条件查询子句时的参数，where xxx > QUERY_LOWER_VALUE
-# QUERY_LOWER_VALUE=-5
+QUERY_LOWER_VALUE=-5
 
 # Group by语句中的组的大小
-# GROUP_BY_TIME_UNIT=20000
+GROUP_BY_TIME_UNIT=20000
 
 # 查询语句的随机数种子
-# QUERY_SEED=151658
+QUERY_SEED=151658
 
 # 行数限制, -1表示不使用limit语句
 # 目前仅支持iotdb、influxdb v1、tdengine-3
