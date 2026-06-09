@@ -182,7 +182,7 @@ SCHEMA_CLIENT_NUMBER=10
 
 # data 客户端总数, data_client 负责读写数据
 # iotdb表模型下，client数为table数的整数倍
-DATA_CLIENT_NUMBER=10
+DATA_CLIENT_NUMBER=1
 
 ############## 被测系统为IoTDB时扩展参数 ##################
 # 是否使用thrift压缩，需要在iotdb的配置文件iotdb-datanode.properties中设置dn_rpc_thrift_compression_enable=true
