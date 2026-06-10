@@ -16,7 +16,7 @@ if ! declare -p PROTOCOL_LIST >/dev/null 2>&1; then
     readonly -a PROTOCOL_LIST=(223)
 fi
 if ! declare -p TS_LIST >/dev/null 2>&1; then
-    readonly -a TS_LIST=(common aligned tempaligned tablemode)
+    readonly -a TS_LIST=(common aligned tempaligned tablemode tableview)
 fi
 if ! declare -p API_LIST >/dev/null 2>&1; then
     readonly -a API_LIST=(SESSION_BY_TABLET)
