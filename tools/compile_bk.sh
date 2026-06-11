@@ -83,7 +83,7 @@ else
 	echo "编译当前分支 $2 版本"
 	git_reset=$(timeout 100s git reset --hard $2)
 fi
-commit_id=$(git log --pretty=format:"%h" -1 | cut -c1-7)
+commit_id=$(git log --pretty=format:"%h" -1 | cut -c1-8)
 author=$(git log --pretty=format:"%an" -1)
 commit_date_time=$(git log --pretty=format:"%ci" -1 | cut -b 1-19 | sed s/-//g | sed s/://g | sed s/[[:space:]]//g)
 #对比判定是否启动测试
