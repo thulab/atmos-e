@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #登录用户名
 ACCOUNT=root
 IoTDB_PW=TimechoDB@2021
