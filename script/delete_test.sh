@@ -1148,7 +1148,7 @@ assert_count_literal() {
     local result_var="$5"
 
     assert_value "${label}" \
-        "select count(s_0) from root.delete.g_0.d_0 where time >= ${begin_ms} and time < ${end_ms}" \
+        "select count(s_0) from root.test.g_0.d_0 where time >= ${begin_ms} and time < ${end_ms}" \
         "${expected}" \
         "${result_var}"
 }
@@ -1160,7 +1160,7 @@ assert_point_count() {
     local scratch_var="delete_test_point_count"
 
     assert_value "${label}" \
-        "select count(s_0) from root.delete.g_0.d_0 where time = ${point_ms}" \
+        "select count(s_0) from root.test.g_0.d_0 where time = ${point_ms}" \
         "${expected}" \
         "${scratch_var}"
 }
@@ -1172,7 +1172,7 @@ assert_point_value() {
     local scratch_var="delete_test_point_value"
 
     assert_value "${label}" \
-        "select s_0 from root.delete.g_0.d_0 where time = ${point_ms}" \
+        "select s_0 from root.test.g_0.d_0 where time = ${point_ms}" \
         "${expected}" \
         "${scratch_var}"
 }
@@ -1274,8 +1274,8 @@ run_consistency_checks_after_first_delete() {
 }
 
 run_reinsert_checks() {
-    execute_sql "reinsert first deleted point" "insert into root.delete.g_0.d_0(timestamp, s_0) values(${REINSERT1_MS}, 1)"
-    execute_sql "reinsert second deleted point" "insert into root.delete.g_0.d_0(timestamp, s_0) values(${REINSERT2_MS}, 1)"
+    execute_sql "reinsert first deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT1_MS}, 1)"
+    execute_sql "reinsert second deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT2_MS}, 1)"
     assert_point_value "reinsert first point visible" "${REINSERT1_MS}" 1
     assert_point_value "reinsert second point visible" "${REINSERT2_MS}" 1
 }
@@ -1414,7 +1414,7 @@ test_operation() {
     assert_count_literal "count before delete" "${RANGE_START_MS}" "${RANGE_END_MS}" "${EXPECT_TOTAL_BEFORE_DELETE}" pre_count
 
     execute_timed_sql "delete Jan03 window" \
-        "delete from root.delete.g_0.d_0.s_0 where time >= ${DELETE1_START_MS} and time < ${DELETE1_END_MS}" \
+        "delete from root.test.g_0.d_0.s_0 where time >= ${DELETE1_START_MS} and time < ${DELETE1_END_MS}" \
         delete_cost_ms_1
     execute_sql "flush after first delete" "flush"
     run_consistency_checks_after_first_delete
@@ -1429,10 +1429,10 @@ test_operation() {
     fi
 
     execute_timed_sql "delete Jan08 Jan10 window" \
-        "delete from root.delete.g_0.d_0.s_0 where time >= ${JAN08_START_MS} and time < ${JAN10_START_MS}" \
+        "delete from root.test.g_0.d_0.s_0 where time >= ${JAN08_START_MS} and time < ${JAN10_START_MS}" \
         delete_cost_ms_2
     execute_timed_sql "delete Jan14 Jan16 window" \
-        "delete from root.delete.g_0.d_0.s_0 where time >= ${JAN14_START_MS} and time < ${JAN16_START_MS}" \
+        "delete from root.test.g_0.d_0.s_0 where time >= ${JAN14_START_MS} and time < ${JAN16_START_MS}" \
         delete_cost_ms_3
     execute_sql "flush after later deletes" "flush"
 
