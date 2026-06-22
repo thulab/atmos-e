@@ -13,7 +13,7 @@ readonly -a PROTOCOL_LIST=(223)
 readonly -a TS_LIST=(common)
 readonly -a API_LIST=(SESSION_BY_TABLET)
 
-readonly TEST_IP="172.20.31.32"
+readonly TEST_IP="172.20.31.3"
 readonly TEST_TYPE="delete_test"
 
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
