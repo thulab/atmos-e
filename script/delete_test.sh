@@ -962,16 +962,15 @@ set_env() {
         return 1
     fi
 
-    if [ ! -f "${env_file}" ]; then
-        append_remark "missing delete_test env: ${env_file}"
-        return 1
-    fi
-
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
     cp -rf "${license_file}" "${TEST_IOTDB_PATH}/activation/"
-    cp -rf "${env_file}" "${TEST_IOTDB_PATH}/.env"
+    if [ -f "${env_file}" ]; then
+        cp -rf "${env_file}" "${TEST_IOTDB_PATH}/.env"
+    else
+        log "missing delete_test env, skip .env copy: ${env_file}"
+    fi
 }
 
 prepare_benchmark_config() {
