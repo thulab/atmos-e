@@ -948,7 +948,6 @@ current_epoch_ms() {
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
     local delete_conf_path="${ATMOS_PATH}/conf/${TEST_TYPE}"
-    local se_insert_conf_path="${ATMOS_PATH}/conf/se_insert"
 
     if [ ! -d "${source_path}" ]; then
         append_remark "missing test version path: ${source_path}"
@@ -962,13 +961,13 @@ set_env() {
     if [ -f "${delete_conf_path}/license" ]; then
         cp -rf "${delete_conf_path}/license" "${TEST_IOTDB_PATH}/activation/"
     else
-        copy_if_exists "${se_insert_conf_path}/license" "${TEST_IOTDB_PATH}/activation/" "se_insert license"
+        copy_if_exists "${delete_conf_path}/license" "${TEST_IOTDB_PATH}/activation/" "delete_test license"
     fi
 
     if [ -f "${delete_conf_path}/env" ]; then
         cp -rf "${delete_conf_path}/env" "${TEST_IOTDB_PATH}/.env"
     else
-        copy_if_exists "${se_insert_conf_path}/env" "${TEST_IOTDB_PATH}/.env" "se_insert env"
+        copy_if_exists "${delete_conf_path}/env" "${TEST_IOTDB_PATH}/.env" "delete_test env"
     fi
 }
 
