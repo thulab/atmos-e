@@ -133,8 +133,9 @@ readonly EXPECT_AFTER_FIRST_DELETE=1468800
 readonly EXPECT_COMPACTED_AFTER_COUNT=1123200
 readonly EXPECT_COMPACTED_TOTAL=1296002
 
-readonly COMPACTION_MIN_WAIT_SECONDS="${DELETE_TEST_COMPACTION_MIN_WAIT_SECONDS:-300}"
-readonly COMPACTION_MAX_WAIT_SECONDS="${DELETE_TEST_COMPACTION_MAX_WAIT_SECONDS:-1800}"
+readonly COMPACTION_INITIAL_WAIT_SECONDS="${DELETE_TEST_COMPACTION_INITIAL_WAIT_SECONDS:-30}"
+readonly COMPACTION_IDLE_CONFIRM_SECONDS="${DELETE_TEST_COMPACTION_IDLE_CONFIRM_SECONDS:-70}"
+readonly COMPACTION_TIMEOUT_SECONDS="${DELETE_TEST_COMPACTION_TIMEOUT_SECONDS:-7200}"
 readonly COMPACTION_POLL_SECONDS="${DELETE_TEST_COMPACTION_POLL_SECONDS:-60}"
 
 pass_num=0
@@ -199,7 +200,7 @@ check_password() {
 ensure_runtime_dependencies() {
     local cmd=""
 
-    for cmd in awk cat cp curl date du grep jq jps kill mkdir mysql rm sed tr wc; do
+    for cmd in awk cat cp curl date du find grep jq jps kill mkdir mysql rm sed tr wc; do
         require_command "${cmd}"
     done
 }
@@ -948,27 +949,29 @@ current_epoch_ms() {
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
     local delete_conf_path="${ATMOS_PATH}/conf/${TEST_TYPE}"
+    local license_file="${delete_conf_path}/license"
+    local env_file="${delete_conf_path}/env"
 
     if [ ! -d "${source_path}" ]; then
         append_remark "missing test version path: ${source_path}"
         return 1
     fi
 
+    if [ ! -f "${license_file}" ]; then
+        append_remark "missing delete_test license: ${license_file}"
+        return 1
+    fi
+
+    if [ ! -f "${env_file}" ]; then
+        append_remark "missing delete_test env: ${env_file}"
+        return 1
+    fi
+
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
-
-    if [ -f "${delete_conf_path}/license" ]; then
-        cp -rf "${delete_conf_path}/license" "${TEST_IOTDB_PATH}/activation/"
-    else
-        copy_if_exists "${delete_conf_path}/license" "${TEST_IOTDB_PATH}/activation/" "delete_test license"
-    fi
-
-    if [ -f "${delete_conf_path}/env" ]; then
-        cp -rf "${delete_conf_path}/env" "${TEST_IOTDB_PATH}/.env"
-    else
-        copy_if_exists "${delete_conf_path}/env" "${TEST_IOTDB_PATH}/.env" "delete_test env"
-    fi
+    cp -rf "${license_file}" "${TEST_IOTDB_PATH}/activation/"
+    cp -rf "${env_file}" "${TEST_IOTDB_PATH}/.env"
 }
 
 prepare_benchmark_config() {
@@ -1216,42 +1219,48 @@ EOF
 }
 
 wait_for_compaction_quiet() {
+    local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
+    local log_file="${TEST_IOTDB_PATH}/logs/log_datanode_compaction.log"
+    local start_epoch=0
+    local now_epoch=0
     local elapsed=0
-    local stable_count=0
-    local previous_count=""
-    local current_count=""
-    local sample_count=0
+    local active_count=0
 
-    while [ "${elapsed}" -lt "${COMPACTION_MAX_WAIT_SECONDS}" ]; do
-        sleep "${COMPACTION_POLL_SECONDS}"
-        elapsed=$((elapsed + COMPACTION_POLL_SECONDS))
-        current_count="$(
-            get_single_index "sum(file_global_count{instance=~\"${TEST_IP}:9091\"})" "$(date +%s)" || true
-        )"
+    start_epoch="$(date +%s)"
+    sleep "${COMPACTION_INITIAL_WAIT_SECONDS}"
 
-        if [[ "${current_count}" =~ ^[0-9]+([.][0-9]+)?$ ]] && [ "${current_count}" != "0" ]; then
-            sample_count=$((sample_count + 1))
-            if [ "${current_count}" = "${previous_count}" ]; then
-                stable_count=$((stable_count + 1))
+    while true; do
+        if [ -d "${data_dir}" ]; then
+            active_count="$(find "${data_dir}" -name "*compaction.log" 2>/dev/null | wc -l | awk '{print $1}')"
+        else
+            active_count=0
+        fi
+
+        now_epoch="$(date +%s)"
+        elapsed=$((now_epoch - start_epoch))
+        log "compaction wait elapsed=${elapsed}s active_logs=${active_count}"
+
+        if [ "${active_count}" -le 0 ] && [ -f "${log_file}" ]; then
+            sleep "${COMPACTION_IDLE_CONFIRM_SECONDS}"
+            if [ -d "${data_dir}" ]; then
+                active_count="$(find "${data_dir}" -name "*compaction.log" 2>/dev/null | wc -l | awk '{print $1}')"
             else
-                stable_count=0
+                active_count=0
             fi
-            previous_count="${current_count}"
+
+            if [ "${active_count}" -le 0 ] && [ -f "${log_file}" ]; then
+                log "compaction completed"
+                return 0
+            fi
         fi
 
-        log "compaction wait elapsed=${elapsed}s file_count=${current_count:-NA} stable=${stable_count}"
-        if [ "${elapsed}" -ge "${COMPACTION_MIN_WAIT_SECONDS}" ] && [ "${stable_count}" -ge 3 ]; then
-            return 0
+        if [ "${elapsed}" -ge "${COMPACTION_TIMEOUT_SECONDS}" ]; then
+            append_remark "compaction wait timeout"
+            return 1
         fi
+
+        sleep "${COMPACTION_POLL_SECONDS}"
     done
-
-    if [ "${sample_count}" -eq 0 ]; then
-        append_remark "compaction metric unavailable, used max wait"
-        return 0
-    fi
-
-    append_remark "compaction file count did not become stable"
-    return 0
 }
 
 run_consistency_checks_after_first_delete() {
@@ -1430,7 +1439,9 @@ test_operation() {
     enable_compaction_config
     if restart_iotdb_and_wait; then
         pass_num=$((pass_num + 1))
-        wait_for_compaction_quiet
+        if ! wait_for_compaction_quiet; then
+            fail_num=$((fail_num + 1))
+        fi
         execute_sql "flush after compaction wait" "flush"
         run_compaction_checks
     else
