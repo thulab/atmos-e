@@ -957,15 +957,15 @@ set_env() {
         return 1
     fi
 
-    if [ ! -f "${license_file}" ]; then
-        append_remark "missing delete_test license: ${license_file}"
-        return 1
-    fi
-
     safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
     cp -rf "${license_file}" "${TEST_IOTDB_PATH}/activation/"
+    if [ -f "${license_file}" ]; then
+        cp -rf "${license_file}" "${TEST_IOTDB_PATH}/license"
+    else
+        log "missing delete_test license, skip license copy: ${license_file}"
+    fi
     if [ -f "${env_file}" ]; then
         cp -rf "${env_file}" "${TEST_IOTDB_PATH}/.env"
     else
@@ -1273,10 +1273,10 @@ run_consistency_checks_after_first_delete() {
 }
 
 run_reinsert_checks() {
-    execute_sql "reinsert first deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT1_MS}, 1)"
-    execute_sql "reinsert second deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT2_MS}, 1)"
-    assert_point_value "reinsert first point visible" "${REINSERT1_MS}" 1
-    assert_point_value "reinsert second point visible" "${REINSERT2_MS}" 1
+    execute_sql "reinsert first deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT1_MS}, true)"
+    execute_sql "reinsert second deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT2_MS}, true)"
+    assert_point_value "reinsert first point visible" "${REINSERT1_MS}" true
+    assert_point_value "reinsert second point visible" "${REINSERT2_MS}" true
 }
 
 run_restart_checks() {
@@ -1284,8 +1284,8 @@ run_restart_checks() {
     assert_point_count "restart boundary before delete exists" "${BOUNDARY_BEFORE_DELETE_MS}" 1
     assert_point_count "restart boundary delete end previous absent" "${BOUNDARY_DELETE_END_PREV_MS}" 0
     assert_point_count "restart boundary after delete exists" "${BOUNDARY_AFTER_DELETE_MS}" 1
-    assert_point_value "restart reinsert first point visible" "${REINSERT1_MS}" 1
-    assert_point_value "restart reinsert second point visible" "${REINSERT2_MS}" 1
+    assert_point_value "restart reinsert first point visible" "${REINSERT1_MS}" true
+    assert_point_value "restart reinsert second point visible" "${REINSERT2_MS}" true
 }
 
 run_compaction_checks() {
