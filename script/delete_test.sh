@@ -155,6 +155,11 @@ compacted_delete1_window_count=0
 compacted_before_count=0
 compacted_after_count=0
 compacted_total_count=0
+write_tsfile_count=0
+delete_mods_file_count=0
+compacted_level0_tsfile_count=0
+compacted_level1_tsfile_count=0
+compacted_mods_file_count=0
 write_ok_point=0
 write_fail_point=0
 write_ok_operation=0
@@ -608,6 +613,72 @@ collect_error_log_size() {
     datanode_error_log_size="$(du -sb "${datanode_error_log_file}" 2>/dev/null | awk '{print $1}')"
     confignode_error_log_size="$(du -sb "${confignode_error_log_file}" 2>/dev/null | awk '{print $1}')"
     printf '%s\n' "$(( ${datanode_error_log_size:-0} + ${confignode_error_log_size:-0} ))"
+}
+
+count_data_files_by_name() {
+    local file_name="$1"
+    local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
+
+    if [ ! -d "${data_dir}" ]; then
+        printf '0\n'
+        return 0
+    fi
+
+    find "${data_dir}" -type f -name "${file_name}" 2>/dev/null | wc -l | awk '{print $1}'
+}
+
+count_tsfiles() {
+    count_data_files_by_name "*.tsfile"
+}
+
+count_mods_files() {
+    count_data_files_by_name "*.mods"
+}
+
+count_tsfiles_by_level() {
+    local target_level="$1"
+    local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
+
+    if [ ! -d "${data_dir}" ]; then
+        printf '0\n'
+        return 0
+    fi
+
+    find "${data_dir}" -type f -name "*.tsfile" 2>/dev/null | awk -v target_level="${target_level}" '
+        {
+            file = $0
+            sub(/^.*\//, "", file)
+            sub(/\.tsfile$/, "", file)
+            part_count = split(file, parts, "-")
+            if (part_count < 3) {
+                next
+            }
+            level = (part_count >= 4) ? parts[part_count - 1] : parts[part_count]
+            if (level == target_level) {
+                count++
+            }
+        }
+        END {
+            print count + 0
+        }
+    '
+}
+
+collect_file_stats_after_write() {
+    write_tsfile_count="$(count_tsfiles)"
+    log "write file stats: tsfile_count=${write_tsfile_count}"
+}
+
+collect_file_stats_after_delete() {
+    delete_mods_file_count="$(count_mods_files)"
+    log "delete file stats: mods_file_count=${delete_mods_file_count}"
+}
+
+collect_file_stats_after_compaction() {
+    compacted_level0_tsfile_count="$(count_tsfiles_by_level 0)"
+    compacted_level1_tsfile_count="$(count_tsfiles_by_level 1)"
+    compacted_mods_file_count="$(count_mods_files)"
+    log "compacted file stats: level0_tsfile_count=${compacted_level0_tsfile_count} level1_tsfile_count=${compacted_level1_tsfile_count} mods_file_count=${compacted_mods_file_count}"
 }
 
 collect_monitor_snapshot() {
@@ -1306,6 +1377,7 @@ insert into ${result_table} (
     delete_cost_ms_1,delete_cost_ms_2,delete_cost_ms_3,
     pre_count,delete1_window_count,before_delete_window_count,after_delete_window_count,
     restart_delete1_window_count,compacted_delete1_window_count,compacted_before_count,compacted_after_count,compacted_total_count,
+    write_tsfile_count,delete_mods_file_count,compacted_level0_tsfile_count,compacted_level1_tsfile_count,compacted_mods_file_count,
     numOfSe0Level,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,errorLogSize,walFileSize,
     avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,
     start_time,end_time,cost_time,remark
@@ -1333,6 +1405,11 @@ insert into ${result_table} (
     $(sql_number "${compacted_before_count}"),
     $(sql_number "${compacted_after_count}"),
     $(sql_number "${compacted_total_count}"),
+    $(sql_number "${write_tsfile_count}"),
+    $(sql_number "${delete_mods_file_count}"),
+    $(sql_number "${compacted_level0_tsfile_count}"),
+    $(sql_number "${compacted_level1_tsfile_count}"),
+    $(sql_number "${compacted_mods_file_count}"),
     $(sql_number "${numOfSe0Level}"),
     $(sql_number "${numOfUnse0Level}"),
     $(sql_number "${dataFileSize}"),
@@ -1364,6 +1441,11 @@ test_operation() {
     pass_num=0
     fail_num=0
     remark=""
+    write_tsfile_count=0
+    delete_mods_file_count=0
+    compacted_level0_tsfile_count=0
+    compacted_level1_tsfile_count=0
+    compacted_mods_file_count=0
     case_start_time="$(current_datetime)"
     cleanup_processes
     if ! set_env; then
@@ -1408,6 +1490,7 @@ test_operation() {
     execute_sql "flush after first write" "flush"
     run_benchmark_write "delete second write" "${WRITE_SECOND_CONFIG}" || true
     execute_sql "flush after second write" "flush"
+    collect_file_stats_after_write
 
     m_start_time="$(date +%s)"
     assert_count_literal "count before delete" "${RANGE_START_MS}" "${RANGE_END_MS}" "${EXPECT_TOTAL_BEFORE_DELETE}" pre_count
@@ -1434,6 +1517,7 @@ test_operation() {
         "delete from root.test.g_0.d_0.s_0 where time >= ${JAN14_START_MS} and time < ${JAN16_START_MS}" \
         delete_cost_ms_3
     execute_sql "flush after later deletes" "flush"
+    collect_file_stats_after_delete
 
     enable_compaction_config
     if restart_iotdb_and_wait; then
@@ -1442,6 +1526,7 @@ test_operation() {
             fail_num=$((fail_num + 1))
         fi
         execute_sql "flush after compaction wait" "flush"
+        collect_file_stats_after_compaction
         run_compaction_checks
     else
         append_remark "compaction restart failed"
