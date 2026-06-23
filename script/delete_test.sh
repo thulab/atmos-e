@@ -632,7 +632,7 @@ count_tsfiles() {
 }
 
 count_mods_files() {
-    count_data_files_by_name "*.mods"
+    count_data_files_by_name "*.mods2"
 }
 
 count_tsfiles_by_level() {
