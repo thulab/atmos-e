@@ -359,6 +359,8 @@ dn_metric_prometheus_reporter_port=9091
 trusted_uri_pattern=.*
 enforce_strong_password=true
 enable_audit_log=true
+schema_region_group_extension_policy=CUSTOM
+data_region_group_extension_policy=CUSTOM
 EOF
 }
 
