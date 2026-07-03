@@ -115,11 +115,11 @@ declare -a node_b_counts
 declare -a resolved_query_templates
 
 PIPE_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=script/shell_common.sh
+# shellcheck source=script/common/shell_common.sh
 source "${PIPE_COMMON_DIR}/shell_common.sh"
-# shellcheck source=script/task_db_common.sh
+# shellcheck source=script/common/task_db_common.sh
 source "${PIPE_COMMON_DIR}/task_db_common.sh"
-# shellcheck source=script/benchmark_result_common.sh
+# shellcheck source=script/common/benchmark_result_common.sh
 source "${PIPE_COMMON_DIR}/benchmark_result_common.sh"
 
 die() {

@@ -125,17 +125,17 @@ IOTDB_READY_USER="${IOTDB_READY_USER:-}"
 IOTDB_READY_PASSWORD="${IOTDB_READY_PASSWORD:-}"
 
 RUNTIME_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=script/shell_common.sh
+# shellcheck source=script/common/shell_common.sh
 source "${RUNTIME_COMMON_DIR}/shell_common.sh"
-# shellcheck source=script/task_db_common.sh
+# shellcheck source=script/common/task_db_common.sh
 source "${RUNTIME_COMMON_DIR}/task_db_common.sh"
-# shellcheck source=script/benchmark_result_common.sh
+# shellcheck source=script/common/benchmark_result_common.sh
 source "${RUNTIME_COMMON_DIR}/benchmark_result_common.sh"
-# shellcheck source=script/iotdb_config_common.sh
+# shellcheck source=script/common/iotdb_config_common.sh
 source "${RUNTIME_COMMON_DIR}/iotdb_config_common.sh"
-# shellcheck source=script/iotdb_process_common.sh
+# shellcheck source=script/common/iotdb_process_common.sh
 source "${RUNTIME_COMMON_DIR}/iotdb_process_common.sh"
-# shellcheck source=script/monitor_disk_common.sh
+# shellcheck source=script/common/monitor_disk_common.sh
 source "${RUNTIME_COMMON_DIR}/monitor_disk_common.sh"
 
 die() {

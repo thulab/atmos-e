@@ -36,7 +36,7 @@ else
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=script/runtime_common.sh
+# shellcheck source=script/common/runtime_common.sh
 source "${SCRIPT_DIR}/runtime_common.sh"
 
 readonly TABLENAME="test_result_${TEST_TYPE}"
