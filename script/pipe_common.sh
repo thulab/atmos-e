@@ -383,12 +383,21 @@ remote_exec() {
     ssh -n "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" "$@"
 }
 
+build_remote_shell_command() {
+    local joined=""
+
+    printf -v joined '%q ' "$@"
+    printf '%s' "${joined% }"
+}
+
 remote_start_in_dir() {
     local host="$1"
     local work_dir="$2"
+    local command=""
     shift 2
 
-    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${work_dir}" "$@" <<'EOF'
+    command="$(build_remote_shell_command sh -s -- "${work_dir}" "$@")"
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" "${command}" <<'EOF'
 work_dir="$1"
 shift
 
@@ -437,8 +446,10 @@ remote_benchmark_running_count() {
 
 remote_collect_error_log_size() {
     local host="$1"
+    local command=""
 
-    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${TEST_IOTDB_PATH}" <<'EOF'
+    command="$(build_remote_shell_command sh -s -- "${TEST_IOTDB_PATH}")"
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" "${command}" <<'EOF'
 test_iotdb_path="$1"
 total=0
 
@@ -1017,10 +1028,12 @@ query_node_device_counts() {
     local current_ts_type="$2"
     local sql_template="$3"
     local dialect=""
+    local command=""
 
     dialect="$(pipe_dialect "${current_ts_type}")"
 
-    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" sh -s -- "${host}" "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${dialect}" "${DEVICE_COUNT}" "${sql_template}" <<'EOF'
+    command="$(build_remote_shell_command sh -s -- "${host}" "${TEST_IOTDB_PATH}" "${IOTDB_PW}" "${dialect}" "${DEVICE_COUNT}" "${sql_template}")"
+    ssh "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" "${command}" <<'EOF'
 host="$1"
 test_iotdb_path="$2"
 iotdb_pw="$3"
