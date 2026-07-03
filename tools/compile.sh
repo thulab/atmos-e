@@ -157,7 +157,7 @@ else
 		mv "$first_csv" "$PROCESSED_DIR/"
 		mv "$zip_file" "$PROCESSED_DIR/"
 	fi
-	rm -rf /root/zk_test/release/processed/*
+	find /root/zk_test/release/processed/ -mtime +5 -type d -name "*" -exec rm -rf {} \;
 	echo "已完成处理，等待下一轮循环..."
 	echo "----------------------------------------"
 fi
