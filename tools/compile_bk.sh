@@ -96,13 +96,13 @@ then
 	echo "${commit_id}编译完成！"
 	rm -rf ${REPO_PATH}/${commit_id}
 	mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
-	cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-bin/timechodb-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+	cp -rf ${IOTDB_PATH}/distribution/target/timechodb-*-SNAPSHOT-bin/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
 	#配置文件整理
 	echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
 	#向新的网盘环境复制一份备份
 	#rm -rf ${REPO_PATH_BK}/${commit_id}
 	#mkdir -p ${REPO_PATH_BK}/${commit_id}/apache-iotdb/
-	#cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-bin/iotdb-enterprise-*-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
+	#cp -rf ${IOTDB_PATH}/distribution/target/iotdb-enterprise-*-SNAPSHOT-bin/iotdb-enterprise-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
 
 	#正常下派所有任务
 	insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','$1')"
