@@ -438,9 +438,10 @@ check_throughput_monitor() {
         if awk -v throughput="${current_throughput}" -v ucl="${ucl}" 'BEGIN { exit !((throughput + 0) > (ucl + 0)) }' || \
            awk -v throughput="${current_throughput}" -v lcl="${lcl}" 'BEGIN { exit !((throughput + 0) < (lcl + 0) && (lcl + 0) > 0) }'; then
             log "监控报警：吞吐量 ${current_throughput} 超出控制限 [${lcl}, ${ucl}]（均值 ${mean}，标准差 ${std}）"
-            if ! sendMsg 1 "${current_throughput}" "${ucl}" "${lcl}" "${mean}"; then
-                log "监控报警：钉钉通知未发送成功，请检查上一条钉钉错误日志"
-            fi
+            # Atmos性能测试告警功能暂时注释：保留本地监控日志，不发送钉钉通知。
+            # if ! sendMsg 1 "${current_throughput}" "${ucl}" "${lcl}" "${mean}"; then
+            #     log "监控报警：钉钉通知未发送成功，请检查上一条钉钉错误日志"
+            # fi
             return 1
         fi
 
