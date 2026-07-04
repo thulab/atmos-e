@@ -1,4 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# 场景名称：三节点集群写入测试
+# 测试目的：验证三节点集群在不同共识协议和数据模型下的写入性能。
+# 具体步骤：
+# 步骤一：准备待测 IoTDB 集群包和 benchmark 工具。
+# 步骤二：部署 ConfigNode、DataNode 和 benchmark 节点。
+# 步骤三：按协议和数据模型修改集群配置并启动集群。
+# 步骤四：启动 benchmark 执行集群写入压测并监控运行状态。
+# 步骤五：采集 benchmark 结果和集群指标，回写数据库并备份测试现场。
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+if shopt -oq posix; then
+    exec bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+set -o pipefail
+
 #登录用户名
 ACCOUNT=root
 IoTDB_PW=TimechoDB@2021

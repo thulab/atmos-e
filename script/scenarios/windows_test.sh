@@ -1,4 +1,21 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# 场景名称：Windows 综合性能测试
+# 测试目的：验证 Windows 远端环境下 IoTDB 写入和查询性能。
+# 具体步骤：
+# 步骤一：准备待测 IoTDB 包、benchmark 工具和 Windows 远端环境。
+# 步骤二：同步运行文件到 Windows 测试机并启动 IoTDB。
+# 步骤三：执行写入和查询压测。
+# 步骤四：采集 benchmark 结果、监控指标和日志信息。
+# 步骤五：将测试结果回写数据库并备份测试现场。
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+if shopt -oq posix; then
+    exec bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+set -o pipefail
+
 #登录用户名
 ACCOUNT=Administrator
 IoTDB_PW=TimechoDB@2021

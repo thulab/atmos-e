@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# 场景名称：周常查询测试
+# 测试目的：验证周常 sequence/unsequence 数据集在单序列和多序列查询下的性能。
+# 具体步骤：
+# 步骤一：选择待测 IoTDB 版本并准备周常查询数据集。
+# 步骤二：部署 IoTDB，按数据集和传感器规模加载 benchmark 查询配置。
+# 步骤三：多轮启动 benchmark 执行查询压测。
+# 步骤四：采集查询结果、资源监控指标和错误日志。
+# 步骤五：将测试结果回写数据库并备份测试现场。
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"
 fi
@@ -32,8 +40,9 @@ readonly -a QUERY_LABELS=(
 readonly METRIC_SERVER="172.20.70.11:9090"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=script/query_common.sh
-source "${SCRIPT_DIR}/query_common.sh"
+COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
+# shellcheck source=script/common/query_common.sh
+source "${COMMON_DIR}/query_common.sh"
 
 IOTDB_READY_USER="root"
 IOTDB_READY_PASSWORD="${IOTDB_PW}"

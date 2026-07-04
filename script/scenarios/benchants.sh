@@ -1,4 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# 场景名称：BenchANTs/TSBS 性能测试
+# 测试目的：验证 IoTDB 在 TSBS devops 数据集上的写入和查询性能。
+# 具体步骤：
+# 步骤一：准备待测 IoTDB 包、TSBS 工具和测试数据集。
+# 步骤二：部署 IoTDB 并按协议修改服务配置。
+# 步骤三：执行 TSBS 数据写入和查询压测。
+# 步骤四：采集性能结果、资源监控指标和日志信息。
+# 步骤五：将测试结果回写数据库并备份测试现场。
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+if shopt -oq posix; then
+    exec bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+set -o pipefail
+
 #登录用户名
 ACCOUNT=root
 test_type=benchants

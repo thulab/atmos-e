@@ -1,4 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# 场景名称：配置项写入对比测试
+# 测试目的：验证不同 IoTDB 配置组合对写入性能的影响。
+# 具体步骤：
+# 步骤一：选择待测 IoTDB 版本并准备配置矩阵。
+# 步骤二：按配置项部署 IoTDB 并调整服务参数。
+# 步骤三：加载对应 benchmark 写入配置并执行压测。
+# 步骤四：采集写入结果、资源监控指标和日志信息。
+# 步骤五：将测试结果回写数据库并备份测试现场。
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+if shopt -oq posix; then
+    exec bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+set -o pipefail
+
 #登录用户名
 TEST_IP="172.20.31.00"
 ACCOUNT=root

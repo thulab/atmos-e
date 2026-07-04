@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# 场景名称：顺序数据查询测试
+# 测试目的：验证顺序数据集在多类查询语句下的查询性能和结果稳定性。
+# 具体步骤：
+# 步骤一：选择待测 IoTDB 版本并准备顺序查询数据集。
+# 步骤二：部署 IoTDB，加载查询配置和数据后启动服务。
+# 步骤三：按查询类型启动 benchmark 执行查询压测。
+# 步骤四：采集查询耗时、资源监控指标和错误日志。
+# 步骤五：将测试结果回写数据库并备份测试现场。
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"
 fi
@@ -29,7 +37,8 @@ readonly -a QUERY_LABELS=(
 readonly METRIC_SERVER="172.20.70.11:9090"
 IOTDB_READY_PASSWORD="${IOTDB_PW}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=script/query_common.sh
-source "${SCRIPT_DIR}/query_common.sh"
+COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
+# shellcheck source=script/common/query_common.sh
+source "${COMMON_DIR}/query_common.sh"
 
 main "$@"

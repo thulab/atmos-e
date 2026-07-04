@@ -1,4 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# 场景名称：集群双活写入测试
+# 测试目的：验证多 benchmark 节点向集群写入时的吞吐、资源占用和稳定性。
+# 具体步骤：
+# 步骤一：准备待测 IoTDB 集群包和 benchmark 工具。
+# 步骤二：部署 ConfigNode、DataNode 和多 benchmark 节点。
+# 步骤三：按协议和数据模型修改集群配置并启动集群。
+# 步骤四：启动多端 benchmark 执行写入压测并监控运行状态。
+# 步骤五：采集 benchmark 结果和集群指标，回写数据库并备份测试现场。
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+if shopt -oq posix; then
+    exec bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+set -o pipefail
+
 #登录用户名
 ACCOUNT=root
 test_type=cluster_insert_dt
