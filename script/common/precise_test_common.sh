@@ -118,7 +118,9 @@ precise_add_selected_test() {
 
     [ -n "${test_name}" ] || return 0
     precise_is_known_test "${test_name}" || return 0
-    precise_array_contains "${test_name}" "${PRECISE_SELECTED_TESTS[@]}" && return 0
+    if [ "${#PRECISE_SELECTED_TESTS[@]}" -gt 0 ]; then
+        precise_array_contains "${test_name}" "${PRECISE_SELECTED_TESTS[@]}" && return 0
+    fi
     PRECISE_SELECTED_TESTS+=("${test_name}")
 }
 
@@ -147,6 +149,7 @@ precise_add_test_list() {
     esac
 
     IFS=',' read -r -a tests <<< "${test_list}"
+    [ "${#tests[@]}" -gt 0 ] || return 0
     for item in "${tests[@]}"; do
         item="$(precise_trim "${item}")"
         precise_add_selected_test "${item}"
@@ -157,7 +160,9 @@ precise_add_matched_rule() {
     local rule_id="$1"
 
     [ -n "${rule_id}" ] || return 0
-    precise_array_contains "${rule_id}" "${PRECISE_MATCHED_RULES[@]}" && return 0
+    if [ "${#PRECISE_MATCHED_RULES[@]}" -gt 0 ]; then
+        precise_array_contains "${rule_id}" "${PRECISE_MATCHED_RULES[@]}" && return 0
+    fi
     PRECISE_MATCHED_RULES+=("${rule_id}")
 }
 
@@ -279,7 +284,7 @@ precise_build_skipped_tests() {
 
     PRECISE_SKIPPED_TESTS=()
     for test_name in "${PRECISE_TEST_STATUS_COLUMNS[@]}"; do
-        if ! precise_array_contains "${test_name}" "${PRECISE_SELECTED_TESTS[@]}"; then
+        if [ "${#PRECISE_SELECTED_TESTS[@]}" -eq 0 ] || ! precise_array_contains "${test_name}" "${PRECISE_SELECTED_TESTS[@]}"; then
             PRECISE_SKIPPED_TESTS+=("${test_name}")
         fi
     done
@@ -308,6 +313,7 @@ precise_update_skipped_statuses() {
     local test_name=""
     local update_sql=""
 
+    [ "${#PRECISE_SKIPPED_TESTS[@]}" -gt 0 ] || return 0
     for test_name in "${PRECISE_SKIPPED_TESTS[@]}"; do
         [[ "${test_name}" =~ ^[A-Za-z0-9_]+$ ]] || continue
         precise_column_exists "${table_name}" "${test_name}" || continue
@@ -392,9 +398,15 @@ apply_precise_test_plan() {
 
     precise_build_skipped_tests
 
-    selected_tests="$(precise_join_array "," "${PRECISE_SELECTED_TESTS[@]}")"
-    skipped_tests="$(precise_join_array "," "${PRECISE_SKIPPED_TESTS[@]}")"
-    matched_rules="$(precise_join_array "," "${PRECISE_MATCHED_RULES[@]}")"
+    if [ "${#PRECISE_SELECTED_TESTS[@]}" -gt 0 ]; then
+        selected_tests="$(precise_join_array "," "${PRECISE_SELECTED_TESTS[@]}")"
+    fi
+    if [ "${#PRECISE_SKIPPED_TESTS[@]}" -gt 0 ]; then
+        skipped_tests="$(precise_join_array "," "${PRECISE_SKIPPED_TESTS[@]}")"
+    fi
+    if [ "${#PRECISE_MATCHED_RULES[@]}" -gt 0 ]; then
+        matched_rules="$(precise_join_array "," "${PRECISE_MATCHED_RULES[@]}")"
+    fi
 
     precise_update_skipped_statuses "${commit_ref}"
     precise_record_impact "${commit_ref}" "${commit_time}" "${commit_author}" "${changed_files}" "${selected_tests}" "${skipped_tests}" "${matched_rules}" "${PRECISE_FALLBACK_REASON}"
