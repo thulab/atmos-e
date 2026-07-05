@@ -19,8 +19,8 @@ REPO_PATH="${REPO_PATH:-/nasdata/repository/master}"
 REPO_PATH_EX="${REPO_PATH_EX:-/ex_nasdata/repository/master}"
 IOTDB_REMOTE="${IOTDB_REMOTE:-origin}"
 IOTDB_BRANCH="${IOTDB_BRANCH:-master}"
-COMPILE_COMMIT_WINDOW="${COMPILE_COMMIT_WINDOW:-21}"
-COMPILE_COMMIT_ID_LENGTH="${COMPILE_COMMIT_ID_LENGTH:-7}"
+COMPILE_COMMIT_WINDOW="${COMPILE_COMMIT_WINDOW:-11}"
+COMPILE_COMMIT_ID_LENGTH="${COMPILE_COMMIT_ID_LENGTH:-8}"
 COMPILE_MVN_ARGS="${COMPILE_MVN_ARGS:-clean package -DskipTests -am -pl distribution}"
 
 MYSQLHOSTNAME="${MYSQLHOSTNAME:-111.200.37.158}"
@@ -171,9 +171,6 @@ resolve_distribution_dir() {
     local candidate=""
     local -a candidates=(
         "${IOTDB_PATH}"/distribution/target/timechodb-*-SNAPSHOT-bin/timechodb-*-SNAPSHOT-bin
-        "${IOTDB_PATH}"/distribution/target/apache-iotdb-*-SNAPSHOT-bin/apache-iotdb-*-SNAPSHOT-bin
-        "${IOTDB_PATH}"/distribution/target/iotdb-*-SNAPSHOT-bin/iotdb-*-SNAPSHOT-bin
-        "${IOTDB_PATH}"/distribution/target/*-SNAPSHOT-bin/*-SNAPSHOT-bin
     )
 
     for candidate in "${candidates[@]}"; do
