@@ -1,28 +1,35 @@
 #!/usr/bin/env bash
 if [ -z "${BASH_VERSION:-}" ]; then
-	exec bash "$0" "$@"
+    exec bash "$0" "$@"
 fi
 if shopt -oq posix; then
-	exec bash "${BASH_SOURCE[0]}" "$@"
+    exec bash "${BASH_SOURCE[0]}" "$@"
 fi
-#登录用户名
-ACCOUNT=root
-test_type=compile
-#初始环境存放路径
-INIT_PATH=/root/zk_test
-IOTDB_PATH=${INIT_PATH}/release
-FILENAME=${INIT_PATH}/gitlog.txt
-REPO_PATH=/nasdata/repository/master
-REPO_PATH_EX=/ex_nasdata/repository/master
-filter_list_folder_name=(client-cpp client-go client-py code-coverage compile-tools distribution docker docs example external-api external-pipe-api flink-iotdb-connector flink-tsfile-connector grafana-connector grafana-plugin hadoop hive-connector influxdb-protocol integration integration-test isession licenses mlnode openapi pipe-api rewrite-tsfile-tool schema-engine-rocksdb schema-engine-tag site spark-iotdb-connector spark-tsfile subscription-api test testcontainer tools trigger-api udf-api zeppelin-interpreter)
 
-############mysql信息##########################
-MYSQLHOSTNAME="111.200.37.158" #数据库信息
-PORT="13306"
-USERNAME="iotdbatm"
-PASSWORD=${ATMOS_DB_PASSWORD}
-DBNAME="QA_ATM"  #数据库名称
-TABLENAME="commit_history" #数据库中表的名称
+set -u
+set -o pipefail
+
+ACCOUNT="${ACCOUNT:-root}"
+test_type="compile"
+
+INIT_PATH="${INIT_PATH:-/root/zk_test}"
+IOTDB_PATH="${IOTDB_PATH:-${INIT_PATH}/timechodb}"
+FILENAME="${FILENAME:-${INIT_PATH}/gitlog.txt}"
+REPO_PATH="${REPO_PATH:-/nasdata/repository/master}"
+REPO_PATH_EX="${REPO_PATH_EX:-/ex_nasdata/repository/master}"
+IOTDB_REMOTE="${IOTDB_REMOTE:-origin}"
+IOTDB_BRANCH="${IOTDB_BRANCH:-master}"
+COMPILE_COMMIT_WINDOW="${COMPILE_COMMIT_WINDOW:-21}"
+COMPILE_COMMIT_ID_LENGTH="${COMPILE_COMMIT_ID_LENGTH:-7}"
+COMPILE_MVN_ARGS="${COMPILE_MVN_ARGS:-clean package -DskipTests -am -pl distribution}"
+
+MYSQLHOSTNAME="${MYSQLHOSTNAME:-111.200.37.158}"
+PORT="${PORT:-13306}"
+USERNAME="${USERNAME:-iotdbatm}"
+PASSWORD="${ATMOS_DB_PASSWORD:-}"
+DBNAME="${DBNAME:-QA_ATM}"
+TABLENAME="${TABLENAME:-commit_history}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ATMOS_PATH="${ATMOS_PATH:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 COMMON_DIR="${ATMOS_PATH}/script/common"
@@ -30,168 +37,272 @@ COMMON_DIR="${ATMOS_PATH}/script/common"
 source "${COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/precise_test_common.sh
 source "${COMMON_DIR}/precise_test_common.sh"
-############公用函数##########################
-if [ "${PASSWORD}" = "" ]; then
-echo "需要关注密码设置！"
-fi
-init_items() {
-commit_date_time=0
-commit_id=0
-commit_headline=0
-author=0
-se_insert=0
-unse_insert=0
-se_query=0
-unse_query=0
-compaction=0
-sql_coverage=0
-weeklytest_insert=0
-weeklytest_query=0
-api_insert=0
-ts_performance=0
-cluster_insert=0
-cluster_insert_2=0
-insert_records=0
-restart_db=0
-routine_test=0
-config_insert=0
-count_ts=0
-pipe_test=0
-last_cache_query=0
-windows_test=0
-benchants=0
-helishi_test=0
-remark=0
+
+COMPILE_STATUS_COLUMNS=(
+    "${PRECISE_TEST_STATUS_COLUMNS[@]}"
+    insert_records
+    restart_db
+    count_ts
+    last_cache_query
+)
+
+die() {
+    log "ERROR: $*"
+    exit 1
 }
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
+}
+
+check_password() {
+    if [ -z "${PASSWORD}" ]; then
+        die "ATMOS_DB_PASSWORD is not set"
+    fi
+}
+
+ensure_dependencies() {
+    local cmd=""
+
+    for cmd in awk cp curl cut date find git mkdir mysql rm sed timeout tr; do
+        require_command "${cmd}"
+    done
+    require_command mvn
+}
+
+mysql_exec_compile() {
+    local sql="$1"
+
+    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
+}
+
 sendEmail() {
-	error_type=$1
-	date_time=`date +%Y%m%d%H%M%S`
-	mailto='qingxin.feng@hotmail.com'
-	#test_type=${HOSTNAME}
-	case $error_type in
-		1)
-		#1.代码更新失败
-			headline=''${test_type}'代码更新失败'
-			mailbody='错误类型：'${test_type}'代码更新失败<BR>报错时间：'${date_time}''
-			msgbody='错误类型：'${test_type}'代码更新失败\n报错时间：'${date_time}''
-			;;
-		2)
-		#2.编译失败
-			headline=''${test_type}'代码编译失败'
-			mailbody='错误类型：'${test_type}'代码编译失败<BR>报错时间：'${date_time}'<BR>报错Commit：'${commit_id}'<BR>提交人：'${author}'<BR>报错信息：'${comp_mvn}''
-			msgbody='错误类型：'${test_type}'代码编译失败\n报错时间：'${date_time}'\n报错Commit：'${commit_id}'\n提交人：'${author}'\n报错信息：'${comp_mvn}''
-			;;
-		#*)
-		#exit -1
-		#;;
-	esac
-	curl 'https://oapi.dingtalk.com/robot/send?access_token=f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62' -H 'Content-Type: application/json' -d '{"msgtype": "text","text": {"content": "[Atmos]'${msgbody}'"}}' > /dev/null 2>&1 &
+    local error_type="$1"
+    local date_time=""
+    local msgbody=""
+
+    date_time="$(date +%Y%m%d%H%M%S)"
+    case "${error_type}" in
+        1)
+            msgbody="Error type: ${test_type} code update failed\nTime: ${date_time}"
+            ;;
+        2)
+            msgbody="Error type: ${test_type} compile failed\nTime: ${date_time}\nCommit: ${commit_id:-N/A}\nAuthor: ${author:-N/A}"
+            ;;
+        *)
+            msgbody="Error type: ${test_type} unknown failure\nTime: ${date_time}"
+            ;;
+    esac
+
+    curl 'https://oapi.dingtalk.com/robot/send?access_token=f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62' \
+        -H 'Content-Type: application/json' \
+        -d '{"msgtype": "text","text": {"content": "[Atmos]'"${msgbody}"'"}}' >/dev/null 2>&1 &
 }
 
-echo "ontesting" > ${INIT_PATH}/test_type_file
-init_items
-PROCESSED_DIR="/root/zk_test/release/processed"  # 已处理文件存放目录
-# 创建必要的目录
-mkdir -p "$PROCESSED_DIR"
-rm -rf /root/zk_test/release/*-zh.zip
+mark_compile_in_progress() {
+    mkdir -p "${INIT_PATH}"
+    printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
+}
 
-# 检查文件夹中是否有csv文件
-csv_files=("$IOTDB_PATH"/*.csv)
-if [ ${#csv_files[@]} -eq 1 ] && [ ! -f "${csv_files[0]}" ]; then
-	echo "$(date): 文件夹为空，睡眠10分钟..."
-	sleep 600  # 10分钟
-else
-	# 获取第一个csv文件
-	first_csv=$(ls "$IOTDB_PATH"/*.csv 2>/dev/null | head -n1)
-	if [ -z "$first_csv" ]; then
-		echo "$(date): 没有找到csv文件，睡眠10分钟..."
-		sleep 600
-	fi
-	echo "$(date): 处理文件: $first_csv"
+restore_compile_task_type() {
+    mkdir -p "${INIT_PATH}"
+    printf '%s\n' "${test_type}" > "${INIT_PATH}/test_type_file"
+}
 
-	# 提取文件名（不含路径和扩展名）
-	filename=$(basename "$first_csv" .csv)
+sync_source_repo() {
+    [ -d "${IOTDB_PATH}/.git" ] || die "IOTDB_PATH is not a git repo: ${IOTDB_PATH}"
 
-	# 倒序文件名
-	reversed=$(echo "$filename" | rev)
+    cd "${IOTDB_PATH}" || die "failed to cd to ${IOTDB_PATH}"
+    timeout 100s git fetch --all || {
+        sendEmail 1
+        die "git fetch failed"
+    }
+    timeout 100s git reset --hard "${IOTDB_REMOTE}/${IOTDB_BRANCH}" || {
+        sendEmail 1
+        die "git reset failed: ${IOTDB_REMOTE}/${IOTDB_BRANCH}"
+    }
+    timeout 100s git pull --ff-only "${IOTDB_REMOTE}" "${IOTDB_BRANCH}" || {
+        sendEmail 1
+        die "git pull failed: ${IOTDB_REMOTE} ${IOTDB_BRANCH}"
+    }
+}
 
-	# 提取第4到第12个字符（倒序后的位置）
-	# 注意：字符串索引从1开始，所以是3-11（因为cut从1开始计数）
-	commit_id=$(echo "$reversed" | cut -c1-8)
+shorten_commit_id() {
+    local raw_commit="$1"
 
-	# 将提取的字符串再次倒序，恢复原始顺序
-	commit_id=$(echo "$commit_id" | rev)
+    printf '%s\n' "${raw_commit}" | cut -c1-"${COMPILE_COMMIT_ID_LENGTH}"
+}
 
-	commit_date_time=$(echo "$reversed" | cut -c10-23)
-	commit_date_time=$(echo "$commit_date_time" | rev)
+commit_exists() {
+    local current_commit="$1"
+    local result=""
 
-	echo "提取的commit_id: $commit_id"
-	echo "提取的commit_date_time: $commit_date_time"
-	
-	read s1 s2 s3 s4 s5<<<$(cat $first_csv | sed -n '2,2p' | tr -d '\"' | tr -d "'" | awk -F, '{print $1,$2,$3,$4}')
-	echo "first_csv："$first_csv
-	author=$s2
-	commit_headline=$s5
-	query_sql="select commit_id from ${TABLENAME} where commit_id='${commit_id}'"
-	echo "$query_sql"
-	diff_str=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}" | sed -n '2p')
-	if [ "${diff_str}" = "" ]; then
-		# 寻找包含commit_id的zip文件
-		zip_file=$(find "$IOTDB_PATH" -name "*${commit_id}*.zip" | head -n1)
+    result="$(mysql_exec_compile "SELECT commit_id FROM ${TABLENAME} WHERE commit_id = $(sql_quote "${current_commit}") LIMIT 1" | sed -n '1p')"
+    [ -n "${result}" ]
+}
 
-		if [ -n "$zip_file" ]; then
-			echo "找到匹配的zip文件: $zip_file"
-			echo "正在解压..."
-			
-			# 解压zip文件到当前文件夹（或指定目录）
-			unzip -o "$zip_file" -d "$IOTDB_PATH"
-			if [ $? -eq 0 ]; then
-				echo "解压成功"
-				# 将处理过的zip文件移动到已处理目录
-				mv "$zip_file" "$PROCESSED_DIR/"
-			else
-				echo "解压失败"
-			fi
-		else
-			echo "未找到包含commit_id '$commit_id' 的zip文件"
-		fi
-		rm -rf ${REPO_PATH}/${commit_id}
-		mkdir -p ${REPO_PATH}/${commit_id}/apache-iotdb/
-		cp -rf ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin/* ${REPO_PATH}/${commit_id}/apache-iotdb/
-		#配置文件整理
-		echo "enforce_strong_password=false" >> ${REPO_PATH}/${commit_id}/apache-iotdb/conf/iotdb-system.properties
-		insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','${commit_headline}')"
-		if mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"; then
-			apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}" "${commit_headline}"
-		else
-			echo "commit_history insert failed, skip precise test plan for ${commit_id}"
-		fi
-		mv "$first_csv" "$PROCESSED_DIR/"
-		mv ${IOTDB_PATH}/timechodb-*-SNAPSHOT-bin "$PROCESSED_DIR/"
-	else
-		echo "当前${commit_id}已经存在！"
-		# 将处理过的csv文件移动到已处理目录
-		mv "$first_csv" "$PROCESSED_DIR/"
-		mv "$zip_file" "$PROCESSED_DIR/"
-	fi
-	find /root/zk_test/release/processed/ -mtime +5 -type d -name "*" -exec rm -rf {} \;
-	echo "已完成处理，等待下一轮循环..."
-	echo "----------------------------------------"
-fi
+insert_commit_record() {
+    local status="$1"
+    local insert_sql=""
 
-# 获取当前的星期（1表示星期一，7表示星期天）和小时
-day_of_week=$(date +%u)  # 星期几（1-7，1表示星期一）
-hour=$(date +%H)         # 当前小时（00-23）
-echo $day_of_week
-echo $hour
-# 判断是否是每周一凌晨1点
-if [ "$day_of_week" -eq 1 ] && [ "$hour" -eq 01 ]; then
-	echo "It's Monday at 1:00 AM. Running the task..."
-	BM_REPOS_PATH=/nasdata/repository/iot-benchmark
-	rm -rf ${BM_REPOS_PATH}
-	cp -rf ${INIT_PATH}/iot-benchmark ${BM_REPOS_PATH}
-fi
-echo "别闲着，做一轮服务器空间清理任务吧。删除15天之前的测试记录"
-find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
-sleep 300s
-echo "${test_type}" > ${INIT_PATH}/test_type_file
+    insert_sql="INSERT INTO ${TABLENAME} (commit_date_time, commit_id, author, remark)
+        VALUES (${commit_date_time}, $(sql_quote "${commit_id}"), $(sql_quote "${author}"), $(sql_quote "${commit_headline}"))"
+
+    mysql_exec_compile "${insert_sql}" >/dev/null || return 1
+
+    if [ -n "${status}" ]; then
+        update_existing_status_columns "${commit_id}" "${status}"
+    fi
+}
+
+update_existing_status_columns() {
+    local current_commit="$1"
+    local status="$2"
+    local column=""
+
+    for column in "${COMPILE_STATUS_COLUMNS[@]}"; do
+        [[ "${column}" =~ ^[A-Za-z0-9_]+$ ]] || continue
+        precise_column_exists "${TABLENAME}" "${column}" || continue
+        mysql_exec_compile "UPDATE ${TABLENAME} SET \`${column}\` = $(sql_quote "${status}") WHERE commit_id = $(sql_quote "${current_commit}") AND \`${column}\` IS NULL" >/dev/null || true
+    done
+}
+
+resolve_distribution_dir() {
+    local candidate=""
+    local -a candidates=(
+        "${IOTDB_PATH}"/distribution/target/timechodb-*-SNAPSHOT-bin/timechodb-*-SNAPSHOT-bin
+        "${IOTDB_PATH}"/distribution/target/apache-iotdb-*-SNAPSHOT-bin/apache-iotdb-*-SNAPSHOT-bin
+        "${IOTDB_PATH}"/distribution/target/iotdb-*-SNAPSHOT-bin/iotdb-*-SNAPSHOT-bin
+        "${IOTDB_PATH}"/distribution/target/*-SNAPSHOT-bin/*-SNAPSHOT-bin
+    )
+
+    for candidate in "${candidates[@]}"; do
+        if [ -d "${candidate}" ]; then
+            printf '%s\n' "${candidate}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+publish_distribution() {
+    local source_dir=""
+    local target_dir="${REPO_PATH}/${commit_id}/apache-iotdb"
+    local properties_file="${target_dir}/conf/iotdb-system.properties"
+
+    source_dir="$(resolve_distribution_dir)" || die "missing compiled IoTDB distribution under ${IOTDB_PATH}/distribution/target"
+
+    case "${REPO_PATH}" in
+        ""|"/"|"/nasdata"|"/nasdata/repository")
+            die "unsafe REPO_PATH: ${REPO_PATH}"
+            ;;
+    esac
+
+    rm -rf -- "${REPO_PATH:?}/${commit_id}"
+    mkdir -p "${target_dir}"
+    cp -rf "${source_dir}/." "${target_dir}/"
+
+    if [ -f "${properties_file}" ]; then
+        printf '%s\n' "enforce_strong_password=false" >> "${properties_file}"
+    fi
+}
+
+compile_current_commit() {
+    local mvn_status=0
+
+    date_time="$(date +%Y%m%d%H%M%S)"
+    comp_mvn="$(mvn ${COMPILE_MVN_ARGS} 2>&1)"
+    mvn_status=$?
+    return "${mvn_status}"
+}
+
+load_commit_metadata() {
+    commit_id="$(shorten_commit_id "$(git log --pretty=format:%H -1)")"
+    commit_headline="$(git log --pretty=format:%s -1 | tr -d '"' | tr -d "'")"
+    author="$(git log --pretty=format:%an -1)"
+    commit_date_time="$(git log --pretty=format:%ai -1 | cut -b 1-19 | sed s/-//g | sed s/://g | sed s/[[:space:]]//g)"
+}
+
+process_commit() {
+    local target_commit="$1"
+
+    if commit_exists "${target_commit}"; then
+        log "commit ${target_commit} already exists"
+        return 0
+    fi
+
+    cd "${IOTDB_PATH}" || die "failed to cd to ${IOTDB_PATH}"
+    timeout 100s git reset --hard "${target_commit}" || die "failed to reset to ${target_commit}"
+    load_commit_metadata
+
+    log "commit ${commit_id} is new, start compile"
+    if compile_current_commit; then
+        log "commit ${commit_id} compile success"
+        publish_distribution
+        if insert_commit_record ""; then
+            PRECISE_TEST_REPO_PATH="${IOTDB_PATH}" apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}"
+            log "commit ${commit_id} test task plan published"
+        else
+            log "commit_history insert failed, skip precise test plan for ${commit_id}"
+        fi
+    else
+        log "commit ${commit_id} compile failed"
+        printf '%s\n' "${comp_mvn}" >> "${INIT_PATH}/compile-error.log"
+        if ! insert_commit_record "CError"; then
+            log "commit_history insert failed for compile error ${commit_id}"
+        fi
+        sendEmail 2
+    fi
+}
+
+process_recent_commits() {
+    local raw_commit=""
+    local target_commit=""
+    local -a commit_id_list=()
+
+    mapfile -t commit_id_list < <(git log --pretty=format:%H -n "${COMPILE_COMMIT_WINDOW}" | cut -c1-"${COMPILE_COMMIT_ID_LENGTH}")
+    for raw_commit in "${commit_id_list[@]}"; do
+        target_commit="$(trim "${raw_commit}")"
+        [ -n "${target_commit}" ] || continue
+        process_commit "${target_commit}"
+    done
+
+    log "checked recent ${COMPILE_COMMIT_WINDOW} commits"
+}
+
+refresh_benchmark_repo_if_needed() {
+    local day_of_week=""
+    local hour=""
+    local bm_repos_path=""
+
+    day_of_week="$(date +%u)"
+    hour="$(date +%H)"
+    log "day_of_week=${day_of_week}, hour=${hour}"
+
+    if [ "${day_of_week}" -eq 1 ] && [ "${hour}" -eq 01 ]; then
+        bm_repos_path="/nasdata/repository/iot-benchmark"
+        rm -rf -- "${bm_repos_path}"
+        cp -rf "${INIT_PATH}/iot-benchmark" "${bm_repos_path}"
+    fi
+}
+
+cleanup_old_runtime_records() {
+    log "cleanup test runtime records older than 15 days"
+    find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
+}
+
+main() {
+    check_password
+    ensure_dependencies
+    mark_compile_in_progress
+    sync_source_repo
+    process_recent_commits
+    sync_source_repo
+    refresh_benchmark_repo_if_needed
+    cleanup_old_runtime_records
+    sleep 300s
+    restore_compile_task_type
+}
+
+main "$@"
