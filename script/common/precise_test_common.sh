@@ -39,6 +39,10 @@ if ! declare -p PRECISE_TEST_STATUS_COLUMNS >/dev/null 2>&1; then
     )
 fi
 
+if ! declare -p PRECISE_TEST_EXCLUDED_STATUS >/dev/null 2>&1 || [ -z "${PRECISE_TEST_EXCLUDED_STATUS}" ]; then
+    PRECISE_TEST_EXCLUDED_STATUS="excluded"
+fi
+
 PRECISE_SELECTED_TESTS=()
 PRECISE_SKIPPED_TESTS=()
 PRECISE_MATCHED_RULES=()
@@ -317,8 +321,8 @@ precise_update_skipped_statuses() {
     for test_name in "${PRECISE_SKIPPED_TESTS[@]}"; do
         [[ "${test_name}" =~ ^[A-Za-z0-9_]+$ ]] || continue
         precise_column_exists "${table_name}" "${test_name}" || continue
-        update_sql="UPDATE ${table_name} SET \`${test_name}\` = 'skip' WHERE commit_id = $(precise_sql_quote "${commit_ref}") AND \`${test_name}\` IS NULL"
-        precise_mysql_exec "${update_sql}" >/dev/null 2>&1 || precise_log "precise test: failed to mark ${test_name}=skip for ${commit_ref}"
+        update_sql="UPDATE ${table_name} SET \`${test_name}\` = $(precise_sql_quote "${PRECISE_TEST_EXCLUDED_STATUS}") WHERE commit_id = $(precise_sql_quote "${commit_ref}") AND \`${test_name}\` IS NULL"
+        precise_mysql_exec "${update_sql}" >/dev/null 2>&1 || precise_log "precise test: failed to mark ${test_name}=${PRECISE_TEST_EXCLUDED_STATUS} for ${commit_ref}"
     done
 }
 
@@ -411,6 +415,6 @@ apply_precise_test_plan() {
     precise_update_skipped_statuses "${commit_ref}"
     precise_record_impact "${commit_ref}" "${commit_time}" "${commit_author}" "${changed_files}" "${selected_tests}" "${skipped_tests}" "${matched_rules}" "${PRECISE_FALLBACK_REASON}"
 
-    precise_log "precise test plan ${commit_ref}: selected=[${selected_tests:-none}], skipped=[${skipped_tests:-none}], reason=[${PRECISE_FALLBACK_REASON:-rules}]"
+    precise_log "precise test plan ${commit_ref}: selected=[${selected_tests:-none}], excluded=[${skipped_tests:-none}], reason=[${PRECISE_FALLBACK_REASON:-rules}]"
     return 0
 }
