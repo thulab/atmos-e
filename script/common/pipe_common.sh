@@ -958,9 +958,9 @@ while [ "${device}" -lt "${device_count}" ]; do
         sql="$(printf '%s' "${sql_template}" | sed "s/__DEVICE__/${device}/g")"
 
         if [ "${dialect}" = "table" ]; then
-            output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -sql_dialect table -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
+            output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -sql_dialect table -h "${host}" -p 6667 -e "${sql}" 2>/dev/null || true)"
         else
-            output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -h 127.0.0.1 -p 6667 -e "${sql}" 2>/dev/null || true)"
+            output="$("${test_iotdb_path}/sbin/start-cli.sh" -u root -pw "${iotdb_pw}" -h "${host}" -p 6667 -e "${sql}" 2>/dev/null || true)"
         fi
 
         value="$(
