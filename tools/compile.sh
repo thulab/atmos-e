@@ -306,6 +306,7 @@ cleanup_old_runtime_records() {
 main() {
     check_password
     ensure_dependencies
+    trap restore_compile_task_type EXIT
     mark_compile_in_progress
     sync_source_repo
     process_recent_commits
