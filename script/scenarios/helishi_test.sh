@@ -21,6 +21,11 @@ ACCOUNT=Administrator
 test_type=helishi_test
 #初始环境存放路径
 INIT_PATH=/root/zk_test_helishi
+restore_test_type_file() {
+    mkdir -p "${INIT_PATH}"
+    printf '%s\n' "${test_type}" > "${INIT_PATH}/test_type_file"
+}
+trap restore_test_type_file EXIT
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
 BUCKUP_PATH=/nasdata/repository/helishi_test

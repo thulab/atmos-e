@@ -22,6 +22,11 @@ test_type=longrun_test
 
 # -------------------- 路径相关变量 --------------------
 INIT_PATH=/root/zk_test     # 初始环境存放路径
+restore_test_type_file() {
+    mkdir -p "${INIT_PATH}"
+    printf '%s\n' "${test_type}" > "${INIT_PATH}/test_type_file"
+}
+trap restore_test_type_file EXIT
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark_tree
 BM_PATH_TREE=${INIT_PATH}/iot-benchmark_tree
