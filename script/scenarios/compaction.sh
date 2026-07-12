@@ -65,8 +65,22 @@ maxDiskIOSizeWrite=0
 
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
+    require_command du
     require_command find
     require_command tail
+}
+
+collect_data_directory_size() {
+    local data_dir="${TEST_IOTDB_PATH}/data"
+    local size_bytes=0
+
+    [ -d "${data_dir}" ] || {
+        printf '0\n'
+        return 0
+    }
+
+    size_bytes="$(du -sb -- "${data_dir}" | awk 'NR == 1 { print $1 }')"
+    bytes_to_gib "${size_bytes:-0}"
 }
 
 append_iotdb_properties() {
@@ -255,7 +269,7 @@ collect_data_after() {
 
 collect_monitor_metrics() {
     collect_resource_monitor_data "${TEST_IP}" "${DEFAULT_DISK_ID_REGEX}" "${m_start_time}" "${m_end_time}"
-    dataFileSize_after="${dataFileSize}"
+    dataFileSize_after="$(collect_data_directory_size)"
     numOfSe0Level_after="${numOfSe0Level}"
     numOfUnse0Level_after="${numOfUnse0Level}"
     if [ "${errorLogSize:-0}" -gt 0 ]; then
@@ -396,6 +410,7 @@ run_compaction_case() {
     fi
 
     collect_before_monitor_metrics
+    dataFileSize_before="$(collect_data_directory_size)"
     m_start_time="$(date +%s)"
     sleep "${COMPACTION_INITIAL_WAIT_SECONDS}"
     if ! monitor_compaction_completion "${current_compaction_type}"; then
