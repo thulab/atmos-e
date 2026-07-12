@@ -1169,7 +1169,11 @@ monitor_pipe_case() {
 
         if [ $((now_epoch - last_update_epoch)) -ge "${REPLICATION_STABLE_SECONDS}" ]; then
             end_time="$(current_datetime)"
-            cost_time="$(calculate_cost_time_seconds)"
+            wait_time=$((now_epoch - last_update_epoch))
+            cost_time=$(( $(calculate_cost_time_seconds) - wait_time ))
+            if [ "${cost_time}" -lt 0 ]; then
+                cost_time=0
+            fi
             min_point_num="$(calculate_min_point_num)"
             return 0
         fi
