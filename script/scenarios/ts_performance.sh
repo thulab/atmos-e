@@ -60,6 +60,11 @@ dataFileSize_after=0
 operation_pid=0
 export_properties_applied=0
 
+ensure_runtime_dependencies() {
+    ensure_base_runtime_dependencies
+    require_command find
+}
+
 append_iotdb_properties() {
     local properties_file="$1"
 
@@ -79,11 +84,55 @@ reset_phase_metrics() {
     dataFileSize_after=0
 }
 
+directory_size_gib() {
+    local path="$1"
+    local size_bytes=0
+
+    if [ ! -d "${path}" ]; then
+        printf '0\n'
+        return 0
+    fi
+
+    size_bytes="$(du -sb -- "${path}" 2>/dev/null | awk 'NR == 1 { print $1 }')"
+    bytes_to_gib "${size_bytes:-0}"
+}
+
+count_tsfiles() {
+    local path="$1"
+
+    if [ ! -d "${path}" ]; then
+        printf '0\n'
+        return 0
+    fi
+
+    find "${path}" -type f -name '*.tsfile' | wc -l | awk '{print $1}'
+}
+
+collect_data_stats() {
+    local base_path="$1"
+    local stage="$2"
+    local data_root="${base_path}/data"
+    local total_size=0
+    local seq_count=0
+    local unseq_count=0
+
+    total_size="$(directory_size_gib "${data_root}")"
+    seq_count="$(count_tsfiles "${data_root}/datanode/data/sequence")"
+    unseq_count="$(count_tsfiles "${data_root}/datanode/data/unsequence")"
+
+    if [ "${stage}" = "before" ]; then
+        dataFileSize_before="${total_size}"
+        numOfSe0Level_before="${seq_count}"
+        numOfUnse0Level_before="${unseq_count}"
+    else
+        dataFileSize_after="${total_size}"
+        numOfSe0Level_after="${seq_count}"
+        numOfUnse0Level_after="${unseq_count}"
+    fi
+}
+
 collect_after_monitor_metrics() {
     collect_monitor_window_data "${TEST_IP}" "${m_start_time}" "${m_end_time}"
-    dataFileSize_after="${dataFileSize}"
-    numOfSe0Level_after="${numOfSe0Level}"
-    numOfUnse0Level_after="${numOfUnse0Level}"
 }
 
 stop_active_operation() {
@@ -383,10 +432,13 @@ EOF
 
 run_phase() {
     local phase="$1"
-    local needs_export_properties="$2"
+    local before_base="$2"
+    local after_base="$3"
+    local needs_export_properties="$4"
     local phase_failed=0
 
     reset_phase_metrics
+    collect_data_stats "${before_base}" "before"
 
     if [ "${needs_export_properties}" = "1" ] && [ "${export_properties_applied}" -eq 0 ]; then
         append_export_properties
@@ -422,7 +474,6 @@ run_phase() {
     fi
 
     sleep "${OPERATION_WARMUP_SECONDS}"
-    collect_before_monitor_metrics
     start_time="$(current_datetime)"
     m_start_time="$(date +%s)"
     if ! launch_phase_command "${phase}"; then
@@ -448,6 +499,7 @@ run_phase() {
     sleep "${STOP_WAIT_SECONDS}"
     cleanup_processes
 
+    collect_data_stats "${after_base}" "after"
     insert_result_row "${phase}"
     archive_phase_log "${phase}"
 
@@ -496,13 +548,13 @@ test_operation() {
         return 1
     fi
 
-    if ! run_phase "load-tsfile" 0; then
+    if ! run_phase "load-tsfile" "${DATASET_PATH}/${data_type}/${ts_type}" "${TEST_IOTDB_PATH}" 0; then
         case_failed=1
     fi
-    if ! run_phase "export-tsfile" 1; then
+    if ! run_phase "export-tsfile" "${TEST_IOTDB_PATH}" "${TEST_IOTDB_PATH}/tools" 1; then
         case_failed=1
     fi
-    if ! run_phase "export-csv" 1; then
+    if ! run_phase "export-csv" "${TEST_IOTDB_PATH}" "${TEST_IOTDB_PATH}/tools" 1; then
         case_failed=1
     fi
 
