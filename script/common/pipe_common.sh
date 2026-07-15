@@ -90,7 +90,7 @@ start_time=""
 end_time=""
 cost_time=0
 wait_time=0
-min_point_num=1000000
+min_point_num=222222
 m_start_time=0
 m_end_time=0
 
@@ -416,7 +416,7 @@ init_case_state() {
     end_time=""
     cost_time=0
     wait_time=0
-    min_point_num=1000000
+    min_point_num=222222
     m_start_time=0
     m_end_time=0
 
