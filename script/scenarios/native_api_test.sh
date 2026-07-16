@@ -12,13 +12,12 @@ ACCOUNT=root
 test_type=native_api_test
 #初始环境存放路径
 INIT_PATH=/data/atmos/zk_test
-restore_test_type_file() {
-    mkdir -p "${INIT_PATH}"
-    printf '%s\n' "${test_type}" > "${INIT_PATH}/test_type_file"
-}
-trap restore_test_type_file EXIT
 BUILD_PATH=${INIT_PATH}/save
 ATMOS_PATH=${INIT_PATH}/atmos-e
+COMMON_DIR="${ATMOS_PATH}/script/common"
+# shellcheck source=script/common/shell_common.sh
+source "${COMMON_DIR}/shell_common.sh"
+trap restore_test_type_file EXIT
 TIMECHODB_PATH=${BUILD_PATH}/timecho
 PYTHON_TOOL_PATH=${INIT_PATH}/python-native-api-testcase-enterprise
 BK_PATH=${INIT_PATH}/native_api_test_report

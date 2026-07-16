@@ -100,10 +100,7 @@ require_file() {
 }
 
 ensure_runtime_dependencies() {
-    local cmd=""
-    for cmd in awk cp date find git grep jps kill mkdir mv mysql rm sed sudo timeout tr wc; do
-        require_command "${cmd}"
-    done
+    require_commands awk cp date find git grep jps kill mkdir mv mysql rm sed sudo timeout tr wc
 }
 
 clear_directory_contents() {

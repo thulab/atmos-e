@@ -65,7 +65,7 @@ maxDiskIOSizeWrite=0
 
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
-    require_command bc
+    require_commands bc
 }
 
 build_insert_case_id() {

@@ -48,12 +48,7 @@ COMPILE_STATUS_COLUMNS=(
 )
 
 ensure_dependencies() {
-    local cmd=""
-
-    for cmd in awk cp curl cut date find git mkdir mysql rm sed timeout tr; do
-        require_command "${cmd}"
-    done
-    require_command mvn
+    require_commands awk cp curl cut date find git mkdir mysql rm sed timeout tr mvn
 }
 
 sendEmail() {

@@ -177,11 +177,7 @@ extract_pipe_state_from_row() {
 }
 
 ensure_runtime_dependencies() {
-    local cmd=""
-
-    for cmd in awk cp curl date du grep jq mkdir mysql rm scp sed ssh sudo tr; do
-        require_command "${cmd}"
-    done
+    require_commands awk cp curl date du grep jq mkdir mysql rm scp sed ssh sudo tr
 }
 
 prepare_backup_directory() {

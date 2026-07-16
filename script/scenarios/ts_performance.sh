@@ -62,7 +62,7 @@ export_properties_applied=0
 
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
-    require_command find
+    require_commands find
 }
 
 append_iotdb_properties() {

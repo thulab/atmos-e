@@ -22,6 +22,14 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+require_commands() {
+    local cmd=""
+
+    for cmd in "$@"; do
+        require_command "${cmd}"
+    done
+}
+
 trim() {
     local value="${1:-}"
 
