@@ -743,7 +743,7 @@ build_pipe_create_sql() {
     if [ "${current_ts_type}" = "tablemode" ]; then
         source_properties="'source.realtime.mode'='stream','source.realtime.enable'='true','source.forwarding-pipe-requests'='false','source.batch.enable'='true','source.history.enable'='true'"
     else
-        source_properties="'source.pattern'='root.**','source.realtime.mode'='stream','source.realtime.enable'='true','source.forwarding-pipe-requests'='false','source.batch.enable'='true','source.history.enable'='true'"
+        source_properties="'source.pattern'='root','source.realtime.mode'='stream','source.realtime.enable'='true','source.forwarding-pipe-requests'='false','source.batch.enable'='true','source.history.enable'='true'"
     fi
 
     printf "create pipe %s with source (%s) with sink ('sink'='iotdb-thrift-sink','username'='root','password'='%s','sink.node-urls'='%s:6667');\n" \
