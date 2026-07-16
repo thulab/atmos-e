@@ -189,19 +189,6 @@ write_fail_point=0
 write_ok_operation=0
 write_fail_operation=0
 
-die() {
-    log "error: $*"
-    exit 1
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
-}
-
-check_password() {
-    [ -n "${MYSQL_PASSWORD}" ] || die "ATMOS_DB_PASSWORD is not set, cannot connect to MySQL"
-}
-
 ensure_runtime_dependencies() {
     local cmd=""
 
@@ -214,51 +201,6 @@ append_iotdb_properties() {
     local properties_file="$1"
 
     append_iotdb_compaction_disabled_properties "${properties_file}"
-}
-
-path_is_safe() {
-    local path="$1"
-
-    [ -n "${path}" ] || return 1
-
-    case "${path}" in
-        "/"|"/data"|"/nasdata"|".")
-            return 1
-            ;;
-        "${INIT_PATH}"/*|"${TEST_INIT_PATH}"/*|"${BACKUP_PATH}"/*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-safe_rm() {
-    local path="$1"
-
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unsafe path: ${path}"
-    rm -rf -- "${path}"
-}
-
-copy_if_exists() {
-    local source="$1"
-    local target="$2"
-    local label="${3:-$1}"
-
-    if [ ! -e "${source}" ]; then
-        log "skip missing ${label}: ${source}"
-        return 0
-    fi
-
-    cp -rf -- "${source}" "${target}"
-}
-
-mysql_exec() {
-    local sql="$1"
-
-    MYSQL_PWD="${MYSQL_PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${MYSQL_PORT}" -u"${MYSQL_USERNAME}" "${DBNAME}" -e "${sql}"
 }
 
 check_benchmark_version() {
@@ -323,34 +265,8 @@ init_items() {
     maxDiskIOSizeWrite=0
 }
 
-check_pid_and_kill() {
-    local pname="$1"
-    local desc="$2"
-    local pids=""
-    local pid=""
-
-    pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
-    if [ -z "${pids}" ]; then
-        log "no ${desc} process found"
-        return 0
-    fi
-
-    while IFS= read -r pid; do
-        [ -n "${pid}" ] || continue
-        kill -9 "${pid}"
-    done <<< "${pids}"
-
-    log "${desc} process stopped"
-}
-
 check_benchmark_pid() {
     check_pid_and_kill "App" "benchmark"
-}
-
-check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode"
-    check_pid_and_kill "ConfigNode" "ConfigNode"
-    check_pid_and_kill "IoTDB" "IoTDB"
 }
 
 cleanup_processes() {

@@ -87,15 +87,6 @@ source "${COMMON_DIR}/iotdb_config_common.sh"
 # shellcheck source=script/common/iotdb_process_common.sh
 source "${COMMON_DIR}/iotdb_process_common.sh"
 
-die() {
-    log "错误: $*"
-    exit 1
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "缺少依赖命令: $1"
-}
-
 require_directory() {
     local path="$1"
     local label="$2"
@@ -108,48 +99,11 @@ require_file() {
     [ -f "${path}" ] || die "缺少文件 ${label}: ${path}"
 }
 
-check_password() {
-    if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL"
-    fi
-}
-
 ensure_runtime_dependencies() {
     local cmd=""
     for cmd in awk cp date find git grep jps kill mkdir mv mysql rm sed sudo timeout tr wc; do
         require_command "${cmd}"
     done
-}
-
-path_is_safe() {
-    local path="$1"
-    [ -n "${path}" ] || return 1
-
-    case "${path}" in
-        "/"|"/data"|"/data/qa"|"/nasdata"|".")
-            return 1
-            ;;
-        "${INIT_PATH}"/*|"${TEST_INIT_PATH}"/*|"${BACKUP_PATH}"/*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-safe_rm() {
-    local path="$1"
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
-    rm -rf -- "${path}"
-}
-
-sudo_safe_rm() {
-    local path="$1"
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
-    sudo rm -rf -- "${path}"
 }
 
 clear_directory_contents() {
@@ -165,19 +119,6 @@ clear_directory_contents() {
 
     mkdir -p "${path}"
     find "${path}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-}
-
-copy_if_exists() {
-    local source="$1"
-    local target="$2"
-    local label="${3:-$1}"
-
-    if [ ! -e "${source}" ]; then
-        log "跳过复制，缺少 ${label}: ${source}"
-        return 0
-    fi
-
-    cp -rf -- "${source}" "${target}"
 }
 
 copy_required_dir_contents() {
@@ -199,11 +140,6 @@ copy_required_path() {
     cp -rf -- "${source_path}" "${target_path}"
 }
 
-mysql_exec() {
-    local sql="$1"
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
-}
-
 reset_suite_metrics() {
     start_time=""
     end_time=""
@@ -220,32 +156,6 @@ stop_active_test() {
         wait "${active_test_pid}" 2>/dev/null || true
     fi
     active_test_pid=0
-}
-
-check_pid_and_kill() {
-    local pname="$1"
-    local desc="$2"
-    local pids=""
-    local pid=""
-
-    pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
-    if [ -z "${pids}" ]; then
-        log "未检测到${desc}"
-        return 0
-    fi
-
-    while IFS= read -r pid; do
-        [ -n "${pid}" ] || continue
-        kill -9 "${pid}" 2>/dev/null || true
-    done <<< "${pids}"
-
-    log "${desc}已停止"
-}
-
-check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode 进程"
-    check_pid_and_kill "ConfigNode" "ConfigNode 进程"
-    check_pid_and_kill "IoTDB" "IoTDB 进程"
 }
 
 cleanup_processes() {

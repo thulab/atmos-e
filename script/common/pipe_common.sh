@@ -122,11 +122,6 @@ source "${PIPE_COMMON_DIR}/task_db_common.sh"
 # shellcheck source=script/common/benchmark_result_common.sh
 source "${PIPE_COMMON_DIR}/benchmark_result_common.sh"
 
-die() {
-    log "ERROR: $*"
-    exit 1
-}
-
 format_log_output() {
     local value="${1:-}"
 
@@ -181,54 +176,12 @@ extract_pipe_state_from_row() {
         | sed -n '1p'
 }
 
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
-}
-
-check_password() {
-    [ -n "${PASSWORD}" ] || die "ATMOS_DB_PASSWORD is not set"
-}
-
 ensure_runtime_dependencies() {
     local cmd=""
 
     for cmd in awk cp curl date du grep jq mkdir mysql rm scp sed ssh sudo tr; do
         require_command "${cmd}"
     done
-}
-
-path_is_safe() {
-    local path="$1"
-
-    [ -n "${path}" ] || return 1
-
-    case "${path}" in
-        "/"|"/data"|"/data/cluster"|"/nasdata"|".")
-            return 1
-            ;;
-        "${INIT_PATH}"/*|"${TEST_INIT_PATH}"/*|"${BACKUP_PATH}"/*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-safe_rm() {
-    local path="$1"
-
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "Refuse to remove unexpected path: ${path}"
-    rm -rf -- "${path}"
-}
-
-sudo_safe_rm() {
-    local path="$1"
-
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "Refuse to remove unexpected path: ${path}"
-    sudo rm -rf -- "${path}"
 }
 
 prepare_backup_directory() {
@@ -240,12 +193,6 @@ prepare_backup_directory() {
     sudo mkdir -p -- "${backup_parent}"
     path_is_safe "${backup_dir}" || die "Refuse to use unexpected backup path: ${backup_dir}"
     sudo mkdir -p -- "${backup_dir}"
-}
-
-mysql_exec() {
-    local sql="$1"
-
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
 }
 
 numeric_or_zero() {

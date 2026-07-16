@@ -138,23 +138,10 @@ source "${RUNTIME_COMMON_DIR}/iotdb_process_common.sh"
 # shellcheck source=script/common/monitor_disk_common.sh
 source "${RUNTIME_COMMON_DIR}/monitor_disk_common.sh"
 
-die() {
-    log "错误: $*"
-    exit 1
-}
-
 append_iotdb_properties() {
     local properties_file="$1"
 
     :
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "缺少依赖命令: $1"
-}
-
-check_password() {
-    [ -n "${PASSWORD}" ] || die "ATMOS_DB_PASSWORD 未设置，无法连接 MySQL"
 }
 
 ensure_base_runtime_dependencies() {
@@ -167,53 +154,6 @@ ensure_base_runtime_dependencies() {
 
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
-}
-
-path_is_safe() {
-    local path="$1"
-
-    [ -n "${path}" ] || return 1
-
-    case "${path}" in
-        "/"|"/data"|"/nasdata"|".")
-            return 1
-            ;;
-        "${INIT_PATH}"/*|"${TEST_INIT_PATH}"/*|"${BACKUP_PATH}"/*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-safe_rm() {
-    local path="$1"
-
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
-    rm -rf -- "${path}"
-}
-
-sudo_safe_rm() {
-    local path="$1"
-
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "拒绝删除非预期路径: ${path}"
-    sudo rm -rf -- "${path}"
-}
-
-copy_if_exists() {
-    local source="$1"
-    local target="$2"
-    local label="${3:-$1}"
-
-    if [ ! -e "${source}" ]; then
-        log "跳过复制，缺少 ${label}: ${source}"
-        return 0
-    fi
-
-    cp -rf -- "${source}" "${target}"
 }
 
 emit_query_name_candidates() {
@@ -309,12 +249,6 @@ archive_test_runtime_artifacts() {
     fi
 }
 
-mysql_exec() {
-    local sql="$1"
-
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
-}
-
 check_benchmark_version() {
     local bm_new=""
     local bm_old=""
@@ -366,34 +300,8 @@ init_common_items() {
     m_end_time=0
 }
 
-check_pid_and_kill() {
-    local pname="$1"
-    local desc="$2"
-    local pids=""
-    local pid=""
-
-    pids="$(jps | awk -v pname="${pname}" '$2 == pname {print $1}')"
-    if [ -z "${pids}" ]; then
-        log "未检测到${desc}"
-        return 0
-    fi
-
-    while IFS= read -r pid; do
-        [ -n "${pid}" ] || continue
-        kill -9 "${pid}"
-    done <<< "${pids}"
-
-    log "${desc}已停止"
-}
-
 check_benchmark_pid() {
     check_pid_and_kill "App" "benchmark 进程"
-}
-
-check_iotdb_pid() {
-    check_pid_and_kill "DataNode" "DataNode 进程"
-    check_pid_and_kill "ConfigNode" "ConfigNode 进程"
-    check_pid_and_kill "IoTDB" "IoTDB 进程"
 }
 
 cleanup_processes() {

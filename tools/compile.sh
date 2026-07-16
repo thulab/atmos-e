@@ -47,21 +47,6 @@ COMPILE_STATUS_COLUMNS=(
     last_cache_query
 )
 
-die() {
-    log "ERROR: $*"
-    exit 1
-}
-
-require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
-}
-
-check_password() {
-    if [ -z "${PASSWORD}" ]; then
-        die "ATMOS_DB_PASSWORD is not set"
-    fi
-}
-
 ensure_dependencies() {
     local cmd=""
 
@@ -69,12 +54,6 @@ ensure_dependencies() {
         require_command "${cmd}"
     done
     require_command mvn
-}
-
-mysql_exec_compile() {
-    local sql="$1"
-
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
 }
 
 sendEmail() {
@@ -98,16 +77,6 @@ sendEmail() {
     curl 'https://oapi.dingtalk.com/robot/send?access_token=f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62' \
         -H 'Content-Type: application/json' \
         -d '{"msgtype": "text","text": {"content": "[Atmos]'"${msgbody}"'"}}' >/dev/null 2>&1 &
-}
-
-mark_compile_in_progress() {
-    mkdir -p "${INIT_PATH}"
-    printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
-}
-
-restore_compile_task_type() {
-    mkdir -p "${INIT_PATH}"
-    printf '%s\n' "${test_type}" > "${INIT_PATH}/test_type_file"
 }
 
 sync_source_repo() {
@@ -138,7 +107,7 @@ commit_exists() {
     local current_commit="$1"
     local result=""
 
-    result="$(mysql_exec_compile "SELECT commit_id FROM ${TABLENAME} WHERE commit_id = $(sql_quote "${current_commit}") LIMIT 1" | sed -n '1p')"
+    result="$(mysql_exec "SELECT commit_id FROM ${TABLENAME} WHERE commit_id = $(sql_quote "${current_commit}") LIMIT 1" | sed -n '1p')"
     [ -n "${result}" ]
 }
 
@@ -161,7 +130,7 @@ insert_commit_record() {
     insert_sql="INSERT INTO ${TABLENAME} (commit_date_time, commit_id, author, remark)
         VALUES (${commit_date_time}, $(sql_quote "${commit_id}"), $(sql_quote "${author}"), $(sql_quote "${commit_headline}"))"
 
-    mysql_exec_compile "${insert_sql}" >/dev/null || return 1
+    mysql_exec "${insert_sql}" >/dev/null || return 1
 
     if [ -n "${status}" ]; then
         update_existing_status_columns "${commit_id}" "${status}"
@@ -176,7 +145,7 @@ update_existing_status_columns() {
     for column in "${COMPILE_STATUS_COLUMNS[@]}"; do
         [[ "${column}" =~ ^[A-Za-z0-9_]+$ ]] || continue
         precise_column_exists "${TABLENAME}" "${column}" || continue
-        mysql_exec_compile "UPDATE ${TABLENAME} SET \`${column}\` = $(sql_quote "${status}") WHERE commit_id = $(sql_quote "${current_commit}") AND \`${column}\` IS NULL" >/dev/null || true
+        mysql_exec "UPDATE ${TABLENAME} SET \`${column}\` = $(sql_quote "${status}") WHERE commit_id = $(sql_quote "${current_commit}") AND \`${column}\` IS NULL" >/dev/null || true
     done
 }
 
@@ -306,15 +275,15 @@ cleanup_old_runtime_records() {
 main() {
     check_password
     ensure_dependencies
-    trap restore_compile_task_type EXIT
-    mark_compile_in_progress
+    trap restore_test_type_file EXIT
+    mark_test_in_progress
     sync_source_repo
     process_recent_commits
     sync_source_repo
     refresh_benchmark_repo_if_needed
     cleanup_old_runtime_records
     sleep 300s
-    restore_compile_task_type
+    restore_test_type_file
 }
 
 main "$@"

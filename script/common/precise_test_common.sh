@@ -56,28 +56,6 @@ precise_log() {
     fi
 }
 
-precise_trim() {
-    local value="${1:-}"
-
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-    printf '%s' "${value}"
-}
-
-precise_sql_quote() {
-    local value="${1:-}"
-
-    value="${value//\\/\\\\}"
-    value="$(printf '%s' "${value}" | sed "s/'/''/g")"
-    printf "'%s'" "${value}"
-}
-
-precise_mysql_exec() {
-    local sql="$1"
-
-    MYSQL_PWD="${PASSWORD}" mysql -N -B -h"${MYSQLHOSTNAME}" -P"${PORT}" -u"${USERNAME}" "${DBNAME}" -e "${sql}"
-}
-
 precise_rules_file() {
     local atmos_root="${ATMOS_PATH:-}"
 
@@ -141,7 +119,7 @@ precise_add_test_list() {
     local item=""
     local -a tests=()
 
-    test_list="$(precise_trim "${test_list}")"
+    test_list="$(trim "${test_list}")"
     case "${test_list}" in
         ""|"NONE")
             return 0
@@ -155,7 +133,7 @@ precise_add_test_list() {
     IFS=',' read -r -a tests <<< "${test_list}"
     [ "${#tests[@]}" -gt 0 ] || return 0
     for item in "${tests[@]}"; do
-        item="$(precise_trim "${item}")"
+        item="$(trim "${item}")"
         precise_add_selected_test "${item}"
     done
 }
@@ -260,7 +238,7 @@ precise_select_tests_from_files() {
                 matched_file=1
                 precise_add_matched_rule "${rule_id}"
                 precise_add_test_list "${test_list}"
-                if [ "$(precise_trim "${test_list}")" = "NONE" ]; then
+                if [ "$(trim "${test_list}")" = "NONE" ]; then
                     break
                 fi
             fi
@@ -298,7 +276,7 @@ precise_table_exists() {
     local table_name="$1"
     local count=""
 
-    count="$(precise_mysql_exec "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = $(precise_sql_quote "${table_name}")" 2>/dev/null || true)"
+    count="$(mysql_exec "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = $(sql_quote "${table_name}")" 2>/dev/null || true)"
     [ "${count}" = "1" ]
 }
 
@@ -307,7 +285,7 @@ precise_column_exists() {
     local column_name="$2"
     local count=""
 
-    count="$(precise_mysql_exec "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = $(precise_sql_quote "${table_name}") AND column_name = $(precise_sql_quote "${column_name}")" 2>/dev/null || true)"
+    count="$(mysql_exec "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = $(sql_quote "${table_name}") AND column_name = $(sql_quote "${column_name}")" 2>/dev/null || true)"
     [ "${count}" = "1" ]
 }
 
@@ -321,8 +299,8 @@ precise_update_skipped_statuses() {
     for test_name in "${PRECISE_SKIPPED_TESTS[@]}"; do
         [[ "${test_name}" =~ ^[A-Za-z0-9_]+$ ]] || continue
         precise_column_exists "${table_name}" "${test_name}" || continue
-        update_sql="UPDATE ${table_name} SET \`${test_name}\` = $(precise_sql_quote "${PRECISE_TEST_EXCLUDED_STATUS}") WHERE commit_id = $(precise_sql_quote "${commit_ref}") AND \`${test_name}\` IS NULL"
-        precise_mysql_exec "${update_sql}" >/dev/null 2>&1 || precise_log "precise test: failed to mark ${test_name}=${PRECISE_TEST_EXCLUDED_STATUS} for ${commit_ref}"
+        update_sql="UPDATE ${table_name} SET \`${test_name}\` = $(sql_quote "${PRECISE_TEST_EXCLUDED_STATUS}") WHERE commit_id = $(sql_quote "${commit_ref}") AND \`${test_name}\` IS NULL"
+        mysql_exec "${update_sql}" >/dev/null 2>&1 || precise_log "precise test: failed to mark ${test_name}=${PRECISE_TEST_EXCLUDED_STATUS} for ${commit_ref}"
     done
 }
 
@@ -353,15 +331,15 @@ precise_record_impact() {
         commit_id, commit_date_time, author, changed_file_count, changed_files,
         matched_rules, selected_tests, skipped_tests, fallback_reason
     ) VALUES (
-        $(precise_sql_quote "${commit_ref}"),
+        $(sql_quote "${commit_ref}"),
         ${commit_time:-0},
-        $(precise_sql_quote "${commit_author}"),
+        $(sql_quote "${commit_author}"),
         ${changed_file_count},
-        $(precise_sql_quote "${changed_files}"),
-        $(precise_sql_quote "${matched_rules}"),
-        $(precise_sql_quote "${selected_tests}"),
-        $(precise_sql_quote "${skipped_tests}"),
-        $(precise_sql_quote "${fallback_reason}")
+        $(sql_quote "${changed_files}"),
+        $(sql_quote "${matched_rules}"),
+        $(sql_quote "${selected_tests}"),
+        $(sql_quote "${skipped_tests}"),
+        $(sql_quote "${fallback_reason}")
     ) ON DUPLICATE KEY UPDATE
         commit_date_time = VALUES(commit_date_time),
         author = VALUES(author),
@@ -373,7 +351,7 @@ precise_record_impact() {
         fallback_reason = VALUES(fallback_reason),
         created_at = CURRENT_TIMESTAMP"
 
-    precise_mysql_exec "${sql}" >/dev/null 2>&1 || precise_log "precise test: failed to record impact for ${commit_ref}"
+    mysql_exec "${sql}" >/dev/null 2>&1 || precise_log "precise test: failed to record impact for ${commit_ref}"
 }
 
 apply_precise_test_plan() {
