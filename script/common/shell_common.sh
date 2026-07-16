@@ -100,13 +100,6 @@ path_is_safe() {
     esac
 }
 
-safe_rm() {
-    local path="$1"
-    [ -e "${path}" ] || return 0
-    path_is_safe "${path}" || die "refuse to remove unsafe path: ${path}"
-    rm -rf -- "${path}"
-}
-
 sudo_safe_rm() {
     local path="$1"
     [ -e "${path}" ] || return 0
@@ -158,18 +151,23 @@ to_int() {
     awk -v value="${1:-0}" 'BEGIN { printf "%d\n", value }'
 }
 
-mark_test_in_progress() {
+write_test_type_file() {
+    local value="$1"
+
+    [ -n "${value}" ] || {
+        log "cannot write empty test type"
+        return 1
+    }
     mkdir -p "${INIT_PATH}"
-    printf 'ontesting\n' > "${INIT_PATH}/test_type_file"
+    printf '%s\n' "${value}" > "${INIT_PATH}/test_type_file"
+}
+
+mark_test_in_progress() {
+    write_test_type_file "ontesting"
 }
 
 restore_test_type_file() {
     local current_test_type="${1:-${TEST_TYPE:-${test_type:-}}}"
 
-    [ -n "${current_test_type}" ] || {
-        log "cannot restore test type: TEST_TYPE/test_type is empty"
-        return 1
-    }
-    mkdir -p "${INIT_PATH}"
-    printf '%s\n' "${current_test_type}" > "${INIT_PATH}/test_type_file"
+    write_test_type_file "${current_test_type}"
 }

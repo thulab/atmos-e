@@ -166,8 +166,8 @@ set_env() {
     require_directory "${source_path}" "待测版本目录"
     require_directory "${TOOL_PATH}" "SQL 测试工具目录"
 
-    safe_rm "${TEST_IOTDB_PATH}"
-    safe_rm "${TEST_TOOL_PATH}"
+    sudo_safe_rm "${TEST_IOTDB_PATH}"
+    sudo_safe_rm "${TEST_TOOL_PATH}"
 
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     mkdir -p "${TEST_TOOL_PATH}"
@@ -277,9 +277,9 @@ record_first_insert_result() {
 configure_test_tool_user() {
     local testcase_mode_dir="$1"
 
-    safe_rm "${TEST_TOOL_PATH}/user/scripts"
-    safe_rm "${TEST_TOOL_PATH}/user/CONFIG"
-    safe_rm "${TEST_TOOL_PATH}/result.xml"
+    sudo_safe_rm "${TEST_TOOL_PATH}/user/scripts"
+    sudo_safe_rm "${TEST_TOOL_PATH}/user/CONFIG"
+    sudo_safe_rm "${TEST_TOOL_PATH}/result.xml"
 
     require_directory "${TESTCASE_PATH}/${testcase_mode_dir}/scripts" "${testcase_mode_dir} scripts"
     require_directory "${TESTCASE_PATH}/${testcase_mode_dir}/CONFIG" "${testcase_mode_dir} CONFIG"
@@ -362,7 +362,7 @@ monitor_result_file() {
 start_test_tool() {
     require_file "${TEST_TOOL_PATH}/test.sh" "test.sh"
 
-    safe_rm "${TEST_TOOL_PATH}/result.xml"
+    sudo_safe_rm "${TEST_TOOL_PATH}/result.xml"
     start_time="$(current_datetime)"
     (
         cd "${TEST_TOOL_PATH}" || exit 1

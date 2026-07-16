@@ -234,7 +234,7 @@ check_benchmark_version() {
     if [ ! -d "${BM_PATH}" ] || [ "${bm_old}" != "${bm_new}" ]; then
         log "Sync benchmark directory to latest version"
         mkdir -p "${INIT_PATH}"
-        safe_rm "${BM_PATH}"
+        sudo_safe_rm "${BM_PATH}"
         cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
     fi
 }
@@ -511,7 +511,7 @@ prepare_base_stage() {
         return 1
     }
 
-    safe_rm "${LOCAL_STAGE_ROOT}"
+    sudo_safe_rm "${LOCAL_STAGE_ROOT}"
     mkdir -p "${base_dir}" || return 1
     cp -rf "${source_path}" "${base_dir}/apache-iotdb" || return 1
     cp -rf "${BM_PATH}" "${base_dir}/iot-benchmark" || return 1
@@ -536,7 +536,7 @@ copy_pipe_benchmark_config() {
         return 1
     }
 
-    safe_rm "${config_target}"
+    sudo_safe_rm "${config_target}"
     cp -rf "${config_source}" "${config_target}" || return 1
     ensure_pipe_benchmark_schema_config "${config_target}" || return 1
 }
@@ -552,7 +552,7 @@ copy_pipe_license() {
         return 1
     }
 
-    safe_rm "${license_target}"
+    sudo_safe_rm "${license_target}"
     cp -rf "${license_source}" "${license_target}" || return 1
 }
 
@@ -565,7 +565,7 @@ prepare_node_stage() {
     local stage_dir="${LOCAL_STAGE_ROOT}/${host}"
     local properties_file="${stage_dir}/apache-iotdb/conf/iotdb-system.properties"
 
-    safe_rm "${stage_dir}"
+    sudo_safe_rm "${stage_dir}"
     mkdir -p "${stage_dir}" || return 1
     cp -rf "${base_dir}/." "${stage_dir}/" || return 1
     append_node_properties "${properties_file}" "${host}" "${CONFIG_NODE_SEEDS[$index]}" "${DATA_NODE_SEEDS[$index]}" || return 1
@@ -1241,7 +1241,7 @@ collect_node_result() {
 }
 
 collect_all_results() {
-    safe_rm "${LOCAL_RESULT_ROOT}"
+    sudo_safe_rm "${LOCAL_RESULT_ROOT}"
     mkdir -p "${LOCAL_RESULT_ROOT}" || return 1
     collect_node_result "${NODE_IPS[0]}" 0 || true
     collect_node_result "${NODE_IPS[1]}" 1 || true
@@ -1330,7 +1330,7 @@ backup_case_data() {
     local host_tmp_dir=""
 
     prepare_backup_directory "${backup_dir}"
-    safe_rm "${LOCAL_BACKUP_TMP}"
+    sudo_safe_rm "${LOCAL_BACKUP_TMP}"
     mkdir -p "${LOCAL_BACKUP_TMP}" || return 1
 
     for host in "${NODE_IPS[@]}"; do

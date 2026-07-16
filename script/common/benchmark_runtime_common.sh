@@ -37,8 +37,8 @@ cleanup_processes() {
 }
 
 start_benchmark() {
-    safe_rm "${BM_PATH}/logs"
-    safe_rm "${BM_PATH}/data"
+    sudo_safe_rm "${BM_PATH}/logs"
+    sudo_safe_rm "${BM_PATH}/data"
     (
         cd "${BM_PATH}" || exit 1
         ./benchmark.sh >/dev/null 2>&1 &

@@ -334,7 +334,7 @@ archive_compaction_artifacts() {
 
     [ -d "${logs_dir}" ] || return 0
 
-    safe_rm "${target_dir}"
+    sudo_safe_rm "${target_dir}"
     mkdir -p "${target_dir}"
     copy_if_exists "${TEST_IOTDB_PATH}/conf" "${target_dir}/" "conf"
     mv "${logs_dir}" "${target_dir}/"

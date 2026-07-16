@@ -262,7 +262,7 @@ check_benchmark_version() {
     if [ ! -d "${BM_PATH}" ] || [ "${bm_old}" != "${bm_new}" ]; then
         log "同步 benchmark 目录到最新版本"
         mkdir -p "${INIT_PATH}"
-        safe_rm "${BM_PATH}"
+        sudo_safe_rm "${BM_PATH}"
         cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
     fi
 }
@@ -276,7 +276,7 @@ set_env() {
 
     [ -d "${source_path}" ] || die "缺少待测版本目录: ${source_path}"
 
-    safe_rm "${TEST_IOTDB_PATH}"
+    sudo_safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
     copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/license" "${TEST_IOTDB_PATH}/activation/" "license"
@@ -403,6 +403,6 @@ copy_benchmark_config() {
     local config_target="${BM_PATH}/conf/config.properties"
 
     [ -f "${config_source}" ] || die "缺少 benchmark 配置文件: ${config_source}"
-    safe_rm "${config_target}"
+    sudo_safe_rm "${config_target}"
     cp -rf "${config_source}" "${config_target}"
 }

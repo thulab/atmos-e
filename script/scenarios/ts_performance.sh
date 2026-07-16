@@ -180,7 +180,7 @@ prepare_tablemode_schema() {
 }
 
 prepare_export_output_dir() {
-    safe_rm "${EXPORT_DATA_DIR}"
+    sudo_safe_rm "${EXPORT_DATA_DIR}"
     mkdir -p "${EXPORT_SEQUENCE_DIR}"
 }
 
@@ -189,7 +189,7 @@ archive_phase_log() {
     local archive_file="${LIVE_LOG_DIR}/log.${phase}"
 
     if [ -f "${LIVE_LOG_FILE}" ]; then
-        safe_rm "${archive_file}"
+        sudo_safe_rm "${archive_file}"
         mv "${LIVE_LOG_FILE}" "${archive_file}"
     fi
 }

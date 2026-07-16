@@ -192,7 +192,7 @@ write_ok_operation=0
 write_fail_operation=0
 
 ensure_runtime_dependencies() {
-    require_commands awk cat cp curl date du find grep jq jps kill mkdir mysql rm sed tr wc
+    require_commands awk cat cp curl date du find grep jq jps kill mkdir mysql rm sed sudo tr wc
 }
 
 append_iotdb_properties() {
@@ -216,7 +216,7 @@ check_benchmark_version() {
     if [ ! -d "${BM_PATH}" ] || [ "${bm_old}" != "${bm_new}" ]; then
         log "sync benchmark directory to latest version"
         mkdir -p "${INIT_PATH}"
-        safe_rm "${BM_PATH}"
+        sudo_safe_rm "${BM_PATH}"
         cp -rf "${BM_REPOS_PATH}" "${BM_PATH}"
     fi
 }
@@ -418,7 +418,7 @@ copy_benchmark_config() {
     local config_target="${BM_PATH}/conf/config.properties"
 
     [ -f "${config_source}" ] || die "missing benchmark config: ${config_source}"
-    safe_rm "${config_target}"
+    sudo_safe_rm "${config_target}"
     cp -rf "${config_source}" "${config_target}"
 }
 
@@ -455,7 +455,7 @@ set_env() {
         return 1
     fi
 
-    safe_rm "${TEST_IOTDB_PATH}"
+    sudo_safe_rm "${TEST_IOTDB_PATH}"
     mkdir -p "${TEST_IOTDB_PATH}/activation"
     cp -rf "${source_path}/." "${TEST_IOTDB_PATH}/"
     cp -rf "${license_file}" "${TEST_IOTDB_PATH}/activation/"

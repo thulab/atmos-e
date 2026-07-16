@@ -349,7 +349,7 @@ archive_query_logs() {
     [ -d "${live_log_dir}" ] || mkdir -p "${live_log_dir}"
     [ -d "${BM_PATH}/data/csvOutput" ] || return 0
 
-    safe_rm "${archived_log_dir}"
+    sudo_safe_rm "${archived_log_dir}"
     cp -rf "${BM_PATH}/data/csvOutput" "${live_log_dir}/"
     mv "${live_log_dir}" "${archived_log_dir}"
 }
