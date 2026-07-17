@@ -46,11 +46,6 @@ if ! declare -p QUERY_REPEAT_COUNT >/dev/null 2>&1; then
 else
     readonly QUERY_REPEAT_COUNT
 fi
-if ! declare -p METRIC_SERVER >/dev/null 2>&1; then
-    readonly METRIC_SERVER="172.20.70.11:9090"
-else
-    readonly METRIC_SERVER
-fi
 if ! declare -p RESULT_TABLE_NAME >/dev/null 2>&1; then
     readonly RESULT_TABLE_NAME="test_result_${TEST_TYPE}"
 else

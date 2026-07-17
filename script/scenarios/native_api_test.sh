@@ -15,6 +15,8 @@ INIT_PATH=/data/atmos/zk_test
 BUILD_PATH=${INIT_PATH}/save
 ATMOS_PATH=${INIT_PATH}/atmos-e
 COMMON_DIR="${ATMOS_PATH}/script/common"
+# shellcheck source=script/common/environment_common.sh
+source "${COMMON_DIR}/environment_common.sh"
 # shellcheck source=script/common/shell_common.sh
 source "${COMMON_DIR}/shell_common.sh"
 trap restore_test_type_file EXIT
@@ -22,14 +24,10 @@ TIMECHODB_PATH=${BUILD_PATH}/timecho
 PYTHON_TOOL_PATH=${INIT_PATH}/python-native-api-testcase-enterprise
 BK_PATH=${INIT_PATH}/native_api_test_report
 #测试数据运行路径
-TEST_INIT_PATH=/data/qa
 TEST_TIMECHODB_PATH=${TEST_INIT_PATH}/timecho
 TEST_PYTHON_TOOL_PATH=${TEST_INIT_PATH}/python-native-api-testcase-enterprise
 ############mysql信息##########################
 MYSQLHOSTNAME="111.200.37.158" #数据库信息
-PORT="13306"
-USERNAME="iotdbatm"
-PASSWORD=${ATMOS_DB_PASSWORD}
 DBNAME="QA_ATM"                   #数据库名称
 TABLENAME="native_api_test_enterprise" #数据库中用例表的名称
 ############公用函数##########################

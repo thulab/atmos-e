@@ -12,15 +12,11 @@ fi
 : "${TEST_IP:?在 source runtime_common.sh 之前必须设置 TEST_IP}"
 : "${TEST_TYPE:?在 source runtime_common.sh 之前必须设置 TEST_TYPE}"
 
-readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
-readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
-readonly BM_PATH="${INIT_PATH}/iot-benchmark"
-readonly REPOS_PATH="/nasdata/repository/master"
-readonly BM_REPOS_PATH="/nasdata/repository/iot-benchmark"
+RUNTIME_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=script/common/environment_common.sh
+source "${RUNTIME_COMMON_DIR}/environment_common.sh"
 
-readonly TEST_INIT_PATH="/data/qa"
-readonly TEST_IOTDB_PATH="${TEST_INIT_PATH}/apache-iotdb"
+readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
 
 if ! declare -p PROTOCOL_CLASS >/dev/null 2>&1; then
     readonly -a PROTOCOL_CLASS=(
@@ -30,11 +26,6 @@ if ! declare -p PROTOCOL_CLASS >/dev/null 2>&1; then
         "org.apache.iotdb.consensus.iot.IoTConsensus"
         "org.apache.iotdb.consensus.iot.IoTConsensusV2"
     )
-fi
-if ! declare -p METRIC_SERVER >/dev/null 2>&1; then
-    readonly METRIC_SERVER="172.20.70.11:9090"
-else
-    readonly METRIC_SERVER
 fi
 if ! declare -p ENABLE_BENCHMARK_VERSION_CHECK >/dev/null 2>&1; then
     readonly ENABLE_BENCHMARK_VERSION_CHECK=1
@@ -77,14 +68,6 @@ else
     readonly BENCHMARK_STOP_WAIT_SECONDS
 fi
 
-readonly MYSQLHOSTNAME="111.200.37.158"
-readonly PORT="13306"
-readonly USERNAME="iotdbatm"
-readonly PASSWORD="${ATMOS_DB_PASSWORD:-}"
-readonly DBNAME="QA_ATM"
-readonly TASK_TABLENAME="commit_history"
-readonly TASK_DB_PARSE_ERROR_MESSAGE="commit_date_time parse failed"
-
 commit_id=""
 author=""
 commit_date_time=""
@@ -97,34 +80,9 @@ cost_time=0
 m_start_time=0
 m_end_time=0
 
-okPoint=0
-okOperation=0
-failPoint=0
-failOperation=0
-throughput=0
-Latency=0
-MIN=0
-P10=0
-P25=0
-MEDIAN=0
-P75=0
-P90=0
-P95=0
-P99=0
-P999=0
-MAX=0
-numOfSe0Level=0
-numOfUnse0Level=0
-dataFileSize=0
-maxNumofOpenFiles=0
-maxNumofThread=0
-errorLogSize=0
-walFileSize=0
-
 IOTDB_READY_USER="${IOTDB_READY_USER:-}"
 IOTDB_READY_PASSWORD="${IOTDB_READY_PASSWORD:-}"
 
-RUNTIME_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/common/shell_common.sh
 source "${RUNTIME_COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/task_db_common.sh
@@ -139,6 +97,7 @@ source "${RUNTIME_COMMON_DIR}/iotdb_process_common.sh"
 source "${RUNTIME_COMMON_DIR}/monitor_disk_common.sh"
 # shellcheck source=script/common/benchmark_runtime_common.sh
 source "${RUNTIME_COMMON_DIR}/benchmark_runtime_common.sh"
+init_common_items
 
 append_iotdb_properties() {
     local properties_file="$1"

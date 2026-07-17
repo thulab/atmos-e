@@ -15,8 +15,12 @@ test_type=cluster_insert_2
 INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
 COMMON_DIR="${ATMOS_PATH}/script/common"
+# shellcheck source=script/common/environment_common.sh
+source "${COMMON_DIR}/environment_common.sh"
 # shellcheck source=script/common/shell_common.sh
 source "${COMMON_DIR}/shell_common.sh"
+# shellcheck source=script/common/benchmark_runtime_common.sh
+source "${COMMON_DIR}/benchmark_runtime_common.sh"
 trap restore_test_type_file EXIT
 BM_PATH=${INIT_PATH}/iot-benchmark
 BUCKUP_PATH=/nasdata/repository/cluster_insert_2
@@ -45,21 +49,15 @@ Control=172.20.70.20
 
 ############mysql信息##########################
 MYSQLHOSTNAME="111.200.37.158" #数据库信息
-PORT="13306"
-USERNAME="iotdbatm"
-PASSWORD=${ATMOS_DB_PASSWORD}
 DBNAME="QA_ATM"  #数据库名称
 TABLENAME="test_result_cluster_insert_2" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
-############prometheus##########################
-metric_server="172.20.70.11:9090"
 ############公用函数##########################
 if [ "${PASSWORD}" = "" ]; then
 echo "需要关注密码设置！"
 fi
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 echo "检查iot-benchmark版本"
-BM_REPOS_PATH=/nasdata/repository/iot-benchmark
 BM_NEW=$(cat ${BM_REPOS_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
 BM_OLD=$(cat ${BM_PATH}/git.properties | grep git.commit.id.abbrev | awk -F= '{print $2}')
 if [ "${BM_OLD}" != "cat: git.properties: No such file or directory" ] && [ "${BM_OLD}" != "${BM_NEW}" ]; then
@@ -67,41 +65,12 @@ if [ "${BM_OLD}" != "cat: git.properties: No such file or directory" ] && [ "${B
 	cp -rf ${BM_REPOS_PATH} ${BM_PATH}
 fi
 init_items() {
+init_common_items
 ############定义监控采集项初始值##########################
 test_date_time=0
 ts_type=0
-okPoint=0
-okOperation=0
-failPoint=0
-failOperation=0
-throughput=0
-Latency=0
-MIN=0
-P10=0
-P25=0
-MEDIAN=0
-P75=0
-P90=0
-P95=0
-P99=0
-P999=0
-MAX=0
-numOfSe0Level=0
 start_time=0
 end_time=0
-cost_time=0
-numOfUnse0Level=0
-dataFileSize=0
-maxNumofOpenFiles=0
-maxNumofThread=0
-errorLogSize=0
-walFileSize=0
-maxCPULoad=0
-avgCPULoad=0
-maxDiskIOOpsRead=0
-maxDiskIOOpsWrite=0
-maxDiskIOSizeRead=0
-maxDiskIOSizeWrite=0
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
@@ -397,7 +366,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
-    local url="http://${metric_server}/api/v1/query"
+    local url="http://${METRIC_SERVER}/api/v1/query"
     local data_param="--data-urlencode query=$1 --data-urlencode 'time=${end}'"
     index_value=$(curl -G -s $url ${data_param} | jq '.data.result[0].value[1]'| tr -d '"')
 	if [[ "$index_value" == "null" || -z "$index_value" ]]; then 

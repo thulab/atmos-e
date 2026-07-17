@@ -56,13 +56,6 @@ comp_start_time="0"
 comp_end_time="0"
 dataFileSize_before="0"
 dataFileSize_after="0"
-maxCPULoad=0
-avgCPULoad=0
-maxDiskIOOpsRead=0
-maxDiskIOOpsWrite=0
-maxDiskIOSizeRead=0
-maxDiskIOSizeWrite=0
-
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
     require_command du

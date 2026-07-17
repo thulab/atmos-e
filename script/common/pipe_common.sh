@@ -13,31 +13,22 @@ readonly TEST_TYPE="pipe_test"
 readonly ACCOUNT="root"
 readonly IOTDB_PW="TimechoDB@2021"
 
-readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
-readonly BM_PATH="${INIT_PATH}/iot-benchmark"
-readonly BM_REPOS_PATH="/nasdata/repository/iot-benchmark"
-readonly REPOS_PATH="/nasdata/repository/master"
+TEST_INIT_PATH="/data/cluster/first-rest-test"
+PIPE_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=script/common/environment_common.sh
+source "${PIPE_COMMON_DIR}/environment_common.sh"
+
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
 
-readonly TEST_INIT_PATH="/data/cluster/first-rest-test"
-readonly TEST_IOTDB_PATH="${TEST_INIT_PATH}/apache-iotdb"
 readonly TEST_BM_PATH="${TEST_INIT_PATH}/iot-benchmark"
 readonly LOCAL_STAGE_ROOT="${INIT_PATH}/${TEST_TYPE}_stage"
 readonly LOCAL_RESULT_ROOT="${LOCAL_STAGE_ROOT}/results"
 readonly LOCAL_BACKUP_TMP="${LOCAL_STAGE_ROOT}/backup_tmp"
 
-readonly MYSQLHOSTNAME="111.200.37.158"
-readonly PORT="13306"
-readonly USERNAME="iotdbatm"
-readonly PASSWORD="${ATMOS_DB_PASSWORD:-}"
-readonly DBNAME="QA_ATM"
 readonly RESULT_TABLE_NAME="test_result_${TEST_TYPE}"
 readonly TASK_TABLE_NAME="commit_history"
 readonly TASK_DB_SUPPRESS_QUERY_ERRORS=1
-readonly TASK_DB_PARSE_ERROR_MESSAGE="Failed to parse commit_date_time"
 
-readonly METRIC_SERVER="172.20.70.11:9090"
 readonly DEFAULT_DISK_ID="vdc"
 readonly DISK_ID_REGEX="^${DEFAULT_DISK_ID}$"
 # Older OpenSSH clients used in some test environments do not support `accept-new`.
@@ -114,7 +105,6 @@ declare -a node_a_counts
 declare -a node_b_counts
 declare -a resolved_query_templates
 
-PIPE_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/common/shell_common.sh
 source "${PIPE_COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/task_db_common.sh

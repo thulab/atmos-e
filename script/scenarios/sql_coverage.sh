@@ -19,27 +19,20 @@ set -o pipefail
 
 readonly TEST_TYPE="sql_coverage"
 
-readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
+# shellcheck source=script/common/environment_common.sh
+source "${COMMON_DIR}/environment_common.sh"
+
 readonly TOOL_PATH="${INIT_PATH}/iotdb-sql-test"
 readonly TESTCASE_PATH="${INIT_PATH}/iotdb-sql-testcase"
-readonly REPOS_PATH="/nasdata/repository/master"
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}/master"
 
-readonly TEST_INIT_PATH="/data/qa"
-readonly TEST_IOTDB_PATH="${TEST_INIT_PATH}/apache-iotdb"
 readonly TEST_TOOL_PATH="${TEST_INIT_PATH}/iotdb-sql-test"
 readonly NGINX_DATA_PATH="/data/nginx"
 readonly TSFILE_DATA_PATH="/data/tsfile"
 
-readonly MYSQLHOSTNAME="111.200.37.158"
-readonly PORT="13306"
-readonly USERNAME="iotdbatm"
-readonly PASSWORD="${ATMOS_DB_PASSWORD:-}"
-readonly DBNAME="QA_ATM"
 readonly TABLENAME="test_result_${TEST_TYPE}"
-readonly TASK_TABLENAME="commit_history"
-readonly TASK_DB_PARSE_ERROR_MESSAGE="commit_date_time parse failed"
 
 readonly -a PROTOCOL_CLASS=(
     ""
@@ -76,8 +69,6 @@ end_time=""
 cost_time=0
 active_test_pid=0
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
 # shellcheck source=script/common/shell_common.sh
 source "${COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/task_db_common.sh

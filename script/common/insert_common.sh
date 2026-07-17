@@ -24,11 +24,6 @@ fi
 if ! declare -p INSERT_CASE_LIST >/dev/null 2>&1; then
     readonly -a INSERT_CASE_LIST=()
 fi
-if ! declare -p METRIC_SERVER >/dev/null 2>&1; then
-    readonly METRIC_SERVER="111.200.37.158:19090"
-else
-    readonly METRIC_SERVER
-fi
 if ! declare -p BENCHMARK_WARMUP_SECONDS >/dev/null 2>&1; then
     readonly BENCHMARK_WARMUP_SECONDS=60
 else
@@ -56,13 +51,6 @@ result_has_insert_case_id=0
 result_has_insert_layout_type=0
 result_has_insert_write_mode=0
 result_has_result_kind=0
-maxCPULoad=0
-avgCPULoad=0
-maxDiskIOOpsRead=0
-maxDiskIOOpsWrite=0
-maxDiskIOSizeRead=0
-maxDiskIOSizeWrite=0
-
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
     require_commands bc

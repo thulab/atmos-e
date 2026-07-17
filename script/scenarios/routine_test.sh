@@ -21,7 +21,6 @@ readonly TEST_IP="172.20.31.32"
 readonly TEST_TYPE="routine_test"
 readonly IOTDB_PW="TimechoDB@2021"
 readonly RESULT_TABLE_NAME="test_result_${TEST_TYPE}"
-readonly METRIC_SERVER="172.20.70.11:9090"
 readonly MONITOR_TIMEOUT_SECONDS=86400
 readonly BENCHMARK_WARMUP_SECONDS=10
 readonly QUERY_STARTUP_EXTRA_WAIT_SECONDS=20
@@ -54,13 +53,6 @@ query_suite_type=""
 query_sensor_type=""
 query_repeat_no=""
 result_kind=""
-maxCPULoad=0
-avgCPULoad=0
-maxDiskIOOpsRead=0
-maxDiskIOOpsWrite=0
-maxDiskIOSizeRead=0
-maxDiskIOSizeWrite=0
-
 init_items() {
     init_common_items
     query_id=""

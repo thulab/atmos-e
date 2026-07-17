@@ -29,6 +29,12 @@ init_common_items() {
     walFileSize=0
     m_start_time=0
     m_end_time=0
+    maxCPULoad=0
+    avgCPULoad=0
+    maxDiskIOOpsRead=0
+    maxDiskIOOpsWrite=0
+    maxDiskIOSizeRead=0
+    maxDiskIOSizeWrite=0
 }
 
 cleanup_processes() {

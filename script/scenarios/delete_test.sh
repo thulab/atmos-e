@@ -24,14 +24,12 @@ readonly -a API_LIST=(SESSION_BY_TABLET)
 readonly TEST_IP="172.20.31.31"
 readonly TEST_TYPE="delete_test"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
+# shellcheck source=script/common/environment_common.sh
+source "${COMMON_DIR}/environment_common.sh"
+
 readonly BACKUP_PATH="/nasdata/repository/${TEST_TYPE}"
-readonly INIT_PATH="/root/zk_test"
-readonly ATMOS_PATH="${INIT_PATH}/atmos-e"
-readonly BM_PATH="${INIT_PATH}/iot-benchmark"
-readonly REPOS_PATH="/nasdata/repository/master"
-readonly BM_REPOS_PATH="/nasdata/repository/iot-benchmark"
-readonly TEST_INIT_PATH="/data/qa"
-readonly TEST_IOTDB_PATH="${TEST_INIT_PATH}/apache-iotdb"
 
 readonly -a PROTOCOL_CLASS=(
     ""
@@ -41,7 +39,6 @@ readonly -a PROTOCOL_CLASS=(
     "org.apache.iotdb.consensus.iot.IoTConsensusV2"
 )
 
-readonly METRIC_SERVER="${METRIC_SERVER:-111.200.37.158:19090}"
 readonly ENABLE_BENCHMARK_VERSION_CHECK="${ENABLE_BENCHMARK_VERSION_CHECK:-1}"
 readonly MONITOR_TIMEOUT_SECONDS="${MONITOR_TIMEOUT_SECONDS:-21600}"
 readonly MONITOR_POLL_INTERVAL_SECONDS="${MONITOR_POLL_INTERVAL_SECONDS:-10}"
@@ -51,13 +48,9 @@ readonly STARTUP_GRACE_SECONDS="${STARTUP_GRACE_SECONDS:-10}"
 readonly BENCHMARK_WARMUP_SECONDS="${BENCHMARK_WARMUP_SECONDS:-60}"
 readonly BENCHMARK_STOP_WAIT_SECONDS="${BENCHMARK_STOP_WAIT_SECONDS:-30}"
 
-readonly MYSQLHOSTNAME="111.200.37.158"
 readonly MYSQL_PORT="13306"
 readonly MYSQL_USERNAME="iotdbatm"
 readonly MYSQL_PASSWORD="${ATMOS_DB_PASSWORD:-}"
-readonly DBNAME="QA_ATM"
-readonly TASK_TABLENAME="commit_history"
-readonly TASK_DB_PARSE_ERROR_MESSAGE="failed to parse commit_date_time"
 
 readonly TABLENAME="test_result_${TEST_TYPE}"
 readonly TABLENAME_T="test_result_${TEST_TYPE}"
@@ -78,36 +71,6 @@ cost_time=0
 m_start_time=0
 m_end_time=0
 
-okPoint=0
-okOperation=0
-failPoint=0
-failOperation=0
-throughput=0
-Latency=0
-MIN=0
-P10=0
-P25=0
-MEDIAN=0
-P75=0
-P90=0
-P95=0
-P99=0
-P999=0
-MAX=0
-numOfSe0Level=0
-numOfUnse0Level=0
-dataFileSize=0
-maxNumofOpenFiles=0
-maxNumofThread=0
-errorLogSize=0
-walFileSize=0
-maxCPULoad=0
-avgCPULoad=0
-maxDiskIOOpsRead=0
-maxDiskIOOpsWrite=0
-maxDiskIOSizeRead=0
-maxDiskIOSizeWrite=0
-
 IOTDB_READY_USER="${IOTDB_READY_USER:-}"
 IOTDB_READY_PASSWORD="${IOTDB_READY_PASSWORD:-}"
 
@@ -115,8 +78,6 @@ readonly DELETE_CONF_DIR="${ATMOS_PATH}/conf/${TEST_TYPE}"
 readonly WRITE_FIRST_CONFIG="${DELETE_CONF_DIR}/write_first.properties"
 readonly WRITE_SECOND_CONFIG="${DELETE_CONF_DIR}/write_second.properties"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
 # shellcheck source=script/common/shell_common.sh
 source "${COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/task_db_common.sh
@@ -131,6 +92,7 @@ source "${COMMON_DIR}/iotdb_process_common.sh"
 source "${COMMON_DIR}/monitor_disk_common.sh"
 # shellcheck source=script/common/benchmark_runtime_common.sh
 source "${COMMON_DIR}/benchmark_runtime_common.sh"
+init_common_items
 
 readonly CLI_HOST="127.0.0.1"
 readonly CLI_PORT="6667"
