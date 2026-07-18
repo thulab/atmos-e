@@ -22,7 +22,6 @@ IOTDB_BRANCH="${IOTDB_BRANCH:-master}"
 COMPILE_COMMIT_WINDOW="${COMPILE_COMMIT_WINDOW:-11}"
 COMPILE_COMMIT_ID_LENGTH="${COMPILE_COMMIT_ID_LENGTH:-8}"
 COMPILE_MVN_ARGS="${COMPILE_MVN_ARGS:-clean package -DskipTests -am -pl distribution}"
-COMPILE_REPLAN_EXISTING="${COMPILE_REPLAN_EXISTING:-1}"
 
 MYSQLHOSTNAME="${MYSQLHOSTNAME:-111.200.37.158}"
 PORT="${PORT:-13306}"
@@ -104,18 +103,6 @@ commit_exists() {
 
     result="$(mysql_exec "SELECT commit_id FROM ${TABLENAME} WHERE commit_id = $(sql_quote "${current_commit}") LIMIT 1" | sed -n '1p')"
     [ -n "${result}" ]
-}
-
-replan_existing_commit() {
-    local target_commit="$1"
-
-    [ "${COMPILE_REPLAN_EXISTING}" = "1" ] || return 0
-
-    cd "${IOTDB_PATH}" || die "failed to cd to ${IOTDB_PATH}"
-    timeout 100s git reset --hard "${target_commit}" || die "failed to reset to existing commit ${target_commit}"
-    load_commit_metadata
-    PRECISE_TEST_REPO_PATH="${IOTDB_PATH}" apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}"
-    log "commit ${commit_id} precise test plan refreshed"
 }
 
 insert_commit_record() {
@@ -203,7 +190,6 @@ process_commit() {
 
     if commit_exists "${target_commit}"; then
         log "commit ${target_commit} already exists"
-        replan_existing_commit "${target_commit}"
         return 0
     fi
 
