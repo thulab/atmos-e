@@ -47,6 +47,7 @@ else
 fi
 commit_id=$(git log --pretty=format:"%h" -1 | cut -c1-7)
 author=$(git log --pretty=format:"%an" -1)
+commit_message=$(git log --pretty=format:"%B" -1)
 commit_date_time=$(git log --pretty=format:"%ci" -1 | cut -b 1-19 | sed s/-//g | sed s/://g | sed s/[[:space:]]//g)
 #对比判定是否启动测试
 echo "当前版本${commit_id}即将编译和下派。"
@@ -70,7 +71,7 @@ then
 	#正常下派所有任务
 	insert_sql="insert into ${TABLENAME} (commit_date_time,commit_id,author,remark) values(${commit_date_time},'${commit_id}','${author}','$1')"
 	if mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}"; then
-		PRECISE_TEST_REPO_PATH="${IOTDB_PATH}" apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}" "$1"
+		PRECISE_TEST_REPO_PATH="${IOTDB_PATH}" apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}" "${commit_message}"
 	else
 		echo "commit_history insert failed, skip precise test plan for ${commit_id}"
 	fi

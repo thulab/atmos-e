@@ -181,6 +181,7 @@ compile_current_commit() {
 load_commit_metadata() {
     commit_id="$(shorten_commit_id "$(git log --pretty=format:%H -1)")"
     commit_headline="$(git log --pretty=format:%s -1 | tr -d '"' | tr -d "'")"
+    commit_message="$(git log --pretty=format:%B -1)"
     author="$(git log --pretty=format:%an -1)"
     commit_date_time="$(git log --pretty=format:%ai -1 | cut -b 1-19 | sed s/-//g | sed s/://g | sed s/[[:space:]]//g)"
 }
@@ -202,7 +203,7 @@ process_commit() {
         log "commit ${commit_id} compile success"
         publish_distribution
         if insert_commit_record ""; then
-            PRECISE_TEST_REPO_PATH="${IOTDB_PATH}" apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}"
+            PRECISE_TEST_REPO_PATH="${IOTDB_PATH}" apply_precise_test_plan "${commit_id}" "${commit_date_time}" "${author}" "${commit_message}"
             log "commit ${commit_id} test task plan published"
         else
             log "commit_history insert failed, skip precise test plan for ${commit_id}"

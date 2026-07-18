@@ -70,6 +70,20 @@ precise_rules_file() {
     printf '%s\n' "${atmos_root}/conf/precise_test_rules.conf"
 }
 
+precise_commit_rules_file() {
+    local atmos_root="${ATMOS_PATH:-}"
+
+    if [ -n "${PRECISE_TEST_COMMIT_RULES_FILE:-}" ]; then
+        printf '%s\n' "${PRECISE_TEST_COMMIT_RULES_FILE}"
+        return 0
+    fi
+
+    if [ -z "${atmos_root}" ]; then
+        atmos_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    fi
+    printf '%s\n' "${atmos_root}/conf/precise_test_commit_rules.conf"
+}
+
 precise_is_known_test() {
     local test_name="$1"
     local known_test=""
@@ -204,10 +218,43 @@ precise_reset_plan() {
     PRECISE_FALLBACK_REASON=""
 }
 
+precise_select_tests_from_scenario_text() {
+    local source_type="$1"
+    local source_text="$2"
+    local rules_file=""
+    local normalized_text=""
+    local rule_id=""
+    local text_regex=""
+    local test_list=""
+    local reason=""
+    local matched=1
+
+    [ -n "${source_text}" ] || return 1
+    rules_file="$(precise_commit_rules_file)"
+    [ -f "${rules_file}" ] || return 1
+    normalized_text="$(printf '%s\n' "${source_text}" | tr '[:upper:]' '[:lower:]')"
+
+    while read -r rule_id text_regex test_list reason _; do
+        [ -n "${rule_id}" ] || continue
+        case "${rule_id}" in
+            \#*) continue ;;
+        esac
+        [ -n "${text_regex}" ] || continue
+        if [[ "${normalized_text}" =~ ${text_regex} ]]; then
+            matched=0
+            precise_add_matched_rule "${source_type}:${rule_id}"
+            precise_add_test_list "${test_list}"
+        fi
+    done < "${rules_file}"
+
+    return "${matched}"
+}
+
 precise_select_tests_from_files() {
     local changed_files="$1"
     local rules_file=""
     local file_path=""
+    local file_name=""
     local rule_id=""
     local path_regex=""
     local test_list=""
@@ -244,6 +291,11 @@ precise_select_tests_from_files() {
             fi
         done < "${rules_file}"
 
+        file_name="${file_path##*/}"
+        if precise_select_tests_from_scenario_text "filename" "${file_name}"; then
+            matched_file=1
+        fi
+
         if [ "${matched_file}" -eq 0 ]; then
             unmatched_file_count=$((unmatched_file_count + 1))
         fi
@@ -259,6 +311,12 @@ precise_select_tests_from_files() {
         PRECISE_FALLBACK_REASON="unmatched_files:${unmatched_file_count}"
         precise_add_all_tests
     fi
+}
+
+precise_select_tests_from_commit_message() {
+    local commit_message="$1"
+
+    precise_select_tests_from_scenario_text "commit" "${commit_message}" || true
 }
 
 precise_build_skipped_tests() {
@@ -358,6 +416,7 @@ apply_precise_test_plan() {
     local commit_ref="$1"
     local commit_time="${2:-0}"
     local commit_author="${3:-}"
+    local commit_message="${4:-}"
     local repo_path=""
     local changed_files=""
     local selected_tests=""
@@ -373,10 +432,15 @@ apply_precise_test_plan() {
 
     if repo_path="$(precise_resolve_repo_path 2>/dev/null)" && changed_files="$(precise_emit_changed_files "${commit_ref}" "${repo_path}" 2>/dev/null)"; then
         precise_select_tests_from_files "${changed_files}"
+        if [ -z "${commit_message}" ]; then
+            commit_message="$(git -C "${repo_path}" log -1 --pretty=format:%B "${commit_ref}" 2>/dev/null || true)"
+        fi
     else
         PRECISE_FALLBACK_REASON="missing_git_repo_or_commit"
         precise_add_all_tests
     fi
+
+    precise_select_tests_from_commit_message "${commit_message}"
 
     precise_build_skipped_tests
 
