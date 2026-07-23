@@ -307,6 +307,7 @@ prepare_mode_resources() {
             ;;
         tablemode)
             copy_required_dir_contents "${TESTCASE_PATH}/lib/udf_jar/local" "${NGINX_DATA_PATH}" "udf 本地依赖"
+			copy_required_dir_contents "${TESTCASE_PATH}/lib/udf_jar/ext" "${TEST_IOTDB_PATH}/ext/udf" "udf ext 依赖"
             copy_required_dir_contents "${TESTCASE_PATH}/lib/pipe_jar/local" "${NGINX_DATA_PATH}" "pipe 本地依赖"
             copy_required_dir_contents "${TESTCASE_PATH}/lib/udf_jar/example" "${TEST_IOTDB_PATH}/ext/udf" "udf example 依赖"
             configure_test_tool_user "table"
