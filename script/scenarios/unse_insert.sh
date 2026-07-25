@@ -20,9 +20,20 @@ set -o pipefail
 readonly TEST_IP="172.20.31.13"
 readonly TEST_TYPE="unse_insert"
 
+readonly SCENARIO_ID="unse_insert"
+readonly TASK_TEST_TYPE="unse_insert"
+readonly SCENARIO_FAILURE_POLICY="continue_and_fail"
+readonly -a SCENARIO_CASE_DIMENSIONS=(
+    "protocol=223"
+    "case=common,aligned,tempaligned,tablemode,tableview"
+    "api=SESSION_BY_TABLET"
+)
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
 # shellcheck source=script/common/insert_common.sh
 source "${COMMON_DIR}/insert_common.sh"
+FRAMEWORK_ROOT="$(cd "${SCRIPT_DIR}/../framework" && pwd)"
+source "${FRAMEWORK_ROOT}/runner.sh"
 
-main "$@"
+run_scenario "$@"

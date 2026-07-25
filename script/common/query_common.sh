@@ -70,6 +70,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/common/runtime_common.sh
 source "${SCRIPT_DIR}/runtime_common.sh"
+source "${SCRIPT_DIR}/../modules/result.sh"
+source "${SCRIPT_DIR}/../modules/results/query_result.sh"
 
 if [ -z "${IOTDB_READY_USER:-}" ]; then
     IOTDB_READY_USER="root"
@@ -404,7 +406,7 @@ test_operation() {
                     end_time="$(current_datetime)"
                     cost_time=-3
                     throughput=-3
-                    insert_result_row "${protocol_code}"
+                    result_writer query "${protocol_code}"
                     operation_failed=1
                     stop_iotdb
                     sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
@@ -439,7 +441,7 @@ test_operation() {
                         [ -n "${end_time}" ] || end_time="$(current_datetime)"
                         cost_time=-2
                         throughput=-2
-                        insert_result_row "${protocol_code}"
+                        result_writer query "${protocol_code}"
                         operation_failed=1
                         if [ "${monitor_failed}" -ne 0 ]; then
                             operation_failed=1
@@ -449,7 +451,7 @@ test_operation() {
 
                     [ -n "${end_time}" ] || end_time="$(current_datetime)"
                     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-                    insert_result_row "${protocol_code}"
+                    result_writer query "${protocol_code}"
                     log "${commit_id} ${ts_type} ${query_scope} 第${query_num}次: ${okPoint} 个点耗时 ${Latency} ms"
 
                     if [ "${monitor_failed}" -ne 0 ]; then
@@ -508,3 +510,30 @@ main() {
         update_task_status "RError"
     fi
 }
+
+scenario_task_prepare() {
+    trap restore_test_type_file EXIT
+    ensure_runtime_dependencies
+    check_password
+    validate_query_settings
+    if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then
+        check_benchmark_version
+    fi
+    mark_test_in_progress
+}
+
+scenario_task_claim() {
+    fetch_next_commit || return 1
+    TASK_CTX[commit_id]="${commit_id}"
+    TASK_CTX[author]="${author}"
+    TASK_CTX[commit_date_time]="${commit_date_time}"
+    test_date_time="$(date +%Y%m%d%H%M%S)"
+}
+
+scenario_task_mark_running() { task_mark_running; }
+scenario_case_execute() { test_operation "${CASE_PROTOCOL}"; }
+scenario_task_finish_success() {
+    task_finish_success
+    task_skip_older
+}
+scenario_task_finish_failure() { task_finish_failure; }

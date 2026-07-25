@@ -87,6 +87,7 @@ IOTDB_READY_PASSWORD="${IOTDB_READY_PASSWORD:-}"
 source "${RUNTIME_COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/task_db_common.sh
 source "${RUNTIME_COMMON_DIR}/task_db_common.sh"
+source "${RUNTIME_COMMON_DIR}/../modules/task_mysql.sh"
 # shellcheck source=script/common/benchmark_result_common.sh
 source "${RUNTIME_COMMON_DIR}/benchmark_result_common.sh"
 # shellcheck source=script/common/iotdb_config_common.sh

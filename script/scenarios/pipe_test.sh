@@ -17,9 +17,20 @@ fi
 set -u
 set -o pipefail
 
+readonly SCENARIO_ID="pipe_test"
+readonly TASK_TEST_TYPE="pipe_test"
+readonly SCENARIO_FAILURE_POLICY="continue_and_fail"
+readonly -a SCENARIO_CASES=(
+    $'protocol=223\ttype=tablemode'
+    $'protocol=223\ttype=common'
+    $'protocol=223\ttype=aligned'
+    $'protocol=224\ttype=aligned'
+)
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
 # shellcheck source=script/common/pipe_common.sh
 source "${COMMON_DIR}/pipe_common.sh"
+source "${SCRIPT_DIR}/../framework/runner.sh"
 
-main "$@"
+run_scenario "$@"

@@ -35,9 +35,14 @@ readonly -a QUERY_LABELS=(
     LATEST_POINT RANGE_QUERY_DESC RANGE_QUERY_DESC RANGE_QUERY_DESC VALUE_RANGE_QUERY_DESC
 )
 IOTDB_READY_PASSWORD="${IOTDB_PW}"
+readonly SCENARIO_ID="unse_query"
+readonly TASK_TEST_TYPE="unse_query"
+readonly SCENARIO_FAILURE_POLICY="continue_and_fail"
+readonly -a SCENARIO_CASE_DIMENSIONS=("protocol=211")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
 # shellcheck source=script/common/query_common.sh
 source "${COMMON_DIR}/query_common.sh"
+source "${SCRIPT_DIR}/../framework/runner.sh"
 
-main "$@"
+run_scenario "$@"

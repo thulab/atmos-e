@@ -23,10 +23,19 @@ readonly -a PROTOCOL_LIST=(223)
 readonly -a TS_LIST=(tempaligned)
 readonly -a API_LIST=(SESSION_BY_TABLET SESSION_BY_RECORDS SESSION_BY_RECORD JDBC)
 readonly ENABLE_BENCHMARK_VERSION_CHECK=0
+readonly SCENARIO_ID="api_insert_cts"
+readonly TASK_TEST_TYPE="api_insert_cts"
+readonly SCENARIO_FAILURE_POLICY="continue_and_fail"
+readonly -a SCENARIO_CASE_DIMENSIONS=(
+    "protocol=223"
+    "case=tempaligned"
+    "api=SESSION_BY_TABLET,SESSION_BY_RECORDS,SESSION_BY_RECORD,JDBC"
+)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(cd "${SCRIPT_DIR}/../common" && pwd)"
 # shellcheck source=script/common/insert_common.sh
 source "${COMMON_DIR}/insert_common.sh"
+source "${SCRIPT_DIR}/../framework/runner.sh"
 
-main "$@"
+run_scenario "$@"

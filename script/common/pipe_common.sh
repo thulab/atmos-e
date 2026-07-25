@@ -109,8 +109,11 @@ declare -a resolved_query_templates
 source "${PIPE_COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/task_db_common.sh
 source "${PIPE_COMMON_DIR}/task_db_common.sh"
+source "${PIPE_COMMON_DIR}/../modules/task_mysql.sh"
 # shellcheck source=script/common/benchmark_result_common.sh
 source "${PIPE_COMMON_DIR}/benchmark_result_common.sh"
+source "${PIPE_COMMON_DIR}/../modules/result.sh"
+source "${PIPE_COMMON_DIR}/../modules/results/pipe_result.sh"
 
 format_log_output() {
     local value="${1:-}"
@@ -1393,7 +1396,7 @@ run_pipe_case() {
         collect_all_results || true
     fi
 
-    if ! insert_result_row; then
+    if ! result_writer pipe; then
         case_failed=1
     fi
 
@@ -1442,3 +1445,29 @@ main() {
         update_task_status "RError"
     fi
 }
+
+scenario_task_prepare() {
+    trap restore_test_type_file EXIT
+    ensure_runtime_dependencies
+    check_password
+    if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then
+        check_benchmark_version
+    fi
+    mark_test_in_progress
+}
+
+scenario_task_claim() {
+    fetch_next_commit || return 1
+    TASK_CTX[commit_id]="${commit_id}"
+    TASK_CTX[author]="${author}"
+    TASK_CTX[commit_date_time]="${commit_date_time}"
+    test_date_time="$(date +%Y%m%d%H%M%S)"
+}
+
+scenario_task_mark_running() { task_mark_running; }
+scenario_case_execute() { run_pipe_case "${CASE_PROTOCOL}" "${CASE_TYPE}"; }
+scenario_task_finish_success() {
+    task_finish_success
+    task_skip_older
+}
+scenario_task_finish_failure() { task_finish_failure; }

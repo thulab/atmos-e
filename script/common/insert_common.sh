@@ -33,6 +33,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=script/common/runtime_common.sh
 source "${SCRIPT_DIR}/runtime_common.sh"
+source "${SCRIPT_DIR}/../modules/result.sh"
+source "${SCRIPT_DIR}/../modules/results/ingestion_result.sh"
 
 readonly TABLENAME="test_result_${TEST_TYPE}"
 readonly TABLENAME_T="test_result_${TEST_TYPE}"
@@ -611,7 +613,7 @@ test_operation() {
         log "IoTDB 未能正常启动，记录启动失败结果"
         cost_time=-3
         throughput=-3
-        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
+        result_writer ingestion "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         cleanup_processes
         return 1
     fi
@@ -621,7 +623,7 @@ test_operation() {
         log "root 密码修改失败，记录认证失败结果"
         cost_time=-4
         throughput=-4
-        insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
+        result_writer ingestion "${protocol_code}" "${current_ts_type}" "${current_api_type}"
         cleanup_processes
         return 1
     fi
@@ -656,7 +658,7 @@ test_operation() {
 
     [ -n "${end_time}" ] || end_time="$(current_datetime)"
     cost_time=$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))
-    insert_result_row "${protocol_code}" "${current_ts_type}" "${current_api_type}"
+    result_writer ingestion "${protocol_code}" "${current_ts_type}" "${current_api_type}"
 
     if (( $(echo "${throughput} > 0" | bc -l 2>/dev/null) )); then
         if ! check_throughput_monitor "${commit_date_time}" "${throughput}" "${protocol_code}" "${current_ts_type}" "${current_api_type}"; then
@@ -723,4 +725,48 @@ main() {
     else
         update_task_status "RError"
     fi
+}
+
+scenario_task_prepare() {
+    trap restore_test_type_file EXIT
+    ensure_runtime_dependencies
+    check_password
+    if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then
+        check_benchmark_version
+    fi
+    mark_test_in_progress
+}
+
+scenario_task_claim() {
+    fetch_next_commit || return 1
+    TASK_CTX[commit_id]="${commit_id}"
+    TASK_CTX[author]="${author}"
+    TASK_CTX[commit_date_time]="${commit_date_time}"
+
+    if [ "${author}" = "Timecho" ]; then
+        result_table="${TABLENAME_T}"
+    else
+        result_table="${TABLENAME}"
+    fi
+    detect_result_table_metadata_columns
+    test_date_time="$(date +%Y%m%d%H%M%S)"
+}
+
+scenario_task_mark_running() {
+    task_mark_running
+}
+
+scenario_case_execute() {
+    test_operation "${CASE_PROTOCOL}" "${CASE_CASE}" "${CASE_API}"
+}
+
+scenario_task_finish_success() {
+    task_finish_success
+    if [ "${author}" != "Timecho" ]; then
+        task_skip_older
+    fi
+}
+
+scenario_task_finish_failure() {
+    task_finish_failure
 }
