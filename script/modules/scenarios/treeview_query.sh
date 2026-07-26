@@ -239,4 +239,4 @@ mv_config_file() {
 readonly SCENARIO_ID="treeview_query"
 readonly TASK_TEST_TYPE="treeview_query"
 readonly SCENARIO_FAILURE_POLICY="continue_and_fail"
-readonly -a SCENARIO_CASE_DIMENSIONS=("protocol=223")
+readonly -a SCENARIO_CASE_DIMENSIONS=("protocol=211")
