@@ -39,7 +39,7 @@ PORT="13306"
 USERNAME="iotdbatm"
 PASSWORD=${ATMOS_DB_PASSWORD}
 DBNAME="QA_ATM"  #数据库名称
-TABLENAME="test_result_longrun_test" #数据库中表的名称
+TABLENAME="test_result_longrun_7_24" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="111.200.37.158:19090"
@@ -163,10 +163,10 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	[ -f "${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh" ] || return 1
 	[ -f "${TEST_DATANODE_PATH}/conf/iotdb-system.properties" ] || return 1
 	[ -f "${TEST_CONFIGNODE_PATH}/conf/iotdb-system.properties" ] || return 1
-	sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"192G\"/g" "${TEST_DATANODE_PATH}/conf/datanode-env.sh" || return 1
-	sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"8G\"/g" "${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh" || return 1
-	sed -i "s/^#OFF_HEAP_MEMORY=\"2G\".*$/OFF_HEAP_MEMORY=\"16G\"/g" "${TEST_DATANODE_PATH}/conf/datanode-env.sh" || return 1
-	sed -i "s/^#OFF_HEAP_MEMORY=\"2G\".*$/OFF_HEAP_MEMORY=\"2G\"/g" "${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh" || return 1
+	sed -i "s/^#ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY=\"192G\"/g" "${TEST_DATANODE_PATH}/conf/datanode-env.sh" || return 1
+	sed -i "s/^#ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY=\"8G\"/g" "${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh" || return 1
+	sed -i "s/^#OFF_HEAP_MEMORY=.*$/OFF_HEAP_MEMORY=\"16G\"/g" "${TEST_DATANODE_PATH}/conf/datanode-env.sh" || return 1
+	sed -i "s/^#OFF_HEAP_MEMORY=.*$/OFF_HEAP_MEMORY=\"2G\"/g" "${TEST_CONFIGNODE_PATH}/conf/confignode-env.sh" || return 1
 	#清空配置文件
 	# echo "只保留要修改的参数" > ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	#关闭影响写入性能的其他功能
@@ -375,8 +375,8 @@ ssh ${ACCOUNT}@${D_IP_list[1]} "${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_I
 sleep 60
 if [ "$bm_num" != '' ]; then
 	for ((j = 1; j <= $bm_num; j++)); do
-		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TREE} && nohup ./benchmark.sh > /dev/null 2>&1 < /dev/null &" || return 1
-		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TABLE} && nohup ./benchmark.sh > /dev/null 2>&1 < /dev/null &" || return 1
+		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TREE};${BM_PATH_TREE}/benchmark.sh > /dev/null 2>&1 &"
+		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TABLE};${BM_PATH_TABLE}/benchmark.sh > /dev/null 2>&1 &"
 	done
 	echo "All BMs have been started"
 fi
