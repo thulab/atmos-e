@@ -48,17 +48,83 @@ if [ "${PASSWORD}" = "" ]; then
 	echo "ATMOS_DB_PASSWORD 未设置，停止执行。" >&2
 	exit 1
 fi
-BENCHMARK_RESULT_COMMON="${ATMOS_PATH}/script/common/benchmark_result_common.sh"
-if [ ! -f "${BENCHMARK_RESULT_COMMON}" ]; then
-	echo "缺少 Benchmark 结果解析脚本: ${BENCHMARK_RESULT_COMMON}" >&2
-	exit 1
-fi
-# shellcheck source=script/common/benchmark_result_common.sh
-source "${BENCHMARK_RESULT_COMMON}" || exit 1
 cleanup_test_type_file() {
 	echo "${test_type}" > "${INIT_PATH}/test_type_file"
 }
 trap cleanup_test_type_file EXIT
+
+read_benchmark_csv_operation_result() {
+	local csv_file="$1"
+	local operation_label="$2"
+	local throughput_line=""
+	local latency_line=""
+
+	[ -f "${csv_file}" ] || return 1
+
+	throughput_line="$(
+		awk -F, -v operation_label="${operation_label}" '
+			function trim_field(value) {
+				gsub(/^[ \t]+|[ \t]+$/, "", value)
+				return value
+			}
+			trim_field($1) == operation_label {
+				for (i = 2; i <= 6; i++) {
+					value = trim_field($i)
+					printf "%s%s", value, (i == 6 ? ORS : OFS)
+				}
+				exit
+			}
+		' OFS=$'\t' "${csv_file}"
+	)"
+
+	latency_line="$(
+		awk -F, -v operation_label="${operation_label}" '
+			function trim_field(value) {
+				gsub(/^[ \t]+|[ \t]+$/, "", value)
+				return value
+			}
+			trim_field($1) == operation_label {
+				count++
+				if (count == 2) {
+					for (i = 2; i <= 12; i++) {
+						value = trim_field($i)
+						printf "%s%s", value, (i == 12 ? ORS : OFS)
+					}
+					exit
+				}
+			}
+		' OFS=$'\t' "${csv_file}"
+	)"
+
+	[ -n "${throughput_line}" ] || return 1
+	[ -n "${latency_line}" ] || return 1
+
+	printf '%s\t%s\n' "${throughput_line}" "${latency_line}"
+}
+
+parse_benchmark_csv_operation_result() {
+	local csv_file="$1"
+	local operation_label="$2"
+	local result_line=""
+
+	result_line="$(read_benchmark_csv_operation_result "${csv_file}" "${operation_label}")" || return 1
+	IFS=$'\t' read -r \
+		okOperation okPoint failOperation failPoint throughput \
+		Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<< "${result_line}"
+}
+
+parse_ingestion_result() {
+	local csv_file="$1"
+
+	parse_benchmark_csv_operation_result "${csv_file}" "INGESTION"
+}
+
+parse_query_result() {
+	local csv_file="$1"
+	local query_label="$2"
+
+	parse_benchmark_csv_operation_result "${csv_file}" "${query_label}"
+}
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 echo "检查iot-benchmark版本"
 BM_REPOS_PATH=/nasdata/repository/iot-benchmark
@@ -218,6 +284,28 @@ set_protocol_class() {
 	echo "schema_region_consensus_protocol_class=${protocol_class[${schema_region}]}" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "data_region_consensus_protocol_class=${protocol_class[${data_region}]}" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 }
+wait_for_all_ssh_ready() {
+	local ip=""
+	local all_ready=0
+
+	echo "等待所有服务器 SSH 恢复..."
+	while true; do
+		all_ready=1
+		for (( i = 1; i < ${#IP_list[*]}; i++ )); do
+			ip=${IP_list[${i}]}
+			if ssh -o BatchMode=yes -o ConnectTimeout=5 ${ACCOUNT}@${ip} "true" >/dev/null 2>&1; then
+				continue
+			fi
+			echo "SSH 尚未恢复: ${ip}"
+			all_ready=0
+		done
+		if [ "${all_ready}" = "1" ]; then
+			echo "所有服务器 SSH 已恢复"
+			return 0
+		fi
+		sleep 10
+	done
+}
 setup_nCmD() {
 OPTIND=1
 while getopts 'c:d:t:' OPT; do
@@ -244,15 +332,15 @@ do
 		dcn_str=${dcn_str},${data_node_config_nodes[${j}]}
 	fi
 done
-echo "开始重置环境！"
-for (( i = 1; i < ${#IP_list[*]}; i++ ))
-do
-	#ssh ${ACCOUNT}@${IP_list[${i}]} "killall -u ${ACCOUNT} > /dev/null 2>&1 &"
-	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo reboot"
-done
-sleep 300
-for (( i = 1; i < ${#IP_list[*]}; i++ ))
-do
+	echo "开始重置环境！"
+	for (( i = 1; i < ${#IP_list[*]}; i++ ))
+	do
+		#ssh ${ACCOUNT}@${IP_list[${i}]} "killall -u ${ACCOUNT} > /dev/null 2>&1 &"
+		ssh ${ACCOUNT}@${IP_list[${i}]} "sudo reboot"
+	done
+	wait_for_all_ssh_ready || return 1
+	for (( i = 1; i < ${#IP_list[*]}; i++ ))
+	do
 	echo "setting env to ${IP_list[${i}]} ..."
 	#删除原有路径下所有
 	ssh ${ACCOUNT}@${IP_list[${i}]} "rm -rf ${TEST_PATH} && mkdir -p ${TEST_PATH}" || return 1
@@ -578,10 +666,10 @@ test_operation() {
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		#ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		#ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
-		#move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
-		#move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
+		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
+		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
+		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
+		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
 	done	
 	
 	for (( i = 0; i < ${#query_type_csv[*]}; i++ ))
@@ -618,10 +706,10 @@ test_operation() {
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		#ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		#ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
-		#move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
-		#move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
+		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
+		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
+		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
+		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
 	done	
 	
 	for (( i = 0; i < ${#query_type_csv[*]}; i++ ))
