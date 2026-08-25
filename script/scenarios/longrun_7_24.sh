@@ -5,7 +5,7 @@ test_type=longrun_7_24
 IOTDB_PASSWORD="TimechoDB@2021"
 
 #初始环境存放路径
-INIT_PATH=/data/atmos/zk_test
+INIT_PATH=/root/zk_test
 ATMOS_PATH=${INIT_PATH}/atmos-e
 BM_PATH=${INIT_PATH}/iot-benchmark
 BUCKUP_PATH=/nasdata/repository/longrun_7_24
