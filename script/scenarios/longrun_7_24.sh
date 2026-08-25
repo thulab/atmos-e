@@ -263,7 +263,7 @@ do
 	cp -f "${ATMOS_PATH}/conf/${test_type}/license/${IP_list[${i}]}" "${TEST_PATH}/CN/apache-iotdb/activation/license" || return 1
 	cp -f "${ATMOS_PATH}/conf/${test_type}/env/${IP_list[${i}]}" "${TEST_PATH}/CN/apache-iotdb/.env" || return 1
 	#复制三项到客户机
-	scp -r "${TEST_PATH}/*" "${ACCOUNT}@${IP_list[${i}]}:${TEST_PATH}" || return 1
+	scp -r "${TEST_PATH}/*" "${ACCOUNT}@${IP_list[${i}]}:/data/atmos/zk_test/" || return 1
 done
 echo "开始部署ConfigNode！"
 for (( i = 1; i <= $config_num; i++ ))
