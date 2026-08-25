@@ -245,12 +245,12 @@ do
 	fi
 done
 echo "开始重置环境！"
-#for (( i = 1; i < ${#IP_list[*]}; i++ ))
-#do
+for (( i = 1; i < ${#IP_list[*]}; i++ ))
+do
 	#ssh ${ACCOUNT}@${IP_list[${i}]} "killall -u ${ACCOUNT} > /dev/null 2>&1 &"
-#	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo reboot"
-#done
-#sleep 300
+	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo reboot"
+done
+sleep 300
 for (( i = 1; i < ${#IP_list[*]}; i++ ))
 do
 	echo "setting env to ${IP_list[${i}]} ..."
@@ -292,7 +292,7 @@ done
 		echo "starting IoTDB ConfigNode on ${C_IP_list[${j}]} ..."
 		ssh ${ACCOUNT}@${C_IP_list[${j}]} "${TEST_CONFIGNODE_PATH}/sbin/start-confignode.sh -H ${TEST_CONFIGNODE_PATH}/cn_dump.hprof > /dev/null 2>&1 &" || return 1
 	#主节点需要先启动，所以等待10秒是为了保证主节点启动完毕
-	sleep 10
+	sleep 5
 done
 #启动data_num个IoTDB DataNode节点
 	for (( j = 1; j <= $data_num; j++ ))
@@ -301,7 +301,7 @@ done
 		ssh ${ACCOUNT}@${D_IP_list[${j}]} "${TEST_DATANODE_PATH}/sbin/start-datanode.sh -H ${TEST_DATANODE_PATH}/dn_dump.hprof > /dev/null 2>&1 &" || return 1
 done
 #等待60s，让服务器完成前期准备
-sleep 60
+sleep 30
 #检查IoTDB ConfigNode节点
 check_config_num=0
 for (( j = 1; j <= $config_num; j++ ))
@@ -372,7 +372,7 @@ ssh ${ACCOUNT}@${D_IP_list[1]} "${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_I
 ssh ${ACCOUNT}@${D_IP_list[1]} "${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_IP_list[1]} -p 6667 -u root -pw ${IOTDB_PASSWORD} -sql_dialect table -e \"GRANT ALL TO USER qa_user;\"" >/dev/null || return 1
 
 #启动benchmark
-sleep 60
+sleep 10
 if [ "$bm_num" != '' ]; then
 	for ((j = 1; j <= $bm_num; j++)); do
 		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TREE};${BM_PATH_TREE}/benchmark.sh > /dev/null 2>&1 &"
@@ -578,10 +578,10 @@ test_operation() {
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
-		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
-		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
+		#ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
+		#ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
+		#move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
+		#move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
 	done	
 	
 	for (( i = 0; i < ${#query_type_csv[*]}; i++ ))
@@ -618,10 +618,10 @@ test_operation() {
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
-		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
-		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
+		#ssh ${ACCOUNT}@${C_IP_list[${j}]} "sudo cp -rf ${TEST_CONFIGNODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
+		#ssh ${ACCOUNT}@${D_IP_list[${j}]} "sudo cp -rf ${TEST_DATANODE_PATH}/logs ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
+		#move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
+		#move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
 	done	
 	
 	for (( i = 0; i < ${#query_type_csv[*]}; i++ ))
