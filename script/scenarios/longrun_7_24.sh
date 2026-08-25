@@ -245,12 +245,12 @@ do
 	fi
 done
 echo "开始重置环境！"
-for (( i = 1; i < ${#IP_list[*]}; i++ ))
-do
+#for (( i = 1; i < ${#IP_list[*]}; i++ ))
+#do
 	#ssh ${ACCOUNT}@${IP_list[${i}]} "killall -u ${ACCOUNT} > /dev/null 2>&1 &"
-	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo reboot"
-done
-sleep 300
+#	ssh ${ACCOUNT}@${IP_list[${i}]} "sudo reboot"
+#done
+#sleep 300
 for (( i = 1; i < ${#IP_list[*]}; i++ ))
 do
 	echo "setting env to ${IP_list[${i}]} ..."
@@ -263,7 +263,7 @@ do
 	cp -f "${ATMOS_PATH}/conf/${test_type}/license/${IP_list[${i}]}" "${TEST_PATH}/CN/apache-iotdb/activation/license" || return 1
 	cp -f "${ATMOS_PATH}/conf/${test_type}/env/${IP_list[${i}]}" "${TEST_PATH}/CN/apache-iotdb/.env" || return 1
 	#复制三项到客户机
-	scp -r "${TEST_PATH}/." "${ACCOUNT}@${IP_list[${i}]}:${TEST_PATH}/" || return 1
+	scp -r "${TEST_PATH}" "${ACCOUNT}@${IP_list[${i}]}:${TEST_PATH}" || return 1
 done
 echo "开始部署ConfigNode！"
 for (( i = 1; i <= $config_num; i++ ))
