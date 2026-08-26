@@ -756,9 +756,15 @@ init_data_consistent_default() {
 	data_consistent_value=""
 	data_consistent=()
 	for (( idx = 1; idx <= data_num; idx++ )); do
-		data_consistent+=("1")
+		data_consistent[${idx}]=1
 	done
-	data_consistent_value="$(IFS=,; echo "${data_consistent[*]}")"
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		if [ -z "${data_consistent_value}" ]; then
+			data_consistent_value="${data_consistent[${idx}]}"
+		else
+			data_consistent_value="${data_consistent_value},${data_consistent[${idx}]}"
+		fi
+	done
 }
 
 ensure_data_consistent_column() {
@@ -1183,10 +1189,10 @@ check_data_consistent() {
 		fi
 
 		if [ "${step_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ "${tree_diff}" -eq 0 ] && [ "${table_diff}" -eq 0 ]; then
-			data_consistent[$((idx - 1))]=0
+			data_consistent[${idx}]=0
 			log_consistency "节点 ${stop_host} 一致性结果: 0"
 		else
-			data_consistent[$((idx - 1))]=1
+			data_consistent[${idx}]=1
 			log_consistency "节点 ${stop_host} 一致性结果: 1"
 		fi
 
@@ -1198,13 +1204,20 @@ check_data_consistent() {
 			restart_ok=0
 		}
 		if [ "${restart_ok}" -eq 0 ]; then
-			data_consistent[$((idx - 1))]=1
+			data_consistent[${idx}]=1
 			log_consistency "节点 ${stop_host} 未恢复 Running，跳过后续 DataNode 一致性校验"
 			break
 		fi
 	done
 
-	data_consistent_value="$(IFS=,; echo "${data_consistent[*]}")"
+	data_consistent_value=""
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		if [ -z "${data_consistent_value}" ]; then
+			data_consistent_value="${data_consistent[${idx}]:-1}"
+		else
+			data_consistent_value="${data_consistent_value},${data_consistent[${idx}]:-1}"
+		fi
+	done
 	log_consistency "data_consistent=${data_consistent_value}"
 	return 0
 }
@@ -1275,7 +1288,7 @@ build_result_insert_sql() {
 	local tree_value="${tree_count[${node_id}]:-0}"
 	local table_value="${table_count[${node_id}]:-0}"
 
-	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,tree_count,table_count,remark,protocol,errorLogSize) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${consistency_value}',${tree_value},${table_value},'${data_type}','${protocol_class}','${v_warnMessage}');"
+	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,tree_count,table_count,remark,protocol,errorLogSize) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${consistency_value}',${tree_value},${table_value},'${data_type}','${protocol_class}','${fail_flag}');"
 }
 
 test_operation() {
