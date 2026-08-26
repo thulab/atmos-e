@@ -507,6 +507,7 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 				end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 				cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 				echo "tree 和 table benchmark 均已完成并生成结果"
+				ssh ${ACCOUNT}@${D_IP_list[1]} "${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_IP_list[1]} -p 6667 -e \"FLUSH;\"" >/dev/null || return 1
 				return 0
 			fi
 			echo "benchmark 进程已结束，但 tree/table 结果文件不完整" >&2
