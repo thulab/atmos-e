@@ -177,6 +177,7 @@ data_consistent=()
 tree_count=()
 table_count=()
 fail_flag=0
+sync_fail_flag=0
 v_warnMessage=""
 ############定义监控采集项初始值##########################
 }
@@ -546,6 +547,106 @@ function get_single_index() {
 	fi
 	echo "${index_value}"
 }
+
+wait_for_sync_completion() {
+	local query_host="${D_IP_list[1]}"
+	local flush_cli="${TEST_DATANODE_PATH}/sbin/start-cli.sh"
+	local prometheus_url="http://${metric_server}/api/v1/query"
+	local sync_query='iot_consensus{cluster="defaultCluster",nodeType="DATANODE",name="ioTConsensusServerImpl",type="syncLag"}'
+	local response=""
+	local result_lines=""
+	local result_count=0
+	local expected_count=$(( ${#D_IP_list[*]} - 1 ))
+	local instance=""
+	local sync_lag=""
+	local is_non_zero=0
+	local all_zero=0
+	local i=0
+	local flush_rc=0
+	declare -A last_sync_lag_status=()
+
+	if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1 || ! command -v bc >/dev/null 2>&1; then
+		fail_flag=$((fail_flag + 1))
+		sync_fail_flag=$((sync_fail_flag + 1))
+		append_log_warning "sync lag check requires curl, jq and bc"
+		echo "同步等待依赖缺失，需要安装 curl、jq、bc。" >&2
+		return 0
+	fi
+
+	echo "开始同步完成等待：先执行 10 次 flush。"
+	for (( i = 1; i <= 10; i++ )); do
+		echo "sync flush ${i}/10: host=${query_host}"
+		ssh ${ACCOUNT}@${query_host} \
+			"\"${flush_cli}\" -h \"${query_host}\" -p 6667 -e \"flush;\"" >/dev/null 2>&1
+		flush_rc=$?
+		if [ "${flush_rc}" -ne 0 ]; then
+			append_log_warning "sync flush ${i}/10 failed on ${query_host}, rc=${flush_rc}"
+			echo "sync flush ${i}/10 执行失败，继续等待。" >&2
+		fi
+		sleep 10
+	done
+
+	echo "开始通过 Prometheus 等待所有 DataNode sync lag 归零。"
+	while true; do
+		response="$(curl -G -sS --connect-timeout 10 --max-time 30 \
+			"${prometheus_url}" \
+			--data-urlencode "query=${sync_query}" 2>/dev/null)" || response=""
+		if [ -z "${response}" ] || [ "$(printf '%s' "${response}" | jq -r '.status // empty' 2>/dev/null)" != "success" ]; then
+			echo "无法从 Prometheus 获取 sync lag，1 秒后重试。" >&2
+			sleep 1
+			continue
+		fi
+
+		result_count="$(printf '%s' "${response}" | jq -r '.data.result | length' 2>/dev/null)" || result_count=0
+		if ! [[ "${result_count}" =~ ^[0-9]+$ ]] || [ "${result_count}" -lt "${expected_count}" ]; then
+			echo "Prometheus sync lag 指标数量不足：expected=${expected_count}, actual=${result_count}，1 秒后重试。" >&2
+			sleep 1
+			continue
+		fi
+
+		result_lines="$(printf '%s' "${response}" | jq -r '.data.result[] | [(.metric.instance // "unknown"), (.value[1] // "invalid")] | @tsv' 2>/dev/null)" || result_lines=""
+		if [ -z "${result_lines}" ]; then
+			echo "Prometheus sync lag 结果为空，1 秒后重试。" >&2
+			sleep 1
+			continue
+		fi
+
+		all_zero=1
+		while IFS=$'\t' read -r instance sync_lag; do
+			[ -n "${instance}" ] || continue
+			echo "sync lag: instance=${instance}, value=${sync_lag}"
+			if ! [[ "${sync_lag}" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
+				all_zero=0
+				echo "sync lag 数值无效：instance=${instance}, value=${sync_lag}" >&2
+				continue
+			fi
+
+			is_non_zero="$(printf '%s > 0.0001\n' "${sync_lag}" | bc -l 2>/dev/null)" || is_non_zero=0
+			if [ "${is_non_zero}" -eq 1 ]; then
+				all_zero=0
+				if [ "${last_sync_lag_status[${instance}]:-0}" -eq 1 ]; then
+					fail_flag=$((fail_flag + 1))
+					sync_fail_flag=$((sync_fail_flag + 1))
+					append_log_warning "sync lag > 0.0001: instance=${instance}, value=${sync_lag}, consecutive"
+					echo "sync lag 连续两次超过 0.0001：instance=${instance}, value=${sync_lag}" >&2
+				else
+					echo "sync lag 首次超过 0.0001：instance=${instance}, value=${sync_lag}"
+				fi
+				last_sync_lag_status[${instance}]=1
+			else
+				last_sync_lag_status[${instance}]=0
+			fi
+		done <<< "${result_lines}"
+
+		if [ "${all_zero}" -eq 1 ]; then
+			echo "所有 DataNode 的 sync lag 均为 0，继续后续操作。"
+			echo "sync fail flag:${sync_fail_flag}"
+			return 0
+		fi
+		sleep 1
+	done
+}
+
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	TEST_IP=$1
 	dataFileSize=0
@@ -1207,6 +1308,7 @@ test_operation() {
 	sleep 60
 	monitor_test_status || return 1
 	m_end_time=$(date +%s)
+	wait_for_sync_completion
 	check_data_consistent
 	if [ -z "${data_consistent_value}" ]; then
 		init_data_consistent_default
