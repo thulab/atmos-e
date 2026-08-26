@@ -933,7 +933,8 @@ check_data_consistent() {
 			log_consistency "节点 ${stop_host} 一致性结果: 1"
 		fi
 
-		ssh ${ACCOUNT}@${stop_host} "cd \"${TEST_DATANODE_PATH}\" && ./sbin/start-datanode.sh -H \"${TEST_DATANODE_PATH}/dn_dump.hprof\" > /dev/null 2>&1 &" >> "${CONSISTENT_LOG_FILE}" 2>&1 || {
+		log_consistency "重启 DataNode: ${stop_host}"
+		ssh -n ${ACCOUNT}@${stop_host} "cd \"${TEST_DATANODE_PATH}\" && nohup ./sbin/start-datanode.sh -H \"${TEST_DATANODE_PATH}/dn_dump.hprof\" > /dev/null 2>&1 < /dev/null &" >> "${CONSISTENT_LOG_FILE}" 2>&1 || {
 			log_consistency "重启 ${stop_host} 命令执行失败"
 			restart_ok=0
 		}
