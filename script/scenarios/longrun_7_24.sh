@@ -52,9 +52,8 @@ cleanup_test_type_file() {
 	echo "${test_type}" > "${INIT_PATH}/test_type_file"
 }
 trap cleanup_test_type_file EXIT
-CONSISTENT_WORK_DIR="${INIT_PATH}/${test_type}_consistent"
+CONSISTENT_WORK_DIR="${TEST_PATH}/consistent_${test_type}"
 CONSISTENT_LOG_FILE="${CONSISTENT_WORK_DIR}/data_consistent.log"
-data_consistent=()
 
 read_benchmark_csv_operation_result() {
 	local csv_file="$1"
@@ -628,7 +627,7 @@ log_consistency() {
 }
 
 reset_consistency_work_dir() {
-	local expected_dir="${INIT_PATH}/${test_type}_consistent"
+	local expected_dir="${TEST_PATH}/consistent_${test_type}"
 
 	if [ "${CONSISTENT_WORK_DIR}" != "${expected_dir}" ]; then
 		echo "invalid consistency work directory: ${CONSISTENT_WORK_DIR}" >&2
@@ -686,7 +685,7 @@ run_consistency_cli() {
 	fi
 
 	log_consistency "${label}: host=${host}"
-	ssh ${ACCOUNT}@${host} "${remote_cmd}" > "${out_file}" 2>&1
+	ssh -o LogLevel=ERROR ${ACCOUNT}@${host} "${remote_cmd}" > "${out_file}" 2>&1
 	local rc=$?
 	cat "${out_file}" >> "${CONSISTENT_LOG_FILE}" 2>/dev/null || true
 	if [ "${rc}" -ne 0 ]; then
@@ -696,6 +695,43 @@ run_consistency_cli() {
 		return 1
 	fi
 	return ${rc}
+}
+
+normalize_consistency_query_output() {
+	local source_file="$1"
+	local normalized_file="$2"
+
+	[ -s "${source_file}" ] || return 1
+	awk '
+		/^Warning: Permanently added / { next }
+		/^It costs / { next }
+		{ print }
+	' "${source_file}" > "${normalized_file}"
+	[ -s "${normalized_file}" ]
+}
+
+compare_consistency_query_output() {
+	local baseline_file="$1"
+	local stop_file="$2"
+	local label="$3"
+	local baseline_normalized="${baseline_file}.normalized"
+	local stop_normalized="${stop_file}.normalized"
+	local diff_output=""
+
+	if ! normalize_consistency_query_output "${baseline_file}" "${baseline_normalized}"; then
+		log_consistency "${label} 基线查询结果为空或标准化失败: ${baseline_file}"
+		return 1
+	fi
+	if ! normalize_consistency_query_output "${stop_file}" "${stop_normalized}"; then
+		log_consistency "${label} 停止节点后查询结果为空或标准化失败: ${stop_file}"
+		return 1
+	fi
+	if diff -u "${baseline_normalized}" "${stop_normalized}" >/dev/null 2>&1; then
+		return 0
+	fi
+	diff_output="$(diff -u "${baseline_normalized}" "${stop_normalized}" 2>&1)"
+	[ -n "${diff_output}" ] && printf '%s\n' "${diff_output}" | tee -a "${CONSISTENT_LOG_FILE}"
+	return 1
 }
 
 stop_remote_datanode() {
@@ -772,7 +808,6 @@ check_data_consistent() {
 	local table_sql="select device_id,count(s_0),count(s_60),count(s_120),count(s_180),count(s_240),count(s_300),count(s_360),count(s_420),count(s_480),count(s_540),count(s_599) from test_g_0.table_0 group by device_id order by device_id;"
 	local show_regions_sql="show regions;"
 	local count_timepartition_sql="count timepartition where database=root.test.g_0;"
-	local diff_output=""
 	local tree_diff=1
 	local table_diff=1
 	local step_ok=1
@@ -845,17 +880,15 @@ check_data_consistent() {
 		log_consistency "stop ${stop_host} show datanodes 输出:"
 		[ -f "${stop_show_file}" ] && cat "${stop_show_file}" | tee -a "${CONSISTENT_LOG_FILE}"
 
-		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ -s "${baseline_tree_file}" ] && [ -s "${stop_tree_file}" ] && diff -u "${baseline_tree_file}" "${stop_tree_file}" >/dev/null 2>&1; then
+		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && compare_consistency_query_output "${baseline_tree_file}" "${stop_tree_file}" "stop ${stop_host} tree query"; then
 			tree_diff=0
 		else
-			diff_output="$(diff -u "${baseline_tree_file}" "${stop_tree_file}" 2>&1)"
-			[ -n "${diff_output}" ] && printf '%s\n' "${diff_output}" | tee -a "${CONSISTENT_LOG_FILE}"
+			tree_diff=1
 		fi
-		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ -s "${baseline_table_file}" ] && [ -s "${stop_table_file}" ] && diff -u "${baseline_table_file}" "${stop_table_file}" >/dev/null 2>&1; then
+		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && compare_consistency_query_output "${baseline_table_file}" "${stop_table_file}" "stop ${stop_host} table query"; then
 			table_diff=0
 		else
-			diff_output="$(diff -u "${baseline_table_file}" "${stop_table_file}" 2>&1)"
-			[ -n "${diff_output}" ] && printf '%s\n' "${diff_output}" | tee -a "${CONSISTENT_LOG_FILE}"
+			table_diff=1
 		fi
 
 		if [ "${step_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ "${tree_diff}" -eq 0 ] && [ "${table_diff}" -eq 0 ]; then
