@@ -939,6 +939,7 @@ check_data_consistent() {
 			restart_ok=0
 		}
 		query_host="$(pick_query_host "${stop_host}")" || query_host="${baseline_query_host}"
+		log_consistency "确认 DataNode重启完毕: ${stop_host}"
 		wait_remote_datanode_running "${query_host}" "${stop_host}" 180 || {
 			log_consistency "节点 ${stop_host} 未在 180 秒内恢复 Running"
 			restart_ok=0
