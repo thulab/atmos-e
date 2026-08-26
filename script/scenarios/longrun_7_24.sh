@@ -765,6 +765,27 @@ stop_remote_datanode() {
 	ssh ${ACCOUNT}@${host} "cd \"${TEST_DATANODE_PATH}\" && ./sbin/stop-datanode.sh" >> "${CONSISTENT_LOG_FILE}" 2>&1
 }
 
+start_remote_datanode_nonblocking() {
+	local host="$1"
+	local remote_cmd=""
+	local rc=0
+
+	remote_cmd="cd \"${TEST_DATANODE_PATH}\" && (nohup ./sbin/start-datanode.sh -H \"${TEST_DATANODE_PATH}/dn_dump.hprof\" > /dev/null 2>&1 < /dev/null &)"
+	log_consistency "重启 DataNode: ${host}"
+	timeout 30s ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no ${ACCOUNT}@${host} "${remote_cmd}" >> "${CONSISTENT_LOG_FILE}" 2>&1
+	rc=$?
+	if [ "${rc}" -eq 124 ]; then
+		log_consistency "重启 ${host} 的 SSH 命令超过 30 秒未返回，继续等待节点恢复"
+		return 1
+	fi
+	if [ "${rc}" -ne 0 ]; then
+		log_consistency "重启 ${host} 命令执行失败，rc=${rc}"
+		return 1
+	fi
+	log_consistency "重启 ${host} 命令已返回"
+	return 0
+}
+
 wait_remote_datanode_stopped() {
 	local host="$1"
 	local timeout_seconds="${2:-120}"
@@ -933,11 +954,7 @@ check_data_consistent() {
 			log_consistency "节点 ${stop_host} 一致性结果: 1"
 		fi
 
-		log_consistency "重启 DataNode: ${stop_host}"
-		ssh -n ${ACCOUNT}@${stop_host} "cd \"${TEST_DATANODE_PATH}\" && nohup ./sbin/start-datanode.sh -H \"${TEST_DATANODE_PATH}/dn_dump.hprof\" > /dev/null 2>&1 < /dev/null &" >> "${CONSISTENT_LOG_FILE}" 2>&1 || {
-			log_consistency "重启 ${stop_host} 命令执行失败"
-			restart_ok=0
-		}
+		start_remote_datanode_nonblocking "${stop_host}" || log_consistency "重启 ${stop_host} 命令未正常返回，继续确认 Running 状态"
 		query_host="$(pick_query_host "${stop_host}")" || query_host="${baseline_query_host}"
 		log_consistency "确认 DataNode重启完毕: ${stop_host}"
 		wait_remote_datanode_running "${query_host}" "${stop_host}" 180 || {
@@ -946,6 +963,8 @@ check_data_consistent() {
 		}
 		if [ "${restart_ok}" -eq 0 ]; then
 			data_consistent[$((idx - 1))]=1
+			log_consistency "节点 ${stop_host} 未恢复 Running，跳过后续 DataNode 一致性校验"
+			break
 		fi
 	done
 
