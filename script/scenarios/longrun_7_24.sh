@@ -174,6 +174,8 @@ maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
 data_consistent_value=""
 data_consistent=()
+tree_count=()
+table_count=()
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
@@ -665,6 +667,18 @@ ensure_data_consistent_column() {
 	fi
 }
 
+ensure_zero_zero_tsfile_columns() {
+	local column_name=""
+	local column_exists=""
+
+	for column_name in tree_count table_count; do
+		column_exists=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -N -B -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '${TABLENAME}' AND column_name = '${column_name}';") || return 1
+		if [ "${column_exists}" = "0" ]; then
+			mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "ALTER TABLE \`${TABLENAME}\` ADD COLUMN \`${column_name}\` BIGINT DEFAULT 0 AFTER \`data_consistent\`;" || return 1
+		fi
+	done
+}
+
 pick_query_host() {
 	local stop_host="${1:-}"
 	local ip=""
@@ -973,6 +987,76 @@ check_data_consistent() {
 	log_consistency "data_consistent=${data_consistent_value}"
 	return 0
 }
+
+collect_zero_zero_tsfile_counts() {
+	local output_file="${CONSISTENT_WORK_DIR}/zero_zero_tsfile.log"
+	local host=""
+	local remote_log_dir="${TEST_DATANODE_PATH}/logs"
+	local tree_count_value=0
+	local table_count_value=0
+	local total_count_value=0
+	local idx=0
+	local line=""
+
+	tree_count=()
+	table_count=()
+	ensure_zero_zero_tsfile_columns || log_consistency "0-0.tsfile 统计列检查或创建失败，继续统计"
+	mkdir -p "${CONSISTENT_WORK_DIR}" 2>/dev/null || {
+		echo "0-0.tsfile 统计目录创建失败: ${CONSISTENT_WORK_DIR}" >&2
+		return 0
+	}
+	: > "${output_file}" 2>/dev/null || {
+		echo "0-0.tsfile 统计日志创建失败: ${output_file}" >&2
+		output_file=""
+	}
+
+	log_consistency "开始统计 DataNode 0-0.tsfile 创建次数"
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		host="${D_IP_list[${idx}]}"
+		log_consistency "解压 ${host} 的 DataNode all log"
+		ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+			${ACCOUNT}@${host} \
+			"for log_file in '${remote_log_dir}'/log-datanode-all*.gz; do
+				if [ -f \"\$log_file\" ]; then
+					sudo gunzip -f \"\$log_file\" 2>/dev/null || true
+				fi
+			done" >/dev/null 2>&1 || log_consistency "${host} DataNode all log 解压命令执行失败，继续统计"
+
+		tree_count_value="$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+			${ACCOUNT}@${host} \
+			"grep -hF 'create a new tsfile' '${remote_log_dir}'/log-datanode-all* 2>/dev/null | grep -F 'root.test.g_0' | awk 'END {print NR + 0}'" 2>/dev/null)" || tree_count_value=0
+		table_count_value="$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+			${ACCOUNT}@${host} \
+			"grep -hF 'create a new tsfile' '${remote_log_dir}'/log-datanode-all* 2>/dev/null | grep -F 'test_g_0' | awk 'END {print NR + 0}'" 2>/dev/null)" || table_count_value=0
+		[[ "${tree_count_value}" =~ ^[0-9]+$ ]] || tree_count_value=0
+		[[ "${table_count_value}" =~ ^[0-9]+$ ]] || table_count_value=0
+		tree_count[${idx}]=${tree_count_value}
+		table_count[${idx}]=${table_count_value}
+		tree_count_value="${tree_count[${idx}]}"
+		table_count_value="${table_count[${idx}]}"
+		total_count_value=$((tree_count[${idx}] + table_count[${idx}]))
+
+		line="${host},tree 0-0.tsfile,${tree_count_value}"
+		log_consistency "${line}"
+		[ -z "${output_file}" ] || printf '%s\n' "${line}" >> "${output_file}" 2>/dev/null || true
+		line="${host},table 0-0.tsfile,${table_count_value}"
+		log_consistency "${line}"
+		[ -z "${output_file}" ] || printf '%s\n' "${line}" >> "${output_file}" 2>/dev/null || true
+		line="${host},tree+table 0-0.tsfile,${total_count_value}"
+		log_consistency "${line}"
+		[ -z "${output_file}" ] || printf '%s\n' "${line}" >> "${output_file}" 2>/dev/null || true
+	done
+	return 0
+}
+
+build_result_insert_sql() {
+	local consistency_value="${data_consistent[${node_id}]:-1}"
+	local tree_value="${tree_count[${node_id}]:-0}"
+	local table_value="${table_count[${node_id}]:-0}"
+
+	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,tree_count,table_count,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${consistency_value}',${tree_value},${table_value},'${data_type}','${protocol_class}')"
+}
+
 test_operation() {
 	ts_type=$1
 	data_type=$2
@@ -1007,6 +1091,7 @@ test_operation() {
 	if [ -z "${data_consistent_value}" ]; then
 		init_data_consistent_default
 	fi
+	collect_zero_zero_tsfile_counts
 	#测试结果收集写入数据库
 	ts_type="table"
 	data_type="seq_rw"
@@ -1021,7 +1106,7 @@ test_operation() {
 		op_type="INGESTION"
 		#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 		node_id=${j}
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent[${j}}','${data_type}','${protocol_class}')"
+		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || echo "CN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" >&2
@@ -1041,7 +1126,7 @@ test_operation() {
 			return 1
 		}
 		node_id=1
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent[${j}]}','${data_type}','${protocol_class}')"
+		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
 	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/table.csv || echo "table.csv 备份失败: ${csvOutputfile}" >&2
@@ -1061,7 +1146,7 @@ test_operation() {
 		op_type="INGESTION"
 		#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 		node_id=${j}
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent[${j}]}','${data_type}','${protocol_class}')"
+		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || echo "CN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" >&2
@@ -1081,7 +1166,7 @@ test_operation() {
 			return 1
 		}
 		node_id=1
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent[${j}]}','${data_type}','${protocol_class}')"
+		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
 	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/tree.csv || echo "tree.csv 备份失败: ${csvOutputfile}" >&2
