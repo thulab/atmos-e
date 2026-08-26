@@ -176,6 +176,8 @@ data_consistent_value=""
 data_consistent=()
 tree_count=()
 table_count=()
+fail_flag=0
+v_warnMessage=""
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
@@ -679,6 +681,124 @@ ensure_zero_zero_tsfile_columns() {
 	done
 }
 
+append_log_warning() {
+	local warning="$1"
+
+	if [ -z "${v_warnMessage}" ]; then
+		v_warnMessage="${warning}"
+	else
+		v_warnMessage="${v_warnMessage}; ${warning}"
+	fi
+}
+
+decompress_remote_log_files() {
+	local host="$1"
+	local log_glob="$2"
+
+	ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+		${ACCOUNT}@${host} \
+		"for log_file in ${log_glob}; do
+			if [ -f \"\$log_file\" ]; then
+				case \"\$log_file\" in
+					*.gz) sudo gunzip -f \"\$log_file\" 2>/dev/null || true ;;
+				esac
+			fi
+		done" >/dev/null 2>&1
+}
+
+count_remote_log_pattern() {
+	local host="$1"
+	local log_glob="$2"
+	local pattern="$3"
+	local count=""
+
+	count="$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+		${ACCOUNT}@${host} \
+		"grep -hE -- '${pattern}' ${log_glob} 2>/dev/null | awk 'END {print NR + 0}'" 2>/dev/null)" || {
+		printf '0\n'
+		return 1
+	}
+	[[ "${count}" =~ ^[0-9]+$ ]] || count=0
+	printf '%s\n' "${count}"
+}
+
+check_log_pattern() {
+	local node_type="$1"
+	local host="$2"
+	local log_glob="$3"
+	local label="$4"
+	local pattern="$5"
+	local count=0
+
+	count="$(count_remote_log_pattern "${host}" "${log_glob}" "${pattern}")" || count=0
+	log_consistency "check_log ${node_type} ${host} ${label}: ${count}"
+	if [ "${count}" -gt 0 ]; then
+		fail_flag=$((fail_flag + 1))
+		append_log_warning "${node_type} ${host} ${label} count=${count}"
+		log_consistency "check_log hit: ${node_type} ${host} ${label} count=${count}"
+	fi
+}
+
+check_log() {
+	local host=""
+	local idx=0
+	local i=0
+	local cn_log_glob="${TEST_CONFIGNODE_PATH}/logs/*confignode*all*"
+	local dn_log_glob="${TEST_DATANODE_PATH}/logs/*datanode*all*"
+	local cn_labels=("NullPointer" "BufferUnderflowException" "but return HAS_MORE_STATE")
+	local cn_patterns=("NullPointer" "BufferUnderflowException" "but return HAS_MORE_STATE")
+	local dn_labels=(
+		"NullPointer"
+		"CompactionTableSchemaNotMatchException"
+		"has overlapped data"
+		"which should be later than the last time"
+		"DataTypeInconsistentException"
+		"ArrayIndexOutOfBoundsException"
+		"Alter timeseries data type from null to"
+		"StatisticsClassException"
+		"BufferUnderflowException"
+		"NegativeArraySizeException"
+		"is not in tsFileMetaData"
+	)
+	local dn_patterns=(
+		"NullPointer"
+		"CompactionTableSchemaNotMatchException"
+		"has overlapped data"
+		"which should be later than the last time"
+		"DataTypeInconsistentException"
+		"ArrayIndexOutOfBoundsException"
+		"Alter timeseries .* data type from null to"
+		"StatisticsClassException"
+		"BufferUnderflowException"
+		"NegativeArraySizeException"
+		"is not in tsFileMetaData"
+	)
+
+	log_consistency "check_log begin"
+	for (( idx = 1; idx < ${#C_IP_list[*]}; idx++ )); do
+		host="${C_IP_list[${idx}]}"
+		decompress_remote_log_files "${host}" "${cn_log_glob}" || log_consistency "check_log CN ${host} 解压日志失败，继续扫描"
+		for (( i = 0; i < ${#cn_patterns[*]}; i++ )); do
+			check_log_pattern "CN" "${host}" "${cn_log_glob}" "${cn_labels[${i}]}" "${cn_patterns[${i}]}"
+		done
+	done
+
+	for (( idx = 1; idx < ${#D_IP_list[*]}; idx++ )); do
+		host="${D_IP_list[${idx}]}"
+		decompress_remote_log_files "${host}" "${dn_log_glob}" || log_consistency "check_log DN ${host} 解压日志失败，继续扫描"
+		for (( i = 0; i < ${#dn_patterns[*]}; i++ )); do
+			check_log_pattern "DN" "${host}" "${dn_log_glob}" "${dn_labels[${i}]}" "${dn_patterns[${i}]}"
+		done
+	done
+
+	if [ -z "${v_warnMessage}" ]; then
+		v_warnMessage="No warn."
+	fi
+	log_consistency "check_log fail_flag=${fail_flag}"
+	log_consistency "check_log v_warnMessage=${v_warnMessage}"
+	return 0
+}
+
 pick_query_host() {
 	local stop_host="${1:-}"
 	local ip=""
@@ -1175,6 +1295,9 @@ test_operation() {
 	else
 		echo "一致性校验目录不存在，跳过备份: ${CONSISTENT_WORK_DIR}" >&2
 	fi
+	check_log
+	echo "fail flag:${fail_flag}"
+	echo "warn message:${v_warnMessage}"
 	return 0
 }
 
