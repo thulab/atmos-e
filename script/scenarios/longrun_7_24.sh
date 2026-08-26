@@ -631,10 +631,27 @@ reset_consistency_work_dir() {
 
 	if [ "${CONSISTENT_WORK_DIR}" != "${expected_dir}" ]; then
 		echo "invalid consistency work directory: ${CONSISTENT_WORK_DIR}" >&2
-		return 1
+		return 0
 	fi
-	rm -rf -- "${CONSISTENT_WORK_DIR}" || return 1
-	mkdir -p -- "${CONSISTENT_WORK_DIR}" || return 1
+	rm -rf -- "${CONSISTENT_WORK_DIR}" || {
+		echo "failed to clean consistency work directory: ${CONSISTENT_WORK_DIR}" >&2
+		return 0
+	}
+	mkdir -p -- "${CONSISTENT_WORK_DIR}" || {
+		echo "failed to create consistency work directory: ${CONSISTENT_WORK_DIR}" >&2
+		return 0
+	}
+}
+
+init_data_consistent_default() {
+	local idx=0
+
+	data_consistent_value=""
+	data_consistent=()
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		data_consistent+=("1")
+	done
+	data_consistent_value="$(IFS=,; echo "${data_consistent[*]}")"
 }
 
 ensure_data_consistent_column() {
@@ -701,13 +718,15 @@ normalize_consistency_query_output() {
 	local source_file="$1"
 	local normalized_file="$2"
 
-	[ -s "${source_file}" ] || return 1
+	if [ ! -s "${source_file}" ]; then
+		: > "${normalized_file}"
+		return 0
+	fi
 	awk '
 		/^Warning: Permanently added / { next }
 		/^It costs / { next }
 		{ print }
 	' "${source_file}" > "${normalized_file}"
-	[ -s "${normalized_file}" ]
 }
 
 compare_consistency_query_output() {
@@ -718,20 +737,24 @@ compare_consistency_query_output() {
 	local stop_normalized="${stop_file}.normalized"
 	local diff_output=""
 
-	if ! normalize_consistency_query_output "${baseline_file}" "${baseline_normalized}"; then
+	consistency_compare_result=1
+	normalize_consistency_query_output "${baseline_file}" "${baseline_normalized}"
+	if [ ! -s "${baseline_normalized}" ]; then
 		log_consistency "${label} 基线查询结果为空或标准化失败: ${baseline_file}"
-		return 1
+		return 0
 	fi
-	if ! normalize_consistency_query_output "${stop_file}" "${stop_normalized}"; then
+	normalize_consistency_query_output "${stop_file}" "${stop_normalized}"
+	if [ ! -s "${stop_normalized}" ]; then
 		log_consistency "${label} 停止节点后查询结果为空或标准化失败: ${stop_file}"
-		return 1
+		return 0
 	fi
 	if diff -u "${baseline_normalized}" "${stop_normalized}" >/dev/null 2>&1; then
+		consistency_compare_result=0
 		return 0
 	fi
 	diff_output="$(diff -u "${baseline_normalized}" "${stop_normalized}" 2>&1)"
 	[ -n "${diff_output}" ] && printf '%s\n' "${diff_output}" | tee -a "${CONSISTENT_LOG_FILE}"
-	return 1
+	return 0
 }
 
 stop_remote_datanode() {
@@ -816,16 +839,18 @@ check_data_consistent() {
 	local idx=0
 	local stop_label=""
 	local baseline_ok=1
+	local consistency_compare_result=1
 
-	mkdir -p "${CONSISTENT_WORK_DIR}" || return 1
-	: > "${CONSISTENT_LOG_FILE}" || return 1
-	ensure_data_consistent_column || return 1
-
-	data_consistent_value=""
-	data_consistent=()
-	for (( idx = 1; idx <= data_num; idx++ )); do
-		data_consistent+=("1")
-	done
+	init_data_consistent_default
+	if ! mkdir -p "${CONSISTENT_WORK_DIR}"; then
+		echo "failed to create consistency work directory: ${CONSISTENT_WORK_DIR}" >&2
+		return 0
+	fi
+	if ! : > "${CONSISTENT_LOG_FILE}"; then
+		echo "failed to create consistency log file: ${CONSISTENT_LOG_FILE}" >&2
+		return 0
+	fi
+	ensure_data_consistent_column || log_consistency "data_consistent 列检查或创建失败，继续执行一致性校验"
 
 	log_consistency "check_data_consistent"
 	baseline_query_host="$(pick_query_host "")" || baseline_query_host="${D_IP_list[1]}"
@@ -880,12 +905,20 @@ check_data_consistent() {
 		log_consistency "stop ${stop_host} show datanodes 输出:"
 		[ -f "${stop_show_file}" ] && cat "${stop_show_file}" | tee -a "${CONSISTENT_LOG_FILE}"
 
-		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && compare_consistency_query_output "${baseline_tree_file}" "${stop_tree_file}" "stop ${stop_host} tree query"; then
+		consistency_compare_result=1
+		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ]; then
+			compare_consistency_query_output "${baseline_tree_file}" "${stop_tree_file}" "stop ${stop_host} tree query"
+		fi
+		if [ "${consistency_compare_result}" -eq 0 ]; then
 			tree_diff=0
 		else
 			tree_diff=1
 		fi
-		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && compare_consistency_query_output "${baseline_table_file}" "${stop_table_file}" "stop ${stop_host} table query"; then
+		consistency_compare_result=1
+		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ]; then
+			compare_consistency_query_output "${baseline_table_file}" "${stop_table_file}" "stop ${stop_host} table query"
+		fi
+		if [ "${consistency_compare_result}" -eq 0 ]; then
 			table_diff=0
 		else
 			table_diff=1
@@ -915,15 +948,16 @@ check_data_consistent() {
 
 	data_consistent_value="$(IFS=,; echo "${data_consistent[*]}")"
 	log_consistency "data_consistent=${data_consistent_value}"
+	return 0
 }
 test_operation() {
 	ts_type=$1
 	data_type=$2
 	protocol_class=$3
-	reset_consistency_work_dir || return 1
 	echo "开始测试！"
 	#复制当前程序到执行位置
 	set_env || return 1
+	reset_consistency_work_dir
 	modify_iotdb_config || return 1
 	if [ "${protocol_class}" = "111" ]; then
 		set_protocol_class 1 1 1 || return 1
@@ -946,16 +980,9 @@ test_operation() {
 	sleep 60
 	monitor_test_status || return 1
 	m_end_time=$(date +%s)
-	check_data_consistent || log_consistency "数据一致性校验过程中发生错误"
+	check_data_consistent
 	if [ -z "${data_consistent_value}" ]; then
-		data_consistent_value=""
-		for ((j = 1; j <= data_num; j++)); do
-			if [ -z "${data_consistent_value}" ]; then
-				data_consistent_value=1
-			else
-				data_consistent_value="${data_consistent_value},1"
-			fi
-		done
+		init_data_consistent_default
 	fi
 	#测试结果收集写入数据库
 	ts_type="table"
@@ -1035,7 +1062,11 @@ test_operation() {
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
 	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/tree.csv || return 1
-	sudo cp -rf "${CONSISTENT_WORK_DIR}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/ || return 1
+	if [ -d "${CONSISTENT_WORK_DIR}" ]; then
+		sudo cp -rf "${CONSISTENT_WORK_DIR}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/ || echo "一致性校验目录备份失败: ${CONSISTENT_WORK_DIR}" >&2
+	else
+		echo "一致性校验目录不存在，跳过备份: ${CONSISTENT_WORK_DIR}" >&2
+	fi
 	return 0
 }
 
