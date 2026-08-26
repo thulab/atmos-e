@@ -52,6 +52,9 @@ cleanup_test_type_file() {
 	echo "${test_type}" > "${INIT_PATH}/test_type_file"
 }
 trap cleanup_test_type_file EXIT
+CONSISTENT_WORK_DIR="${INIT_PATH}/${test_type}_consistent"
+CONSISTENT_LOG_FILE="${CONSISTENT_WORK_DIR}/data_consistent.log"
+data_consistent=()
 
 read_benchmark_csv_operation_result() {
 	local csv_file="$1"
@@ -170,6 +173,8 @@ maxDiskIOOpsRead=0
 maxDiskIOOpsWrite=0
 maxDiskIOSizeRead=0
 maxDiskIOSizeWrite=0
+data_consistent_value=""
+data_consistent=()
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
@@ -618,10 +623,271 @@ move_remote_dump_if_exists() {
 	local target_path=$3
 	ssh ${ACCOUNT}@${host} "if [ -f '${source_path}' ]; then sudo mv '${source_path}' '${target_path}'; fi"
 }
+log_consistency() {
+	printf '%s\n' "$1" | tee -a "${CONSISTENT_LOG_FILE}"
+}
+
+reset_consistency_work_dir() {
+	local expected_dir="${INIT_PATH}/${test_type}_consistent"
+
+	if [ "${CONSISTENT_WORK_DIR}" != "${expected_dir}" ]; then
+		echo "invalid consistency work directory: ${CONSISTENT_WORK_DIR}" >&2
+		return 1
+	fi
+	rm -rf -- "${CONSISTENT_WORK_DIR}" || return 1
+	mkdir -p -- "${CONSISTENT_WORK_DIR}" || return 1
+}
+
+ensure_data_consistent_column() {
+	local column_exists=""
+
+	column_exists=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -N -B -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '${TABLENAME}' AND column_name = 'data_consistent';") || return 1
+	if [ "${column_exists}" = "0" ]; then
+		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "ALTER TABLE \`${TABLENAME}\` ADD COLUMN \`data_consistent\` VARCHAR(128) DEFAULT NULL AFTER \`maxDiskIOOpsWrite\`;" || return 1
+	fi
+}
+
+pick_query_host() {
+	local stop_host="${1:-}"
+	local ip=""
+	local i=0
+
+	for (( i = 1; i < ${#D_IP_list[*]}; i++ )); do
+		ip="${D_IP_list[${i}]}"
+		[ "${ip}" = "${stop_host}" ] && continue
+		if ssh -o BatchMode=yes -o ConnectTimeout=5 ${ACCOUNT}@${ip} "true" >/dev/null 2>&1; then
+			printf '%s\n' "${ip}"
+			return 0
+		fi
+	done
+	for (( i = 1; i < ${#D_IP_list[*]}; i++ )); do
+		ip="${D_IP_list[${i}]}"
+		if [ -n "${ip}" ]; then
+			printf '%s\n' "${ip}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+run_consistency_cli() {
+	local host="$1"
+	local dialect="$2"
+	local sql="$3"
+	local out_file="$4"
+	local label="${5:-query}"
+	local remote_cmd=""
+	local sql_escaped="${sql//\"/\\\"}"
+
+	if [ -n "${dialect}" ]; then
+		remote_cmd="cd \"${TEST_DATANODE_PATH}\" && ./sbin/start-cli.sh -u root -pw \"${IOTDB_PASSWORD}\" -h \"${host}\" -sql_dialect \"${dialect}\" -timeout 36000 -e \"${sql_escaped}\""
+	else
+		remote_cmd="cd \"${TEST_DATANODE_PATH}\" && ./sbin/start-cli.sh -u root -pw \"${IOTDB_PASSWORD}\" -h \"${host}\" -timeout 36000 -e \"${sql_escaped}\""
+	fi
+
+	log_consistency "${label}: host=${host}"
+	ssh ${ACCOUNT}@${host} "${remote_cmd}" > "${out_file}" 2>&1
+	local rc=$?
+	cat "${out_file}" >> "${CONSISTENT_LOG_FILE}" 2>/dev/null || true
+	if [ "${rc}" -ne 0 ]; then
+		return "${rc}"
+	fi
+	if grep -qE "Exception|(^|[[:space:]])ERROR([[:space:]]|:)" "${out_file}"; then
+		return 1
+	fi
+	return ${rc}
+}
+
+stop_remote_datanode() {
+	local host="$1"
+
+	log_consistency "停止 DataNode: ${host}"
+	ssh ${ACCOUNT}@${host} "cd \"${TEST_DATANODE_PATH}\" && ./sbin/stop-datanode.sh" >> "${CONSISTENT_LOG_FILE}" 2>&1
+}
+
+wait_remote_datanode_stopped() {
+	local host="$1"
+	local timeout_seconds="${2:-120}"
+	local start_epoch=$(date +%s)
+	local running_count=""
+
+	while true; do
+		running_count=$(ssh -o BatchMode=yes -o ConnectTimeout=5 ${ACCOUNT}@${host} "jps | grep -w DataNode | wc -l" 2>/dev/null) || running_count=1
+		running_count=${running_count//[[:space:]]/}
+		[ -z "${running_count}" ] && running_count=1
+		log_consistency "等待 ${host} 退出，当前 DataNode 进程数=${running_count}"
+		if [ "${running_count}" = "0" ]; then
+			return 0
+		fi
+		if [ $(( $(date +%s) - start_epoch )) -ge "${timeout_seconds}" ]; then
+			return 1
+		fi
+		sleep 3
+	done
+}
+
+show_datanode_running() {
+	local file="$1"
+	local host="$2"
+
+	grep -F "${host}" "${file}" | grep -q "Running"
+}
+
+wait_remote_datanode_running() {
+	local query_host="$1"
+	local target_host="$2"
+	local timeout_seconds="${3:-180}"
+	local start_epoch=$(date +%s)
+	local show_file="${CONSISTENT_WORK_DIR}/wait_${target_host//./_}_show_datanodes.out"
+
+	while true; do
+		run_consistency_cli "${query_host}" "" "show datanodes;" "${show_file}" "wait ${target_host} Running" || true
+		if show_datanode_running "${show_file}" "${target_host}"; then
+			log_consistency "${target_host} 已恢复 Running"
+			return 0
+		fi
+		log_consistency "等待 ${target_host} 恢复 Running"
+		if [ $(( $(date +%s) - start_epoch )) -ge "${timeout_seconds}" ]; then
+			return 1
+		fi
+		sleep 5
+	done
+}
+
+check_data_consistent() {
+	local baseline_query_host=""
+	local stop_host=""
+	local query_host=""
+	local baseline_show_file="${CONSISTENT_WORK_DIR}/q_all_online_show_datanodes.out"
+	local baseline_tree_file="${CONSISTENT_WORK_DIR}/q_all_online_tree.out"
+	local baseline_table_file="${CONSISTENT_WORK_DIR}/q_all_online_table.out"
+	local baseline_regions_file="${CONSISTENT_WORK_DIR}/q_all_online_show_regions.out"
+	local baseline_count_file="${CONSISTENT_WORK_DIR}/q_all_online_count_timepartition.out"
+	local stop_show_file=""
+	local stop_tree_file=""
+	local stop_table_file=""
+	local stop_regions_file=""
+	local stop_count_file=""
+	local tree_sql="select count(s_0),count(s_60),count(s_120),count(s_180),count(s_240),count(s_300),count(s_360),count(s_420),count(s_480),count(s_540),count(s_599) from root.test.g_0.** align by device;"
+	local table_sql="select device_id,count(s_0),count(s_60),count(s_120),count(s_180),count(s_240),count(s_300),count(s_360),count(s_420),count(s_480),count(s_540),count(s_599) from test_g_0.table_0 group by device_id order by device_id;"
+	local show_regions_sql="show regions;"
+	local count_timepartition_sql="count timepartition where database=root.test.g_0;"
+	local diff_output=""
+	local tree_diff=1
+	local table_diff=1
+	local step_ok=1
+	local stop_queries_ok=1
+	local restart_ok=1
+	local idx=0
+	local stop_label=""
+	local baseline_ok=1
+
+	mkdir -p "${CONSISTENT_WORK_DIR}" || return 1
+	: > "${CONSISTENT_LOG_FILE}" || return 1
+	ensure_data_consistent_column || return 1
+
+	data_consistent_value=""
+	data_consistent=()
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		data_consistent+=("1")
+	done
+
+	log_consistency "check_data_consistent"
+	baseline_query_host="$(pick_query_host "")" || baseline_query_host="${D_IP_list[1]}"
+	log_consistency "基线查询节点: ${baseline_query_host}"
+
+	run_consistency_cli "${baseline_query_host}" "" "show datanodes;" "${baseline_show_file}" "all online show datanodes" || baseline_ok=0
+	run_consistency_cli "${baseline_query_host}" "tree" "${show_regions_sql}" "${baseline_regions_file}" "all online show regions" || baseline_ok=0
+	run_consistency_cli "${baseline_query_host}" "tree" "${count_timepartition_sql}" "${baseline_count_file}" "all online count timepartition" || baseline_ok=0
+	run_consistency_cli "${baseline_query_host}" "tree" "${tree_sql}" "${baseline_tree_file}" "all online tree query" || baseline_ok=0
+	run_consistency_cli "${baseline_query_host}" "table" "${table_sql}" "${baseline_table_file}" "all online table query" || baseline_ok=0
+
+	log_consistency "show datanodes 基线输出:"
+	[ -f "${baseline_show_file}" ] && cat "${baseline_show_file}" | tee -a "${CONSISTENT_LOG_FILE}"
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		show_datanode_running "${baseline_show_file}" "${D_IP_list[${idx}]}" || {
+			log_consistency "基线 show datanodes 未显示 ${D_IP_list[${idx}]} Running"
+			baseline_ok=0
+		}
+	done
+
+	for (( idx = 1; idx <= data_num; idx++ )); do
+		stop_host="${D_IP_list[${idx}]}"
+		stop_label="${stop_host//./_}"
+		stop_show_file="${CONSISTENT_WORK_DIR}/q_stop_${stop_label}_show_datanodes.out"
+		stop_tree_file="${CONSISTENT_WORK_DIR}/q_stop_${stop_label}_tree.out"
+		stop_table_file="${CONSISTENT_WORK_DIR}/q_stop_${stop_label}_table.out"
+		stop_regions_file="${CONSISTENT_WORK_DIR}/q_stop_${stop_label}_show_regions.out"
+		stop_count_file="${CONSISTENT_WORK_DIR}/q_stop_${stop_label}_count_timepartition.out"
+		tree_diff=1
+		table_diff=1
+		step_ok=1
+		stop_queries_ok=1
+		restart_ok=1
+
+		stop_remote_datanode "${stop_host}" || {
+			log_consistency "停止 ${stop_host} 命令执行失败"
+			step_ok=0
+		}
+		wait_remote_datanode_stopped "${stop_host}" 120 || {
+			log_consistency "等待 ${stop_host} 退出超时"
+			step_ok=0
+		}
+		query_host="$(pick_query_host "${stop_host}")" || query_host="${baseline_query_host}"
+		log_consistency "停止 ${stop_host} 后的查询节点: ${query_host}"
+
+		run_consistency_cli "${query_host}" "" "show datanodes;" "${stop_show_file}" "stop ${stop_host} show datanodes" || stop_queries_ok=0
+		run_consistency_cli "${query_host}" "tree" "${show_regions_sql}" "${stop_regions_file}" "stop ${stop_host} show regions" || stop_queries_ok=0
+		run_consistency_cli "${query_host}" "tree" "${count_timepartition_sql}" "${stop_count_file}" "stop ${stop_host} count timepartition" || stop_queries_ok=0
+		run_consistency_cli "${query_host}" "tree" "${tree_sql}" "${stop_tree_file}" "stop ${stop_host} tree query" || stop_queries_ok=0
+		run_consistency_cli "${query_host}" "table" "${table_sql}" "${stop_table_file}" "stop ${stop_host} table query" || stop_queries_ok=0
+
+		log_consistency "stop ${stop_host} show datanodes 输出:"
+		[ -f "${stop_show_file}" ] && cat "${stop_show_file}" | tee -a "${CONSISTENT_LOG_FILE}"
+
+		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ -s "${baseline_tree_file}" ] && [ -s "${stop_tree_file}" ] && diff -u "${baseline_tree_file}" "${stop_tree_file}" >/dev/null 2>&1; then
+			tree_diff=0
+		else
+			diff_output="$(diff -u "${baseline_tree_file}" "${stop_tree_file}" 2>&1)"
+			[ -n "${diff_output}" ] && printf '%s\n' "${diff_output}" | tee -a "${CONSISTENT_LOG_FILE}"
+		fi
+		if [ "${baseline_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ -s "${baseline_table_file}" ] && [ -s "${stop_table_file}" ] && diff -u "${baseline_table_file}" "${stop_table_file}" >/dev/null 2>&1; then
+			table_diff=0
+		else
+			diff_output="$(diff -u "${baseline_table_file}" "${stop_table_file}" 2>&1)"
+			[ -n "${diff_output}" ] && printf '%s\n' "${diff_output}" | tee -a "${CONSISTENT_LOG_FILE}"
+		fi
+
+		if [ "${step_ok}" -eq 1 ] && [ "${stop_queries_ok}" -eq 1 ] && [ "${tree_diff}" -eq 0 ] && [ "${table_diff}" -eq 0 ]; then
+			data_consistent[$((idx - 1))]=0
+			log_consistency "节点 ${stop_host} 一致性结果: 0"
+		else
+			data_consistent[$((idx - 1))]=1
+			log_consistency "节点 ${stop_host} 一致性结果: 1"
+		fi
+
+		ssh ${ACCOUNT}@${stop_host} "cd \"${TEST_DATANODE_PATH}\" && ./sbin/start-datanode.sh -H \"${TEST_DATANODE_PATH}/dn_dump.hprof\" > /dev/null 2>&1 &" >> "${CONSISTENT_LOG_FILE}" 2>&1 || {
+			log_consistency "重启 ${stop_host} 命令执行失败"
+			restart_ok=0
+		}
+		query_host="$(pick_query_host "${stop_host}")" || query_host="${baseline_query_host}"
+		wait_remote_datanode_running "${query_host}" "${stop_host}" 180 || {
+			log_consistency "节点 ${stop_host} 未在 180 秒内恢复 Running"
+			restart_ok=0
+		}
+		if [ "${restart_ok}" -eq 0 ]; then
+			data_consistent[$((idx - 1))]=1
+		fi
+	done
+
+	data_consistent_value="$(IFS=,; echo "${data_consistent[*]}")"
+	log_consistency "data_consistent=${data_consistent_value}"
+}
 test_operation() {
 	ts_type=$1
 	data_type=$2
 	protocol_class=$3
+	reset_consistency_work_dir || return 1
 	echo "开始测试！"
 	#复制当前程序到执行位置
 	set_env || return 1
@@ -647,6 +913,17 @@ test_operation() {
 	sleep 60
 	monitor_test_status || return 1
 	m_end_time=$(date +%s)
+	check_data_consistent || log_consistency "数据一致性校验过程中发生错误"
+	if [ -z "${data_consistent_value}" ]; then
+		data_consistent_value=""
+		for ((j = 1; j <= data_num; j++)); do
+			if [ -z "${data_consistent_value}" ]; then
+				data_consistent_value=1
+			else
+				data_consistent_value="${data_consistent_value},1"
+			fi
+		done
+	fi
 	#测试结果收集写入数据库
 	ts_type="table"
 	data_type="seq_rw"
@@ -661,13 +938,13 @@ test_operation() {
 		op_type="INGESTION"
 		#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 		node_id=${j}
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_type}','${protocol_class}')"
+		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
+		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
+		scp -r "${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
 		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
 		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
 	done	
@@ -681,7 +958,7 @@ test_operation() {
 			return 1
 		}
 		node_id=1
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_type}','${protocol_class}')"
+		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
 	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/table.csv || return 1
@@ -701,13 +978,13 @@ test_operation() {
 		op_type="INGESTION"
 		#cost_time=$(($(date +%s -d "${end_time}") - $(date +%s -d "${start_time}")))
 		node_id=${j}
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_type}','${protocol_class}')"
+		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 		
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		scp -r "${ACCOUNT}@${IP_list[${i}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
+		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
+		scp -r "${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
 		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
 		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
 	done	
@@ -721,10 +998,11 @@ test_operation() {
 			return 1
 		}
 		node_id=1
-		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_type}','${protocol_class}')"
+		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
 	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/tree.csv || return 1
+	sudo cp -rf "${CONSISTENT_WORK_DIR}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/ || return 1
 	return 0
 }
 
