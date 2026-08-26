@@ -620,7 +620,8 @@ move_remote_dump_if_exists() {
 	local host=$1
 	local source_path=$2
 	local target_path=$3
-	ssh ${ACCOUNT}@${host} "if [ -f '${source_path}' ]; then sudo mv '${source_path}' '${target_path}'; fi"
+	ssh ${ACCOUNT}@${host} "if [ -f '${source_path}' ]; then sudo mv '${source_path}' '${target_path}'; fi" || echo "dump 备份失败: ${host}:${source_path}" >&2
+	return 0
 }
 log_consistency() {
 	printf '%s\n' "$1" | tee -a "${CONSISTENT_LOG_FILE}"
@@ -1001,12 +1002,12 @@ test_operation() {
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 		
-		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
-		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		scp -r "${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
-		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
-		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
+		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || echo "CN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" >&2
+		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || echo "DN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" >&2
+		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || echo "CN logs 备份失败: ${C_IP_list[${j}]}" >&2
+		scp -r "${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || echo "DN logs 备份失败: ${D_IP_list[${j}]}" >&2
+		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof"
+		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof"
 	done	
 	
 	for (( i = 0; i < ${#query_type_csv[*]}; i++ ))
@@ -1021,7 +1022,7 @@ test_operation() {
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
-	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/table.csv || return 1
+	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/table.csv || echo "table.csv 备份失败: ${csvOutputfile}" >&2
 	
 	
 	#测试结果收集写入数据库
@@ -1041,12 +1042,12 @@ test_operation() {
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 		
-		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || return 1
-		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || return 1
-		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || return 1
-		scp -r "${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || return 1
-		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof" || return 1
-		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof" || return 1
+		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || echo "CN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" >&2
+		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || echo "DN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" >&2
+		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || echo "CN logs 备份失败: ${C_IP_list[${j}]}" >&2
+		scp -r "${ACCOUNT}@${D_IP_list[${j}]}:${TEST_DATANODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" || echo "DN logs 备份失败: ${D_IP_list[${j}]}" >&2
+		move_remote_dump_if_exists "${D_IP_list[${j}]}" "${TEST_DATANODE_PATH}/dn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_dn_dump.hprof"
+		move_remote_dump_if_exists "${C_IP_list[${j}]}" "${TEST_CONFIGNODE_PATH}/cn_dump.hprof" "${INIT_PATH}/${commit_date_time}_${commit_id}_${protocol_class}_node${j}_cn_dump.hprof"
 	done	
 	
 	for (( i = 0; i < ${#query_type_csv[*]}; i++ ))
@@ -1061,7 +1062,7 @@ test_operation() {
 		insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,remark,protocol) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${data_consistent_value}','${data_type}','${protocol_class}')"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
-	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/tree.csv || return 1
+	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/tree.csv || echo "tree.csv 备份失败: ${csvOutputfile}" >&2
 	if [ -d "${CONSISTENT_WORK_DIR}" ]; then
 		sudo cp -rf "${CONSISTENT_WORK_DIR}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/ || echo "一致性校验目录备份失败: ${CONSISTENT_WORK_DIR}" >&2
 	else
