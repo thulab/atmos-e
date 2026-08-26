@@ -552,7 +552,7 @@ wait_for_sync_completion() {
 	local query_host="${D_IP_list[1]}"
 	local flush_cli="${TEST_DATANODE_PATH}/sbin/start-cli.sh"
 	local prometheus_url="http://${metric_server}/api/v1/query"
-	local sync_query='iot_consensus{cluster="defaultCluster",nodeType="DATANODE",name="ioTConsensusServerImpl",type="syncLag"}'
+	local sync_query='iot_consensus{cluster="LongRunTestCluster",nodeType="DATANODE",name="ioTConsensusServerImpl",type="syncLag"}'
 	local response=""
 	local result_lines=""
 	local result_count=0
