@@ -166,6 +166,57 @@ parse_query_result() {
 
 	parse_benchmark_csv_operation_result "${csv_file}" "${query_label}"
 }
+
+benchmark_csv_timestamp() {
+	local filename="${1##*/}"
+	local -a fields=()
+
+	IFS='-' read -r -a fields <<< "${filename}"
+	[ "${#fields[@]}" -eq 9 ] || return 1
+	[ -n "${fields[0]:-}" ] || return 1
+	[[ "${fields[1]:-}" =~ ^[0-9]{4}$ ]] || return 1
+	[[ "${fields[2]:-}" =~ ^[0-9]{2}$ ]] || return 1
+	[[ "${fields[3]:-}" =~ ^[0-9]{2}$ ]] || return 1
+	[[ "${fields[4]:-}" =~ ^[0-9]{2}$ ]] || return 1
+	[[ "${fields[5]:-}" =~ ^[0-9]{2}$ ]] || return 1
+	[[ "${fields[6]:-}" =~ ^[0-9]{2}$ ]] || return 1
+	[ "${fields[7]:-}" = "test" ] || return 1
+	[ "${fields[8]:-}" = "result.csv" ] || return 1
+
+	printf '%s%s%s%s%s%s\n' \
+		"${fields[1]}" "${fields[2]}" "${fields[3]}" \
+		"${fields[4]}" "${fields[5]}" "${fields[6]}"
+}
+
+find_latest_result_csv() {
+	local result_dir="$1"
+	local file=""
+	local fallback_file=""
+	local current_timestamp=""
+	local latest_timestamp=""
+	local latest_file=""
+
+	while IFS= read -r file; do
+		[ -n "${file}" ] || continue
+		[ -f "${file}" ] || continue
+		[ -n "${fallback_file}" ] || fallback_file="${file}"
+		current_timestamp="$(benchmark_csv_timestamp "${file}" || true)"
+		[ -n "${current_timestamp}" ] || continue
+
+		if [ -z "${latest_file}" ] ||
+			[[ "${current_timestamp}" > "${latest_timestamp}" ]] ||
+			{ [ "${current_timestamp}" = "${latest_timestamp}" ] && [ "${file}" > "${latest_file}" ]; }; then
+			latest_timestamp="${current_timestamp}"
+			latest_file="${file}"
+		fi
+	done < <(find "${result_dir}" -maxdepth 1 -type f -name '*result.csv' -print | sort)
+
+	if [ -n "${latest_file}" ]; then
+		printf '%s\n' "${latest_file}"
+	elif [ -n "${fallback_file}" ]; then
+		printf '%s\n' "${fallback_file}"
+	fi
+}
 #echo "Started at: " date -d today +"%Y-%m-%d %H:%M:%S"
 echo "检查iot-benchmark版本"
 BM_REPOS_PATH=/nasdata/repository/iot-benchmark
@@ -756,18 +807,28 @@ fetch_remote_result_csv() {
 	while IFS= read -r remote_file; do
 		[ -n "${remote_file}" ] && remote_files+=("${remote_file}")
 	done <<< "${remote_output}"
-	if [ "${#remote_files[@]}" -ne 1 ]; then
-		echo "${benchmark_path} 预期 1 个结果文件，实际 ${#remote_files[@]} 个" >&2
-		return 1
-	fi
+	[ "${#remote_files[@]}" -gt 0 ] || return 1
 
 	mkdir -p "${result_dir}" || return 1
 	rm -f "${result_dir}"/*
-	scp "${ACCOUNT}@${B_IP_list[1]}:${remote_files[0]}" "${result_dir}/" >/dev/null || return 1
-	local_result_file="${result_dir}/${remote_files[0]##*/}"
+	for remote_file in "${remote_files[@]}"; do
+		scp "${ACCOUNT}@${B_IP_list[1]}:${remote_file}" "${result_dir}/" >/dev/null || return 1
+	done
+	local_result_file="$(find_latest_result_csv "${result_dir}" || true)"
 	[ -s "${local_result_file}" ] || return 1
 	printf '%s\n' "${local_result_file}"
 }
+
+backup_result_csv_directory() {
+	local result_name="$1"
+	local result_dir="${BM_PATH}/TestResult/csvOutput"
+	local backup_dir="${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${result_name}"
+
+	[ -d "${result_dir}" ] || return 1
+	sudo mkdir -p "${backup_dir}" || return 1
+	sudo cp -rf "${result_dir}/." "${backup_dir}/" || return 1
+}
+
 query_is_enabled() {
 	local config_file=$1
 	local query_index=$2
@@ -1423,7 +1484,7 @@ test_operation() {
 		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
-	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/table.csv || echo "table.csv 备份失败: ${csvOutputfile}" >&2
+	backup_result_csv_directory "table" || echo "table CSV 目录备份失败: ${BM_PATH}/TestResult/csvOutput" >&2
 	
 	
 	#测试结果收集写入数据库
@@ -1463,7 +1524,7 @@ test_operation() {
 		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
 	done
-	sudo cp -f "${csvOutputfile}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/tree.csv || echo "tree.csv 备份失败: ${csvOutputfile}" >&2
+	backup_result_csv_directory "tree" || echo "tree CSV 目录备份失败: ${BM_PATH}/TestResult/csvOutput" >&2
 	if [ -d "${CONSISTENT_WORK_DIR}" ]; then
 		sudo cp -rf "${CONSISTENT_WORK_DIR}" ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/ || echo "一致性校验目录备份失败: ${CONSISTENT_WORK_DIR}" >&2
 	else
