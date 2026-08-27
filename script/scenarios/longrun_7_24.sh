@@ -527,10 +527,26 @@ create_remote_stuck_result() {
 	local array1="INGESTION ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1"
 	ssh ${ACCOUNT}@${B_IP_list[1]} "mkdir -p '${benchmark_path}/data/csvOutput' && : > '${csv_path}' && i=0; while [ \$i -lt 100 ]; do printf '%s\n' '${array1}' >> '${csv_path}'; i=\$((i + 1)); done"
 }
+log_benchmark_tail() {
+	local benchmark_path="$1"
+	local benchmark_label="$2"
+	local benchmark_log="${benchmark_path}/logs/log_info.log"
+
+	echo "===== ${benchmark_label} benchmark recent 5 log lines ====="
+	ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+		${ACCOUNT}@${B_IP_list[1]} \
+		"if [ -f '${benchmark_log}' ]; then tail -n 5 '${benchmark_log}'; else echo 'benchmark log not found: ${benchmark_log}'; fi" 2>&1 || \
+		echo "failed to read ${benchmark_label} benchmark log: ${benchmark_log}" >&2
+}
+log_benchmark_recent_lines() {
+	log_benchmark_tail "${BM_PATH_TREE}" "tree"
+	log_benchmark_tail "${BM_PATH_TABLE}" "table"
+}
 monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件才算成功
 	local process_count=0
 	local now_epoch=0
 	local elapsed=0
+	local next_log_dump_elapsed=600
 	local tree_ready=0
 	local table_ready=0
 	while true; do
@@ -541,6 +557,12 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 		if ! [[ "${process_count}" =~ ^[0-9]+$ ]]; then
 			echo "benchmark 进程数量无效: ${process_count}" >&2
 			return 1
+		fi
+		now_epoch=$(date +%s)
+		elapsed=$((now_epoch - m_start_time))
+		if [ "${elapsed}" -ge "${next_log_dump_elapsed}" ]; then
+			log_benchmark_recent_lines
+			next_log_dump_elapsed=$((next_log_dump_elapsed + 600))
 		fi
 		if [ "${process_count}" -eq 0 ]; then
 			tree_ready=0
@@ -558,8 +580,6 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 			return 1
 		fi
 
-		now_epoch=$(date +%s)
-		elapsed=$((now_epoch - m_start_time))
 		if [ "${elapsed}" -ge 864000 ]; then
 			echo "测试超时，生成兜底结果" >&2
 			end_time=-1
