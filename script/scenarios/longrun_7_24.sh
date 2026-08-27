@@ -32,6 +32,10 @@ config_data_replication_factor=(0 3 3 3 3 3 3)
 config_node_config_nodes=(0 11.101.10.2:10710 11.101.10.2:10710 11.101.10.2:10710)
 data_node_config_nodes=(0 11.101.10.2:10710 11.101.10.3:10710 11.101.10.4:10710)
 Control=172.20.70.51
+TEST_TYPE_FILE="${INIT_PATH}/test_type_file"
+LOCK_FILE="${INIT_PATH}/${test_type}.lock"
+RUN_TOKEN="${test_type}_$$"
+RUNNING_STATE="ontesting+${RUN_TOKEN}"
 
 ############mysql信息##########################
 MYSQLHOSTNAME="111.200.37.158" #数据库信息
@@ -43,15 +47,50 @@ TABLENAME="test_result_longrun_7_24" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="111.200.37.158:19090"
+write_test_type_file() {
+	local value="$1"
+	local temp_file="${TEST_TYPE_FILE}.${RUN_TOKEN}.tmp"
+
+	printf '%s\n' "${value}" > "${temp_file}" || return 1
+	mv -f -- "${temp_file}" "${TEST_TYPE_FILE}" || {
+		rm -f -- "${temp_file}"
+		return 1
+	}
+}
+
+owns_test_type_state() {
+	[ -f "${TEST_TYPE_FILE}" ] && [ "$(tr -d '\r\n' < "${TEST_TYPE_FILE}")" = "${RUNNING_STATE}" ]
+}
+
+restore_test_type_file() {
+	if owns_test_type_state; then
+		write_test_type_file "${test_type}" || true
+	fi
+}
+
+release_test_type_file() {
+	if owns_test_type_state; then
+		write_test_type_file "${test_type}" || return 1
+	fi
+}
+
+if ! command -v flock >/dev/null 2>&1; then
+	echo "longrun_7_24.sh requires flock" >&2
+	exit 1
+fi
+mkdir -p "${INIT_PATH}" || exit 1
+exec 9>"${LOCK_FILE}" || exit 1
+if ! flock -n 9; then
+	echo "another ${test_type} instance is already running" >&2
+	exit 0
+fi
+write_test_type_file "${RUNNING_STATE}" || exit 1
+trap restore_test_type_file EXIT
 ############公用函数##########################
 if [ "${PASSWORD}" = "" ]; then
 	echo "ATMOS_DB_PASSWORD 未设置，停止执行。" >&2
 	exit 1
 fi
-cleanup_test_type_file() {
-	echo "${test_type}" > "${INIT_PATH}/test_type_file"
-}
-trap cleanup_test_type_file EXIT
 CONSISTENT_WORK_DIR="${TEST_PATH}/consistent_${test_type}"
 CONSISTENT_LOG_FILE="${CONSISTENT_WORK_DIR}/data_consistent.log"
 
@@ -1417,7 +1456,6 @@ test_operation() {
 }
 
 ##准备开始测试
-echo "ontesting" > ${INIT_PATH}/test_type_file
 query_sql="SELECT commit_id,',',author,',',commit_date_time,',' FROM ${TASK_TABLENAME} WHERE ${test_type} = 'retest' ORDER BY commit_date_time desc limit 1 "
 result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${query_sql}") || exit 1
 commit_id=$(echo $result_string| awk -F, '{print $4}' | awk '{sub(/^ */, "");sub(/ *$/, "")}1')
@@ -1441,11 +1479,19 @@ else
 	test_date_time=`date +%Y%m%d%H%M%S`
 	########优先测试
 	echo "开始测试普通时间序列顺序写入！"
-	test_operation both seq_rw 223
+	test_failed=0
+	test_operation both seq_rw 223 || test_failed=1
 	echo "本轮测试${test_date_time}已结束."
-	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
-	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}" || exit 1
-	update_sql02="update ${TASK_TABLENAME} set ${test_type} = 'skip' where ${test_type} is NULL and commit_date_time < '${commit_date_time}'"
-	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql02}" || exit 1
+	if [ "${test_failed}" -eq 0 ]; then
+		update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
+		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}" || exit 1
+		update_sql02="update ${TASK_TABLENAME} set ${test_type} = 'skip' where ${test_type} is NULL and commit_date_time < '${commit_date_time}'"
+		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql02}" || exit 1
+	else
+		echo "本轮测试失败，将任务标记为 RError" >&2
+		update_sql="update ${TASK_TABLENAME} set ${test_type} = 'RError' where commit_id = '${commit_id}'"
+		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}" || exit 1
+		exit 1
+	fi
 fi
-echo "${test_type}" > ${INIT_PATH}/test_type_file
+release_test_type_file || exit 1
