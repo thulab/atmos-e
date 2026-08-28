@@ -1370,7 +1370,7 @@ collect_zero_zero_tsfile_counts() {
 		log_consistency "解压 ${host} 的 DataNode all log"
 		ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
 			${ACCOUNT}@${host} \
-			"for log_file in '${remote_log_dir}'/log-datanode-all*.gz; do
+			"for log_file in '${remote_log_dir}'/log*datanode*all*.gz; do
 				if [ -f \"\$log_file\" ]; then
 					sudo gunzip -f \"\$log_file\" 2>/dev/null || true
 				fi
@@ -1378,10 +1378,10 @@ collect_zero_zero_tsfile_counts() {
 
 		tree_count_value="$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
 			${ACCOUNT}@${host} \
-			"grep -hF 'create a new tsfile' '${remote_log_dir}'/log-datanode-all* 2>/dev/null | grep -F 'root.test.g_0' | awk 'END {print NR + 0}'" 2>/dev/null)" || tree_count_value=0
+			"grep -hF 'create a new tsfile' '${remote_log_dir}'/log*datanode*all* 2>/dev/null | grep -F 'root.test.g_0' | awk 'END {print NR + 0}'" 2>/dev/null)" || tree_count_value=0
 		table_count_value="$(ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
 			${ACCOUNT}@${host} \
-			"grep -hF 'create a new tsfile' '${remote_log_dir}'/log-datanode-all* 2>/dev/null | grep -F 'test_g_0' | awk 'END {print NR + 0}'" 2>/dev/null)" || table_count_value=0
+			"grep -hF 'create a new tsfile' '${remote_log_dir}'/log*datanode*all* 2>/dev/null | grep -F 'test_g_0' | awk 'END {print NR + 0}'" 2>/dev/null)" || table_count_value=0
 		[[ "${tree_count_value}" =~ ^[0-9]+$ ]] || tree_count_value=0
 		[[ "${table_count_value}" =~ ^[0-9]+$ ]] || table_count_value=0
 		tree_count[${idx}]=${tree_count_value}
