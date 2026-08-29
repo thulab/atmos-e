@@ -28,7 +28,7 @@ readonly -a SCENARIO_CASES=(
     $'case=point_sparse_compare\tenv=point_sparse_compare.env'
 )
 
-: "${INIT_PATH:=/data/atmos/zk_test}"
+: "${INIT_PATH:=/root/zk_test}"
 : "${ATMOS_PATH:=${INIT_PATH}/atmos-e}"
 : "${BM_PATH:=${INIT_PATH}/iot-benchmark}"
 : "${REPOS_PATH:=/nasdata/repository/master}"
