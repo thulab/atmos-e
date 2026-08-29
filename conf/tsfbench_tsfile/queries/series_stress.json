@@ -1,0 +1,31 @@
+{
+  "queries": [
+    {
+      "name": "Q0_meta",
+      "kind": "meta"
+    },
+    {
+      "name": "Q1_mid_d0000_s0",
+      "kind": "point",
+      "device": "d0000",
+      "sensor": "s0",
+      "time": 1704070800
+    },
+    {
+      "name": "Q2_wide_d0000_s0",
+      "kind": "slice",
+      "device": "d0000",
+      "sensor": "s0",
+      "t_start": 1704067200,
+      "t_end": 1704074400
+    },
+    {
+      "name": "Q3_range_8dev_3sensor",
+      "kind": "range",
+      "devices": ["d0000", "d0001", "d0002", "d0003", "d0004", "d0005", "d0006", "d0007"],
+      "sensors": ["s0", "s1", "s2"],
+      "t_start": 1704069000,
+      "t_end": 1704072600
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "queries": [
+    {
+      "name": "Q0_meta",
+      "kind": "meta"
+    },
+    {
+      "name": "Q4_agg_mean_mid",
+      "kind": "frame_agg",
+      "op": "mean",
+      "t_start": 1704088800,
+      "t_end": 1704132000
+    },
+    {
+      "name": "Q4_agg_max_mid",
+      "kind": "frame_agg",
+      "op": "max",
+      "t_start": 1704088800,
+      "t_end": 1704132000
+    },
+    {
+      "name": "Q7_subframe_center_1pct",
+      "kind": "subframe",
+      "t_start": 1704088800,
+      "t_end": 1704132000,
+      "y0": 29,
+      "y1": 34,
+      "x0": 29,
+      "x1": 34
+    },
+    {
+      "name": "Q7_subframe_center_25pct",
+      "kind": "subframe",
+      "t_start": 1704088800,
+      "t_end": 1704132000,
+      "y0": 16,
+      "y1": 47,
+      "x0": 16,
+      "x1": 47
+    },
+    {
+      "name": "Q7_subframe_full",
+      "kind": "subframe",
+      "t_start": 1704088800,
+      "t_end": 1704132000,
+      "y0": 0,
+      "y1": 63,
+      "x0": 0,
+      "x1": 63
+    }
+  ]
+}
