@@ -54,9 +54,24 @@ ensure_dependencies() {
 sendEmail() {
     local error_type="$1"
     local date_time=""
+    local test_label="${TEST_TYPE:-性能测试}"
+    local headline=""
     local msgbody=""
+    local dingtalk_token="${DINGTALK_ACCESS_TOKEN:-f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62}"
+    local dingtalk_secret="${DINGTALK_SECRET:-}"
+    local dingtalk_url="${DINGTALK_WEBHOOK_URL:-https://oapi.dingtalk.com/robot/send?access_token=${dingtalk_token}}"
+    local timestamp=""
+    local string_to_sign=""
+    local sign=""
+    local json_data=""
+    local curl_output=""
+    local curl_status=0
+    local http_code=""
+    local response_body=""
+    local errcode=""
+    local errmsg=""
 
-    date_time="$(date +%Y%m%d%H%M%S)"
+    date_time="$(date '+%Y-%m-%d %H:%M:%S')"
     case "${error_type}" in
         1)
             msgbody="Error type: ${test_type} code update failed\nTime: ${date_time}"
@@ -72,9 +87,57 @@ sendEmail() {
             ;;
     esac
 
-    curl 'https://oapi.dingtalk.com/robot/send?access_token=f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62' \
-        -H 'Content-Type: application/json' \
-        -d '{"msgtype": "text","text": {"content": "[Atmos]'"${msgbody}"'"}}' >/dev/null 2>&1 &
+
+    if [ -n "${dingtalk_secret}" ]; then
+        require_command openssl
+        require_command base64
+        timestamp="$(($(date +%s) * 1000))"
+        string_to_sign="${timestamp}"$'\n'"${dingtalk_secret}"
+        sign="$(
+            printf '%s' "${string_to_sign}" |
+                openssl dgst -sha256 -hmac "${dingtalk_secret}" -binary |
+                base64 |
+                tr -d '\n' |
+                jq -s -R -r @uri
+        )"
+        dingtalk_url="${dingtalk_url}&timestamp=${timestamp}&sign=${sign}"
+    fi
+
+    json_data="$(jq -nc --arg content "${msgbody}" '{msgtype: "text", text: {content: $content}}')"
+    curl_output="$(
+        curl -sS -X POST \
+            -H 'Content-Type: application/json' \
+            -d "${json_data}" \
+            -w '\n%{http_code}' \
+            "${dingtalk_url}"
+    )"
+    curl_status=$?
+    if [ "${curl_status}" -ne 0 ]; then
+        log "钉钉告警发送失败: curl exit code=${curl_status}"
+        return 1
+    fi
+
+    http_code="${curl_output##*$'\n'}"
+    response_body="${curl_output%$'\n'*}"
+    if [ "${response_body}" = "${curl_output}" ]; then
+        response_body=""
+    fi
+
+    if [ "${http_code}" != "200" ]; then
+        log "钉钉告警发送失败: HTTP ${http_code}, response=${response_body:-<empty>}"
+        return 1
+    fi
+
+    errcode="$(printf '%s' "${response_body}" | jq -r '.errcode // empty' 2>/dev/null || true)"
+    errmsg="$(printf '%s' "${response_body}" | jq -r '.errmsg // empty' 2>/dev/null || true)"
+    if [ -n "${errcode}" ] && [ "${errcode}" != "0" ]; then
+        log "钉钉告警发送失败: errcode=${errcode}, errmsg=${errmsg:-unknown}, response=${response_body:-<empty>}"
+        return 1
+    fi
+
+    log "已发送钉钉告警通知: ${headline}"
+    [ -n "${errmsg}" ] && log "钉钉响应: ${errmsg}"
+    return 0
 }
 
 sync_source_repo() {
