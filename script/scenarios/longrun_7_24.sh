@@ -1463,7 +1463,7 @@ test_operation() {
 		node_id=${j}
 		build_result_insert_sql
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${insert_sql}" || return 1
-		
+		log ${insert_sql}
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN || echo "CN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" >&2
 		sudo mkdir -p ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN || echo "DN 备份目录创建失败: ${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/DN" >&2
 		scp -r "${ACCOUNT}@${C_IP_list[${j}]}:${TEST_CONFIGNODE_PATH}/logs" "${BUCKUP_PATH}/${commit_date_time}_${commit_id}_${protocol_class}/${j}/CN" || echo "CN logs 备份失败: ${C_IP_list[${j}]}" >&2
