@@ -252,13 +252,11 @@ refresh_benchmark_repo_if_needed() {
 
 cleanup_old_runtime_records() {
     local ip=""
-    local -a ip_list=()
 
     log "cleanup test runtime records older than 15 days"
     find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
 
-    read -r -a ip_list <<< "${IP_LIST}"
-    for ip in "${ip_list[@]}"; do
+    for ip in "${IP_LIST[@]}"; do
         [ -n "${ip}" ] || continue
         if ! ping -c 1 -W 2 "${ip}" >/dev/null 2>&1; then
             log "ip ${ip} is unreachable"
