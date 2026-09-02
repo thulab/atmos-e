@@ -229,6 +229,10 @@ sync_tsfile_repository() {
         git_repo_exec "${repository}" checkout --track "origin/${branch}" || return 1
     fi
 
+    log "stash local TSFile changes before sync to avoid pull/rebase conflicts"
+    timeout "${TSFILE_SYNC_TIMEOUT_SECONDS}s" \
+        git --git-dir="${repository}/.git" --work-tree="${repository}" stash push -u -m "atmos-e auto-stash before sync" >/dev/null 2>&1 || true
+
     timeout "${TSFILE_SYNC_TIMEOUT_SECONDS}s" \
         git --git-dir="${repository}/.git" --work-tree="${repository}" pull --ff-only origin "${branch}"
 }
