@@ -40,8 +40,6 @@ readonly -a SCENARIO_CASES=(
 : "${USERNAME:=${MYSQL_USERNAME:-iotdbatm}}"
 : "${PASSWORD:=${MYSQL_PASSWORD:-${ATMOS_DB_PASSWORD:-}}}"
 : "${DBNAME:=QA_ATM}"
-: "${TASK_TABLENAME:=commit_history}"
-: "${TASK_DB_PARSE_ERROR_MESSAGE:=commit_date_time parse failed}"
 METRIC_SERVER="${METRIC_SERVER:-111.200.37.158:19090}"
 readonly METRIC_SERVER
 
@@ -73,13 +71,15 @@ readonly TSFILE_COMMIT_LENGTH="${TSFILE_COMMIT_LENGTH:-12}"
 readonly TSFBENCH_HOME_PER_COMMIT="${TSFBENCH_HOME_PER_COMMIT:-1}"
 
 TSFBENCH_GLOBAL_HOME_DIR="${TSFBENCH_GLOBAL_HOME_BASE_DIR}"
+TSFBENCH_RESULT_ROOT="${TSFBENCH_GLOBAL_RESULT_ROOT}"
+TSFBENCH_HOME_DIR="${TSFBENCH_GLOBAL_HOME_DIR}"
+TSFBENCH_REPOS_PATH="${TSFBENCH_GLOBAL_REPOS_PATH}"
+TSFBENCH_BIN="${TSFBENCH_GLOBAL_BIN}"
 
 commit_id=""
 author=""
 commit_date_time=""
-commit_db_date_time=""
 test_date_time=""
-last_tsfbench_tsfile_status=""
 last_tsfile_commit=""
 current_tsfile_wheel=""
 tsfile_prepare_root=""
@@ -138,10 +138,6 @@ datetime_to_epoch() {
     date -d "$1" +%s
 }
 
-normalize_datetime() {
-    printf '%s' "$1" | tr -cd '0-9'
-}
-
 sql_quote() {
     local value="${1:-}"
 
@@ -186,67 +182,6 @@ restore_test_type_file() {
     local current_test_type="${1:-${TEST_TYPE:-${test_type:-}}}"
 
     write_test_type_file "${current_test_type}"
-}
-
-task_status_table_name() {
-    local table_name="${TASK_TABLENAME:-${TASK_TABLE_NAME:-}}"
-
-    [ -n "${table_name}" ] || die "missing task status table name"
-    printf '%s\n' "${table_name}"
-}
-
-task_status_query_exec() {
-    local sql="$1"
-
-    if [ "${TASK_DB_SUPPRESS_QUERY_ERRORS:-0}" = "1" ]; then
-        mysql_exec "${sql}" 2>/dev/null || true
-    else
-        mysql_exec "${sql}"
-    fi
-}
-
-update_task_status() {
-    local status="$1"
-    local table_name=""
-
-    table_name="$(task_status_table_name)"
-    mysql_exec "update ${table_name} set \`${TEST_TYPE}\` = $(sql_quote "${status}") where commit_id = $(sql_quote "${commit_id}")"
-}
-
-mark_older_commits_skip() {
-    local table_name=""
-
-    table_name="$(task_status_table_name)"
-    mysql_exec "update ${table_name} set \`${TEST_TYPE}\` = 'skip' where \`${TEST_TYPE}\` is NULL and commit_date_time < $(sql_quote "${commit_date_time}")"
-}
-
-query_next_commit() {
-    local status_filter="$1"
-    local table_name=""
-
-    table_name="$(task_status_table_name)"
-    if [ "${status_filter}" = "retest" ]; then
-        task_status_query_exec "SELECT commit_id, author, commit_date_time FROM ${table_name} WHERE \`${TEST_TYPE}\` = 'retest' ORDER BY commit_date_time desc LIMIT 1"
-    else
-        task_status_query_exec "SELECT commit_id, author, commit_date_time FROM ${table_name} WHERE \`${TEST_TYPE}\` is NULL ORDER BY commit_date_time desc LIMIT 1"
-    fi
-}
-
-fetch_next_commit() {
-    local row=""
-    local raw_commit_date_time=""
-
-    row="$(query_next_commit "retest")"
-    if [ -z "${row}" ]; then
-        row="$(query_next_commit "pending")"
-    fi
-    [ -n "${row}" ] || return 1
-
-    IFS=$'\t' read -r commit_id author raw_commit_date_time <<< "${row}"
-    author="$(trim "${author}")"
-    commit_date_time="$(normalize_datetime "${raw_commit_date_time}")"
-    [ -n "${commit_id}" ] || return 1
-    [ -n "${commit_date_time}" ] || die "${TASK_DB_PARSE_ERROR_MESSAGE}"
 }
 
 git_repo_exec() {
@@ -305,51 +240,15 @@ load_current_tsfile_commit_info() {
     author="$(git_current_author "${TSFILE_REPOS_PATH}")"
     epoch="$(git_current_epoch "${TSFILE_REPOS_PATH}")"
     commit_date_time="$(date -d "@${epoch}" +%Y%m%d%H%M%S)"
-    commit_db_date_time="$(date -d "@${epoch}" '+%Y-%m-%d %H:%M:%S')"
-}
-
-query_task_status_for_commit() {
-    local table_name=""
-
-    table_name="$(task_status_table_name)"
-    mysql_exec "SELECT COALESCE(CAST(\`${TEST_TYPE}\` AS CHAR), '') FROM ${table_name} WHERE commit_id = $(sql_quote "${commit_id}") LIMIT 1"
-}
-
-task_commit_exists() {
-    local table_name=""
-    local row=""
-
-    table_name="$(task_status_table_name)"
-    row="$(mysql_exec "SELECT commit_id FROM ${table_name} WHERE commit_id = $(sql_quote "${commit_id}") LIMIT 1")"
-    [ -n "${row}" ]
-}
-
-ensure_commit_task_row() {
-    local status="$1"
-    local table_name=""
-
-    table_name="$(task_status_table_name)"
-    if task_commit_exists; then
-        mysql_exec "UPDATE ${table_name} SET author = $(sql_quote "${author}"), commit_date_time = $(sql_quote "${commit_db_date_time}"), \`${TEST_TYPE}\` = $(sql_quote "${status}") WHERE commit_id = $(sql_quote "${commit_id}")"
-    else
-        mysql_exec "INSERT INTO ${table_name} (commit_id, author, commit_date_time, \`${TEST_TYPE}\`) VALUES ($(sql_quote "${commit_id}"), $(sql_quote "${author}"), $(sql_quote "${commit_db_date_time}"), $(sql_quote "${status}"))"
-    fi
 }
 
 should_run_current_tsfile_commit() {
     local force_test="$1"
-    local status="$2"
 
     if bool_enabled "${force_test}"; then
         return 0
     fi
-    case "${status}" in
-        ""|retest) return 0 ;;
-        done|skip|ontesting|RError) return 1 ;;
-        *)
-            [ "${last_tsfile_commit}" != "${commit_id}" ]
-            ;;
-    esac
+    [ "${last_tsfile_commit}" != "${commit_id}" ]
 }
 
 claim_current_tsfile_commit() {
@@ -358,16 +257,14 @@ claim_current_tsfile_commit() {
     last_tsfile_commit="$(git_current_commit "${TSFILE_REPOS_PATH}")"
     sync_tsfile_repository || return $?
     load_current_tsfile_commit_info
-    last_tsfbench_tsfile_status="$(query_task_status_for_commit)"
 
-    if ! should_run_current_tsfile_commit "${force_test}" "${last_tsfbench_tsfile_status}"; then
-        log "no TSFile commit needs ${TEST_TYPE}: commit=${commit_id}, status=${last_tsfbench_tsfile_status:-none}"
+    if ! should_run_current_tsfile_commit "${force_test}"; then
+        log "no TSFile repository update for ${TEST_TYPE}: commit=${commit_id}"
         return 10
     fi
 
-    ensure_commit_task_row "ontesting"
     test_date_time="$(date +%Y%m%d%H%M%S)"
-    log "claim TSFile commit=${commit_id}, author=${author}, commit_date_time=${commit_date_time}, previous_status=${last_tsfbench_tsfile_status:-none}"
+    log "claim TSFile commit=${commit_id}, author=${author}, commit_date_time=${commit_date_time}, previous_commit=${last_tsfile_commit}"
 }
 
 set_commit_scoped_tsfbench_home() {
@@ -1232,21 +1129,15 @@ main() {
         task_failed=1
     fi
 
-    if [ "${task_failed}" -eq 0 ]; then
-        update_task_status "done"
-    else
-        update_task_status "RError"
-    fi
-
     return "${task_failed}"
 }
 
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; mark_test_in_progress; }
 scenario_task_claim() { claim_current_tsfile_commit "${TSFILE_FORCE_TEST}" || return 1; set_commit_scoped_tsfbench_home; prepare_current_tsfile_candidate || return $?; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; }
-scenario_task_mark_running() { update_task_status "ontesting"; }
+scenario_task_mark_running() { :; }
 scenario_case_execute() { execute_case "${CASE_CASE}" "${CASE_CTX[env]}"; }
-scenario_task_finish_success() { update_task_status "done"; }
-scenario_task_finish_failure() { update_task_status "RError"; }
+scenario_task_finish_success() { :; }
+scenario_task_finish_failure() { :; }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     main "$@"
