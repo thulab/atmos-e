@@ -52,26 +52,22 @@ ensure_dependencies() {
 }
 
 sendEmail() {
-    local payload="${1:-}"
+    local error_type="$1"
     local date_time=""
     local msgbody=""
 
     date_time="$(date +%Y%m%d%H%M%S)"
-    if [[ "${payload}" =~ ^[0-9]+$ ]]; then
-        case "${payload}" in
-            1)
-                msgbody="Error type: ${test_type} code update failed\nTime: ${date_time}"
-                ;;
-            2)
-                msgbody="Error type: ${test_type} compile failed\nTime: ${date_time}\nCommit: ${commit_id:-N/A}\nAuthor: ${author:-N/A}"
-                ;;
-            *)
-                msgbody="Error type: ${test_type} unknown failure\nTime: ${date_time}"
-                ;;
-        esac
-    else
-        msgbody="${payload:-Error type: ${test_type} unknown failure\nTime: ${date_time}}"
-    fi
+    case "${error_type}" in
+        1)
+            msgbody="Error type: ${test_type} code update failed\nTime: ${date_time}"
+            ;;
+        2)
+            msgbody="Error type: ${test_type} compile failed\nTime: ${date_time}\nCommit: ${commit_id:-N/A}\nAuthor: ${author:-N/A}"
+            ;;
+        *)
+            msgbody="Error type: ${test_type} unknown failure\nTime: ${date_time}"
+            ;;
+    esac
 
     curl 'https://oapi.dingtalk.com/robot/send?access_token=f2d691d45da9a0307af8bbd853e90d0785dbaa3a3b0219dd2816882e19859e62' \
         -H 'Content-Type: application/json' \
@@ -264,7 +260,7 @@ cleanup_old_runtime_records() {
         [ -n "${ip}" ] || continue
         if ! ping -c 1 -W 2 "${ip}" >/dev/null 2>&1; then
             log "ip ${ip} is unreachable"
-            sendEmail "Error type: ${test_type} IP unreachable\nIP: ${ip}\nTime: $(date +%Y%m%d%H%M%S)"
+            "${SCRIPT_DIR}/sendEmail.sh" "Error type: ${test_type} IP unreachable\nIP: ${ip}\nTime: $(date +%Y%m%d%H%M%S)"
         fi
     done
 }
