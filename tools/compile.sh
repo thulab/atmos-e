@@ -22,6 +22,7 @@ IOTDB_BRANCH="${IOTDB_BRANCH:-master}"
 COMPILE_COMMIT_WINDOW="${COMPILE_COMMIT_WINDOW:-11}"
 COMPILE_COMMIT_ID_LENGTH="${COMPILE_COMMIT_ID_LENGTH:-8}"
 COMPILE_MVN_ARGS="${COMPILE_MVN_ARGS:-clean package -DskipTests -am -pl distribution}"
+IP_LIST=(172.20.70.22 172.20.70.23 172.20.70.24 172.20.70.7 172.20.70.8 172.20.70.9 172.20.70.28 172.20.70.37 172.20.70.209)
 
 MYSQLHOSTNAME="${MYSQLHOSTNAME:-111.200.37.158}"
 PORT="${PORT:-13306}"
@@ -47,7 +48,7 @@ COMPILE_STATUS_COLUMNS=(
 )
 
 ensure_dependencies() {
-    require_commands awk cp curl cut date find git mkdir mysql rm sed timeout tr mvn
+    require_commands awk cp curl cut date find git mkdir mysql ping rm sed timeout tr mvn
 }
 
 sendEmail() {
@@ -250,8 +251,20 @@ refresh_benchmark_repo_if_needed() {
 }
 
 cleanup_old_runtime_records() {
+    local ip=""
+    local -a ip_list=()
+
     log "cleanup test runtime records older than 15 days"
     find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
+
+    read -r -a ip_list <<< "${IP_LIST}"
+    for ip in "${ip_list[@]}"; do
+        [ -n "${ip}" ] || continue
+        if ! ping -c 1 -W 2 "${ip}" >/dev/null 2>&1; then
+            log "ip ${ip} is unreachable"
+            "${SCRIPT_DIR}/sendEmail.sh" "Error type: ${test_type} IP unreachable\nIP: ${ip}\nTime: $(date +%Y%m%d%H%M%S)"
+        fi
+    done
 }
 
 main() {
