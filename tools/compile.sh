@@ -74,16 +74,16 @@ sendEmail() {
     date_time="$(date '+%Y-%m-%d %H:%M:%S')"
     case "${error_type}" in
         1)
-            msgbody="[Atmos性能测试告警]\nError type: ${test_type} code update failed\nTime: ${date_time}"
+            msgbody="[Atmos性能测试告警]\n Error type: ${test_type} code update failed\n Time: ${date_time}"
             ;;
         2)
-            msgbody="[Atmos性能测试告警]\nError type: ${test_type} compile failed\nTime: ${date_time}\nCommit: ${commit_id:-N/A}\nAuthor: ${author:-N/A}"
+            msgbody="[Atmos性能测试告警]\n Error type: ${test_type} compile failed\n Time: ${date_time}\n Commit: ${commit_id:-N/A}\nAuthor: ${author:-N/A}"
             ;;
         3)
-            msgbody="[Atmos性能测试告警]\nError type: ${test_type} IP unreachable\nIP: ${ip}\nTime: ${date_time}"
+            msgbody="[Atmos性能测试告警]\n Error type: ${test_type} IP unreachable\n IP: ${ip}\n Time: ${date_time}"
             ;;
         *)
-            msgbody="[Atmos性能测试告警]\nError type: ${test_type} unknown failure\nTime: ${date_time}"
+            msgbody="[Atmos性能测试告警]\n Error type: ${test_type} unknown failure\n Time: ${date_time}"
             ;;
     esac
 
