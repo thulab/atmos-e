@@ -64,6 +64,9 @@ sendEmail() {
         2)
             msgbody="Error type: ${test_type} compile failed\nTime: ${date_time}\nCommit: ${commit_id:-N/A}\nAuthor: ${author:-N/A}"
             ;;
+        3)
+            msgbody="Error type: ${test_type} IP unreachable\nIP: ${ip}\nTime: ${date_time}"
+            ;;
         *)
             msgbody="Error type: ${test_type} unknown failure\nTime: ${date_time}"
             ;;
@@ -260,7 +263,7 @@ cleanup_old_runtime_records() {
         [ -n "${ip}" ] || continue
         if ! ping -c 1 -W 2 "${ip}" >/dev/null 2>&1; then
             log "ip ${ip} is unreachable"
-            "${SCRIPT_DIR}/sendEmail.sh" "Error type: ${test_type} IP unreachable\nIP: ${ip}\nTime: $(date +%Y%m%d%H%M%S)"
+            sendEmail 3
         fi
     done
 }
