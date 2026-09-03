@@ -23,6 +23,7 @@ COMPILE_COMMIT_WINDOW="${COMPILE_COMMIT_WINDOW:-11}"
 COMPILE_COMMIT_ID_LENGTH="${COMPILE_COMMIT_ID_LENGTH:-8}"
 COMPILE_MVN_ARGS="${COMPILE_MVN_ARGS:-clean package -DskipTests -am -pl distribution}"
 IP_LIST=(172.20.70.22 172.20.70.23 172.20.70.24 172.20.70.7 172.20.70.8 172.20.70.9 172.20.70.28 172.20.70.37 172.20.70.39 172.20.70.41 172.20.70.43 172.20.70.50 172.20.31.45 172.20.31.58)
+IP_CHECK_INTERVAL_SECONDS="${IP_CHECK_INTERVAL_SECONDS:-3600}"
 
 MYSQLHOSTNAME="${MYSQLHOSTNAME:-111.200.37.158}"
 PORT="${PORT:-13306}"
@@ -34,6 +35,7 @@ TABLENAME="${TABLENAME:-commit_history}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ATMOS_PATH="${ATMOS_PATH:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 COMMON_DIR="${ATMOS_PATH}/script/common"
+IP_CHECK_TIMESTAMP_FILE="${IP_CHECK_TIMESTAMP_FILE:-${INIT_PATH}/compile-ip-check.timestamp}"
 # shellcheck source=script/common/shell_common.sh
 source "${COMMON_DIR}/shell_common.sh"
 # shellcheck source=script/common/precise_test_common.sh
@@ -317,10 +319,25 @@ refresh_benchmark_repo_if_needed() {
 }
 
 cleanup_old_runtime_records() {
-    local ip=""
-
     log "cleanup test runtime records older than 15 days"
     find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
+}
+
+check_ip_reachability_if_due() {
+    local ip=""
+    local now_epoch=""
+    local last_check_epoch=0
+
+    [[ "${IP_CHECK_INTERVAL_SECONDS}" =~ ^[0-9]+$ ]] || die "IP_CHECK_INTERVAL_SECONDS must be a non-negative integer"
+    now_epoch="$(date +%s)"
+    if [ -f "${IP_CHECK_TIMESTAMP_FILE}" ]; then
+        read -r last_check_epoch < "${IP_CHECK_TIMESTAMP_FILE}" || last_check_epoch=0
+    fi
+
+    [[ "${last_check_epoch}" =~ ^[0-9]+$ ]] || last_check_epoch=0
+    if (( now_epoch - last_check_epoch < IP_CHECK_INTERVAL_SECONDS )); then
+        return 0
+    fi
 
     for ip in "${IP_LIST[@]}"; do
         [ -n "${ip}" ] || continue
@@ -329,6 +346,8 @@ cleanup_old_runtime_records() {
             sendEmail 3
         fi
     done
+
+    printf '%s\n' "${now_epoch}" > "${IP_CHECK_TIMESTAMP_FILE}"
 }
 
 main() {
@@ -341,6 +360,7 @@ main() {
     sync_source_repo
     refresh_benchmark_repo_if_needed
     cleanup_old_runtime_records
+    check_ip_reachability_if_due
     sleep 300s
     restore_test_type_file
 }
