@@ -597,6 +597,7 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 	local process_count=0
 	local now_epoch=0
 	local elapsed=0
+	local elapsed_hours=0
 	local next_log_dump_elapsed=3600
 	local tree_ready=0
 	local table_ready=0
@@ -613,6 +614,8 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 		elapsed=$((now_epoch - m_start_time))
 		if [ "${elapsed}" -ge "${next_log_dump_elapsed}" ]; then
 			log_benchmark_recent_lines
+			elapsed_hours=$((elapsed / 3600))
+			echo "本次测试已经启动大约 ${elapsed_hours} 小时"
 			next_log_dump_elapsed=$((next_log_dump_elapsed + 3600))
 		fi
 		if [ "${process_count}" -eq 0 ]; then
