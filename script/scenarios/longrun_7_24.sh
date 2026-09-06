@@ -27,6 +27,16 @@ IP_list=(0 11.101.10.2 11.101.10.3 11.101.10.4 11.101.10.5)
 D_IP_list=(0 11.101.10.2 11.101.10.3 11.101.10.4)
 C_IP_list=(0 11.101.10.2 11.101.10.3 11.101.10.4)
 B_IP_list=(0 11.101.10.5)
+SSH_BATCH_OPTIONS=(
+	-n
+	-o BatchMode=yes
+	-o ConnectTimeout=10
+	-o ServerAliveInterval=5
+	-o ServerAliveCountMax=2
+	-o StrictHostKeyChecking=no
+	-o UserKnownHostsFile=/dev/null
+	-o LogLevel=ERROR
+)
 config_schema_replication_factor=(0 3 3 3 3 3 3)
 config_data_replication_factor=(0 3 3 3 3 3 3)
 config_node_config_nodes=(0 11.101.10.2:10710 11.101.10.2:10710 11.101.10.2:10710)
@@ -562,21 +572,21 @@ ssh ${ACCOUNT}@${D_IP_list[1]} "${TEST_DATANODE_PATH}/sbin/start-cli.sh -h ${D_I
 sleep 10
 if [ "$bm_num" != '' ]; then
 	for ((j = 1; j <= $bm_num; j++)); do
-		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TREE};${BM_PATH_TREE}/benchmark.sh > /dev/null 2>&1 &"
-		ssh ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TABLE};${BM_PATH_TABLE}/benchmark.sh > /dev/null 2>&1 &"
+		ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TREE};${BM_PATH_TREE}/benchmark.sh > /dev/null 2>&1 &"
+		ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[${j}]} "cd ${BM_PATH_TABLE};${BM_PATH_TABLE}/benchmark.sh > /dev/null 2>&1 &"
 	done
 	echo "All BMs have been started"
 fi
 }
 remote_result_exists() {
 	local benchmark_path=$1
-	ssh ${ACCOUNT}@${B_IP_list[1]} "find '${benchmark_path}/data/csvOutput' -maxdepth 1 -type f -name '*result.csv' -print -quit 2>/dev/null | grep -q ."
+	ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} "find '${benchmark_path}/data/csvOutput' -maxdepth 1 -type f -name '*result.csv' -print -quit 2>/dev/null | grep -q ."
 }
 create_remote_stuck_result() {
 	local benchmark_path=$1
 	local csv_path="${benchmark_path}/data/csvOutput/Stuck_result.csv"
 	local array1="INGESTION ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1"
-	ssh ${ACCOUNT}@${B_IP_list[1]} "mkdir -p '${benchmark_path}/data/csvOutput' && : > '${csv_path}' && i=0; while [ \$i -lt 100 ]; do printf '%s\n' '${array1}' >> '${csv_path}'; i=\$((i + 1)); done"
+	ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} "mkdir -p '${benchmark_path}/data/csvOutput' && : > '${csv_path}' && i=0; while [ \$i -lt 100 ]; do printf '%s\n' '${array1}' >> '${csv_path}'; i=\$((i + 1)); done"
 }
 log_benchmark_tail() {
 	local benchmark_path="$1"
@@ -584,7 +594,7 @@ log_benchmark_tail() {
 	local benchmark_log="${benchmark_path}/logs/log_info.log"
 
 	echo "===== ${benchmark_label} benchmark recent 5 log lines ====="
-	ssh -n -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no \
+	ssh "${SSH_BATCH_OPTIONS[@]}" \
 		${ACCOUNT}@${B_IP_list[1]} \
 		"if [ -f '${benchmark_log}' ]; then tail -n 5 '${benchmark_log}'; else echo 'benchmark log not found: ${benchmark_log}'; fi" 2>&1 || \
 		echo "failed to read ${benchmark_label} benchmark log: ${benchmark_log}" >&2
@@ -602,7 +612,7 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 	local tree_ready=0
 	local table_ready=0
 	while true; do
-		if ! process_count=$(ssh ${ACCOUNT}@${B_IP_list[1]} "jps | awk '\$2 == \"App\" {count++} END {print count + 0}'" 2>/dev/null); then
+		if ! process_count=$(ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} "jps | awk '\$2 == \"App\" {count++} END {print count + 0}'" 2>/dev/null); then
 			echo "无法查询 benchmark 进程状态" >&2
 			return 1
 		fi
@@ -801,22 +811,14 @@ mv_config_file() { # 移动配置文件
 fetch_remote_result_csv() {
 	local benchmark_path=$1
 	local result_dir="${BM_PATH}/TestResult/csvOutput"
-	local remote_output=""
-	local remote_file=""
-	local remote_files=()
 	local local_result_file=""
-
-	remote_output=$(ssh ${ACCOUNT}@${B_IP_list[1]} "find '${benchmark_path}/data/csvOutput' -maxdepth 1 -type f -name '*result.csv' -print 2>/dev/null | sort") || return 1
-	while IFS= read -r remote_file; do
-		[ -n "${remote_file}" ] && remote_files+=("${remote_file}")
-	done <<< "${remote_output}"
-	[ "${#remote_files[@]}" -gt 0 ] || return 1
+	local csv_source_dir="${benchmark_path}/data/csvOutput"
 
 	mkdir -p "${result_dir}" || return 1
 	rm -f "${result_dir}"/*
-	for remote_file in "${remote_files[@]}"; do
-		scp "${ACCOUNT}@${B_IP_list[1]}:${remote_file}" "${result_dir}/" >/dev/null || return 1
-	done
+	ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} \
+		"cd '${csv_source_dir}' 2>/dev/null && find . -maxdepth 1 -type f -name '*result.csv' -print -quit | grep -q . && tar -cf - ./*result.csv" | \
+		tar -xf - -C "${result_dir}" || return 1
 	local_result_file="$(find_latest_result_csv "${result_dir}" || true)"
 	[ -s "${local_result_file}" ] || return 1
 	printf '%s\n' "${local_result_file}"
