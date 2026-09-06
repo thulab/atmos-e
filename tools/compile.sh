@@ -321,6 +321,7 @@ refresh_benchmark_repo_if_needed() {
 cleanup_old_runtime_records() {
     log "cleanup test runtime records older than 15 days"
     find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
+    rm -rf /root/zk_test/release/*
 }
 
 check_ip_reachability_if_due() {
