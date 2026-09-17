@@ -409,6 +409,30 @@ sql_int_or_null() {
     fi
 }
 
+sql_datetime_or_null() {
+    local value="${1:-}"
+    local formatted=""
+
+    if [ -z "${value}" ]; then
+        printf 'NULL'
+        return 0
+    fi
+
+    if [[ "${value}" =~ ^[0-9]{14}$ ]]; then
+        formatted="${value:0:4}-${value:4:2}-${value:6:2} ${value:8:2}:${value:10:2}:${value:12:2}"
+        sql_quote "${formatted}"
+        return 0
+    fi
+
+    if [[ "${value}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]T][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+        formatted="${value/T/ }"
+        sql_quote "${formatted}"
+        return 0
+    fi
+
+    printf 'NULL'
+}
+
 sql_bool_or_null() {
     case "${1:-}" in
         true|True|TRUE|1) printf '1' ;;
@@ -949,8 +973,8 @@ insert into ${RESULT_TABLE_NAME} (
     start_time,end_time,cost_time,status,exit_code,
     result_csv,manifest_json,workdir,command_line,remark
 ) values (
-    $(sql_int_or_null "${commit_date_time}"),
-    $(sql_int_or_null "${test_date_time}"),
+    $(sql_datetime_or_null "${commit_date_time}"),
+    $(sql_datetime_or_null "${test_date_time}"),
     $(sql_quote "${commit_id}"),
     $(sql_quote "${author}"),
     $(sql_quote "${case_id}"),
