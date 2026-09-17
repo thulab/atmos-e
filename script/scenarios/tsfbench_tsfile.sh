@@ -82,6 +82,10 @@ commit_date_time=""
 test_date_time=""
 last_tsfile_commit=""
 current_tsfile_wheel=""
+current_tsfile_version=""
+tsfile_table_backend_selector="${TSFILE_TABLE_BACKEND_SELECTOR}"
+tsfile_tree_backend_selector="${TSFILE_TREE_BACKEND_SELECTOR}"
+tsfile_candidate_backends="${TSFILE_CANDIDATE_BACKENDS}"
 tsfile_prepare_root=""
 
 tsfbench_command_cwd=""
@@ -503,6 +507,77 @@ find_latest_tsfile_wheel() {
     printf '%s\n' "${newest}"
 }
 
+extract_tsfile_wheel_version() {
+    local wheel_path="$1"
+    local wheel_name="${wheel_path##*/}"
+    local remainder=""
+    local version=""
+
+    case "${wheel_name}" in
+        tsfile-*.whl) ;;
+        *)
+            log "unexpected TSFile wheel name: ${wheel_name}"
+            return 41
+            ;;
+    esac
+
+    remainder="${wheel_name%.whl}"
+    remainder="${remainder#tsfile-}"
+    version="${remainder%%-*}"
+    if [ -z "${version}" ] || [ "${version}" = "${remainder}" ]; then
+        log "cannot parse TSFile wheel version from ${wheel_name}"
+        return 41
+    fi
+    printf '%s\n' "${version}"
+}
+
+resolve_tsfile_candidate_backend_selector() {
+    local selector="$1"
+    local profile=""
+
+    case "${selector}" in
+        tsfile@candidate+*)
+            [ -n "${current_tsfile_version}" ] || {
+                log "cannot resolve ${selector} without TSFile wheel version"
+                return 41
+            }
+            profile="${selector#tsfile@candidate+}"
+            printf 'tsfile@%s+%s\n' "${current_tsfile_version}" "${profile}"
+            ;;
+        tsfile@candidate)
+            [ -n "${current_tsfile_version}" ] || {
+                log "cannot resolve ${selector} without TSFile wheel version"
+                return 41
+            }
+            printf 'tsfile@%s\n' "${current_tsfile_version}"
+            ;;
+        *)
+            printf '%s\n' "${selector}"
+            ;;
+    esac
+}
+
+resolve_tsfile_candidate_backend_list() {
+    local selector_list="$1"
+    local backend=""
+    local resolved=""
+    local rendered=""
+    local -a backends=()
+
+    split_words "${selector_list}" backends
+    for backend in "${backends[@]}"; do
+        resolved="$(resolve_tsfile_candidate_backend_selector "${backend}")" || return $?
+        rendered="${rendered}${rendered:+ }${resolved}"
+    done
+    printf '%s\n' "${rendered}"
+}
+
+refresh_tsfile_backend_selectors() {
+    tsfile_table_backend_selector="$(resolve_tsfile_candidate_backend_selector "${TSFILE_TABLE_BACKEND_SELECTOR}")" || return $?
+    tsfile_tree_backend_selector="$(resolve_tsfile_candidate_backend_selector "${TSFILE_TREE_BACKEND_SELECTOR}")" || return $?
+    tsfile_candidate_backends="$(resolve_tsfile_candidate_backend_list "${TSFILE_CANDIDATE_BACKENDS}")" || return $?
+}
+
 build_tsfile_python_wheel() {
     local log_file="${tsfile_prepare_root}/tsfile-python-build.log"
     local status=0
@@ -527,7 +602,10 @@ build_tsfile_python_wheel() {
         log "missing TSFile Python wheel under ${TSFILE_REPOS_PATH}/python/dist"
         return 41
     }
-    log "use TSFile Python wheel: ${current_tsfile_wheel}"
+    current_tsfile_version="$(extract_tsfile_wheel_version "${current_tsfile_wheel}")" || return $?
+    refresh_tsfile_backend_selectors || return $?
+    log "use TSFile Python wheel: ${current_tsfile_wheel}, version=${current_tsfile_version}"
+    log "use TSFBenchmark candidate backends: ${tsfile_candidate_backends}"
 }
 
 prepare_candidate_tsfbench_backends() {
@@ -546,7 +624,7 @@ prepare_candidate_tsfbench_backends() {
     mkdir -p "${TSFBENCH_HOME_DIR}" "${tsfile_prepare_root}"
     resolve_tsfbench_command
 
-    split_words "${TSFILE_CANDIDATE_BACKENDS}" candidate_backends
+    split_words "${tsfile_candidate_backends}" candidate_backends
     for backend in "${candidate_backends[@]}"; do
         log_file="${tsfile_prepare_root}/prepare.$(safe_name "${backend}").log"
         log "prepare TSFBenchmark backend=${backend}"
@@ -619,14 +697,14 @@ load_case_env() {
     done < "${case_env_file}"
     TSFBENCH_CASE_ID="${TSFBENCH_CASE_ID:-${env_name%.env}}"
     # Accept legacy case files that used release-looking selectors as placeholders.
-    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@2.4.0+table/${TSFILE_TABLE_BACKEND_SELECTOR}}"
-    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@2.4.0+tree/${TSFILE_TREE_BACKEND_SELECTOR}}"
-    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@candidate+table/${TSFILE_TABLE_BACKEND_SELECTOR}}"
-    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@candidate+tree/${TSFILE_TREE_BACKEND_SELECTOR}}"
-    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@2.4.0+table/${TSFILE_TABLE_BACKEND_SELECTOR}}"
-    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@2.4.0+tree/${TSFILE_TREE_BACKEND_SELECTOR}}"
-    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@candidate+table/${TSFILE_TABLE_BACKEND_SELECTOR}}"
-    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@candidate+tree/${TSFILE_TREE_BACKEND_SELECTOR}}"
+    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@2.4.0+table/${tsfile_table_backend_selector}}"
+    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@2.4.0+tree/${tsfile_tree_backend_selector}}"
+    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@candidate+table/${tsfile_table_backend_selector}}"
+    TSFBENCH_BACKENDS="${TSFBENCH_BACKENDS//tsfile@candidate+tree/${tsfile_tree_backend_selector}}"
+    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@2.4.0+table/${tsfile_table_backend_selector}}"
+    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@2.4.0+tree/${tsfile_tree_backend_selector}}"
+    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@candidate+table/${tsfile_table_backend_selector}}"
+    TSFBENCH_CODECS="${TSFBENCH_CODECS//tsfile@candidate+tree/${tsfile_tree_backend_selector}}"
 }
 
 validate_case_config() {
@@ -857,6 +935,7 @@ insert_result_row() {
     local micro_stored_bytes="$1"
     local micro_decode_mbps="$2"
     local insert_sql=""
+    local status=0
 
     insert_sql=$(cat <<EOF
 insert into ${RESULT_TABLE_NAME} (
@@ -921,6 +1000,11 @@ EOF
 )
 
     mysql_exec "${insert_sql}"
+    status=$?
+    if [ "${status}" -ne 0 ]; then
+        log "failed to insert result row into ${RESULT_TABLE_NAME}: case=${case_id:-}, status=${status}"
+        return "${status}"
+    fi
 }
 
 persist_csv_results() {
@@ -934,7 +1018,7 @@ persist_csv_results() {
         while [ "${#fields[@]}" -lt 29 ]; do
             fields+=("")
         done
-        insert_result_row "${fields[@]}"
+        insert_result_row "${fields[@]}" || return $?
         rows=$((rows + 1))
     done < <(parse_result_csv "${case_result_csv}")
 
@@ -953,7 +1037,11 @@ persist_failure_result() {
     while [ "${#failure_fields[@]}" -lt 29 ]; do
         failure_fields+=("")
     done
-    insert_result_row "${failure_fields[@]}"
+    insert_result_row "${failure_fields[@]}" || {
+        local status=$?
+        log "failed to persist failure result to ${RESULT_TABLE_NAME}: case=${case_id:-}, status=${status}, message=${failure_message}"
+        return "${status}"
+    }
 }
 
 persist_stage_failure_result() {
@@ -962,6 +1050,7 @@ persist_stage_failure_result() {
     local message="$3"
     local stage_start_time="$4"
     local stage_end_time="$5"
+    local persist_status=0
 
     reset_case_config
     case_id="${stage}"
@@ -978,7 +1067,28 @@ persist_stage_failure_result() {
     case_exit_code="${exit_code}"
     TSFBENCH_TITLE="${stage}"
     TSFBENCH_MODALITY="series_1d"
-    persist_failure_result "${message}" || true
+    persist_failure_result "${message}" || persist_status=$?
+    if [ "${persist_status}" -ne 0 ]; then
+        log "stage failure result was not written to ${RESULT_TABLE_NAME}: stage=${stage}"
+    fi
+    return "${persist_status}"
+}
+
+prepare_current_tsfile_candidate_stage() {
+    local prepare_status=0
+    local stage_start_time=""
+    local stage_end_time=""
+
+    stage_start_time="$(current_datetime)"
+    prepare_current_tsfile_candidate || prepare_status=$?
+    if [ "${prepare_status}" -ne 0 ]; then
+        stage_end_time="$(current_datetime)"
+        persist_stage_failure_result "tsfile_candidate_prepare" "${prepare_status}" \
+            "TSFile candidate build/prepare failed, see ${tsfile_prepare_root}" \
+            "${stage_start_time}" "${stage_end_time}"
+        return "${prepare_status}"
+    fi
+    return 0
 }
 
 execute_case() {
@@ -1005,12 +1115,15 @@ execute_case() {
     case_log_file="${case_root}/tsfbench.log"
     mkdir -p "${case_root}" "${case_workdir}" "${TSFBENCH_HOME_DIR}"
 
-    if ! prepare_or_verify_backends; then
-        status=$?
+    prepare_or_verify_backends
+    status=$?
+    if [ "${status}" -ne 0 ]; then
         case_exit_code="${status}"
         case_end_time="$(current_datetime)"
         case_cost_time=$(( $(datetime_to_epoch "${case_end_time}") - $(datetime_to_epoch "${case_start_time}") ))
-        persist_failure_result "backend prepare/inspect failed, see ${case_root}" || true
+        if ! persist_failure_result "backend prepare/inspect failed, see ${case_root}"; then
+            log "backend failure result was not written to ${RESULT_TABLE_NAME}: case=${case_id}"
+        fi
         return "${status}"
     fi
 
@@ -1039,7 +1152,9 @@ execute_case() {
         status=50
         case_exit_code="${status}"
     fi
-    persist_failure_result "TSFBench case failed or produced no parseable CSV, log=${case_log_file}" || true
+    if ! persist_failure_result "TSFBench case failed or produced no parseable CSV, log=${case_log_file}"; then
+        log "case failure result was not written to ${RESULT_TABLE_NAME}: case=${case_id}"
+    fi
     return "${status}"
 }
 
@@ -1086,9 +1201,6 @@ main() {
     local selected_case=""
     local force_test="${TSFILE_FORCE_TEST}"
     local claim_status=0
-    local prepare_status=0
-    local stage_start_time=""
-    local stage_end_time=""
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -1126,13 +1238,7 @@ main() {
     set_commit_scoped_tsfbench_home
     log "start ${TEST_TYPE}, commit=${commit_id}, test_date_time=${test_date_time}"
 
-    stage_start_time="$(current_datetime)"
-    prepare_current_tsfile_candidate || prepare_status=$?
-    if [ "${prepare_status}" -ne 0 ]; then
-        stage_end_time="$(current_datetime)"
-        persist_stage_failure_result "tsfile_candidate_prepare" "${prepare_status}" \
-            "TSFile candidate build/prepare failed, see ${tsfile_prepare_root}" \
-            "${stage_start_time}" "${stage_end_time}"
+    if ! prepare_current_tsfile_candidate_stage; then
         task_failed=1
     elif ! run_all_cases_local "${selected_case}"; then
         task_failed=1
