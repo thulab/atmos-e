@@ -39,6 +39,7 @@ SSH_BATCH_OPTIONS=(
 )
 BENCHMARK_STATUS_QUERY_ATTEMPTS=3
 BENCHMARK_STATUS_QUERY_RETRY_SECONDS=10
+BENCHMARK_STATUS_FAILURE_RETRY_SECONDS=3600
 BENCHMARK_STATUS_MAX_CONSECUTIVE_FAILURES=5
 config_schema_replication_factor=(0 3 3 3 3 3 3)
 config_data_replication_factor=(0 3 3 3 3 3 3)
@@ -655,8 +656,8 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 				echo "benchmark 进程状态连续 ${process_status_failures} 次无法查询，终止监控" >&2
 				return 1
 			fi
-			echo "benchmark 进程状态暂时无法查询，将在 60 秒后继续监控（连续失败 ${process_status_failures}/${BENCHMARK_STATUS_MAX_CONSECUTIVE_FAILURES}）" >&2
-			sleep 60
+			echo "benchmark 进程状态暂时无法查询，将在 1 小时后继续监控（连续失败 ${process_status_failures}/${BENCHMARK_STATUS_MAX_CONSECUTIVE_FAILURES}）" >&2
+			sleep "${BENCHMARK_STATUS_FAILURE_RETRY_SECONDS}"
 			continue
 		fi
 		process_status_failures=0
