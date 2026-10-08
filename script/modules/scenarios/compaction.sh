@@ -155,6 +155,8 @@ target_compaction_file_size=${target_file_size}
 enable_seq_space_compaction=${seq_enabled}
 enable_unseq_space_compaction=${unseq_enabled}
 enable_cross_space_compaction=${cross_enabled}
+inner_compaction_candidate_file_num=2
+compaction_schedule_interval_in_ms=1000
 EOF
 }
 
