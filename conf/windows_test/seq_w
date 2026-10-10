@@ -18,7 +18,7 @@ IoTDB_DIALECT_MODE=tree
 # IoTDB_TABLE_WRITABLE_VIEW=false
 
 # 主机列表，如果有多个主机则使用英文逗号进行分割
-HOST=172.20.31.26
+HOST=127.0.0.1
 
 # 端口列表，需要和HOST数量一致，保持一一对应。如果有多个端口则使用英文逗号进行分割。
 # PORT=6667
