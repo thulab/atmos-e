@@ -37,6 +37,10 @@ SSH_BATCH_OPTIONS=(
 	-o UserKnownHostsFile=/dev/null
 	-o LogLevel=ERROR
 )
+BENCHMARK_STATUS_QUERY_ATTEMPTS=3
+BENCHMARK_STATUS_QUERY_RETRY_SECONDS=10
+BENCHMARK_STATUS_FAILURE_RETRY_SECONDS=3600
+BENCHMARK_STATUS_MAX_CONSECUTIVE_FAILURES=5
 config_schema_replication_factor=(0 3 3 3 3 3 3)
 config_data_replication_factor=(0 3 3 3 3 3 3)
 config_node_config_nodes=(0 11.101.10.2:10710 11.101.10.2:10710 11.101.10.2:10710)
@@ -603,6 +607,29 @@ log_benchmark_recent_lines() {
 	log_benchmark_tail "${BM_PATH_TREE}" "tree"
 	log_benchmark_tail "${BM_PATH_TABLE}" "table"
 }
+query_benchmark_process_count() {
+	local benchmark_host="${ACCOUNT}@${B_IP_list[1]}"
+	local process_count=""
+	local attempt=1
+
+	while [ "${attempt}" -le "${BENCHMARK_STATUS_QUERY_ATTEMPTS}" ]; do
+		if process_count=$(ssh "${SSH_BATCH_OPTIONS[@]}" "${benchmark_host}" \
+			"jps_output=\$(jps); jps_status=\$?; [ \"\$jps_status\" -eq 0 ] || exit \"\$jps_status\"; printf '%s\n' \"\$jps_output\" | awk '\$2 == \"App\" {count++} END {print count + 0}'" \
+			2>/dev/null) && [[ "${process_count}" =~ ^[0-9]+$ ]]; then
+			printf '%s\n' "${process_count}"
+			return 0
+		fi
+
+		if [ "${attempt}" -lt "${BENCHMARK_STATUS_QUERY_ATTEMPTS}" ]; then
+			echo "benchmark 进程状态查询失败 (${attempt}/${BENCHMARK_STATUS_QUERY_ATTEMPTS})，${BENCHMARK_STATUS_QUERY_RETRY_SECONDS} 秒后重试" >&2
+			sleep "${BENCHMARK_STATUS_QUERY_RETRY_SECONDS}"
+		fi
+		attempt=$((attempt + 1))
+	done
+
+	echo "无法查询 benchmark 进程状态" >&2
+	return 1
+}
 monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件才算成功
 	local process_count=0
 	local now_epoch=0
@@ -611,17 +638,29 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 	local next_log_dump_elapsed=3600
 	local tree_ready=0
 	local table_ready=0
+	local process_status_failures=0
 	while true; do
-		if ! process_count=$(ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} "jps | awk '\$2 == \"App\" {count++} END {print count + 0}'" 2>/dev/null); then
-			echo "无法查询 benchmark 进程状态" >&2
-			return 1
-		fi
-		if ! [[ "${process_count}" =~ ^[0-9]+$ ]]; then
-			echo "benchmark 进程数量无效: ${process_count}" >&2
-			return 1
-		fi
 		now_epoch=$(date +%s)
 		elapsed=$((now_epoch - m_start_time))
+		if [ "${elapsed}" -ge 864000 ]; then
+			echo "测试超时，生成兜底结果" >&2
+			end_time=-1
+			cost_time=-1
+			create_remote_stuck_result "${BM_PATH_TREE}" || true
+			create_remote_stuck_result "${BM_PATH_TABLE}" || true
+			return 1
+		fi
+		if ! process_count=$(query_benchmark_process_count); then
+			process_status_failures=$((process_status_failures + 1))
+			if [ "${process_status_failures}" -ge "${BENCHMARK_STATUS_MAX_CONSECUTIVE_FAILURES}" ]; then
+				echo "benchmark 进程状态连续 ${process_status_failures} 次无法查询，终止监控" >&2
+				return 1
+			fi
+			echo "benchmark 进程状态暂时无法查询，将在 1 小时后继续监控（连续失败 ${process_status_failures}/${BENCHMARK_STATUS_MAX_CONSECUTIVE_FAILURES}）" >&2
+			sleep "${BENCHMARK_STATUS_FAILURE_RETRY_SECONDS}"
+			continue
+		fi
+		process_status_failures=0
 		if [ "${elapsed}" -ge "${next_log_dump_elapsed}" ]; then
 			log_benchmark_recent_lines
 			elapsed_hours=$((elapsed / 3600))
@@ -644,14 +683,6 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 			return 1
 		fi
 
-		if [ "${elapsed}" -ge 864000 ]; then
-			echo "测试超时，生成兜底结果" >&2
-			end_time=-1
-			cost_time=-1
-			create_remote_stuck_result "${BM_PATH_TREE}" || true
-			create_remote_stuck_result "${BM_PATH_TABLE}" || true
-			return 1
-		fi
 		sleep 60
 	done
 }
