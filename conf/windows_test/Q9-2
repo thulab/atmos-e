@@ -54,7 +54,7 @@ TOPIC_NAME=test-topic
 
 ################## Benchmark配置 #######################
 # 总操作次数：具体每种类型操作会按OPERATION_PROPORTION定义的比例划分，例如OPERATION_PROPORTION=1:1:1:1:1:1:1:1:1:1:1
-LOOP=20
+LOOP=5
 
 # 目前Benchmark支持多种运行模式，支持模式如下
 # testWithDefaultPath   常规测试模式，支持多种读和写操作的混合负载
@@ -103,7 +103,7 @@ IS_DOUBLE_WRITE=false
 ANOTHER_DB_SWITCH=IoTDB-012-SESSION_BY_TABLET
 
 # 另一个写入的数据库的主机
-ANOTHER_HOST=127.0.0.1
+ANOTHER_HOST=172.20.31.26
 
 # 另一个写入的数据库的端口
 ANOTHER_PORT=6667
@@ -135,7 +135,7 @@ VERIFICATION_STEP_SIZE=10000
 
 ############## 数据：设备、传感器、客户端 ##################
 # 设备总数
-DEVICE_NUMBER=50
+DEVICE_NUMBER=1000
 
 # 实际写入设备比例，(0, 1]
 REAL_INSERT_RATE=1.0
@@ -198,7 +198,7 @@ ENABLE_IOTDB_RPC_COMPRESSION=false
 SG_STRATEGY=mod
 
 # 存储组的数量，对IoTDB而言为database的数量
-GROUP_NUMBER=10
+GROUP_NUMBER=1
 
 # IoTDB 表模型下(IoTDB_DIALECT_MODE=table)，表的数量
 # IoTDB_TABLE_NUMBER=1
@@ -207,13 +207,13 @@ GROUP_NUMBER=10
 IOTDB_SESSION_POOL_SIZE=50
 
 # 是否使用template
-TEMPLATE=false
+TEMPLATE=true
 
 # template的名称
 # TEMPLATE_NAME=BenchmarkTemplate
 
 # 是否使用vector
-VECTOR=false
+VECTOR=true
 
 # 是否使用Debug模式，仅支持iotdb
 IOTDB_USE_DEBUG=false
@@ -307,7 +307,7 @@ DOUBLE_LENGTH=2
 # OBJECT_QUERY_FULL_CONTENT=false
 
 # 插入数据的数据类型的比例，BOOLEAN:INT32:INT64:FLOAT:DOUBLE:TEXT:STRING:BLOB:TIMESTAMP:DATE:OBJECT
-INSERT_DATATYPE_PROPORTION=1:1:1:1:1:1:0:0:0:0
+INSERT_DATATYPE_PROPORTION=1:1:1:1:1:1:0:0:0:0:0
 
 ################ IoTDB相关元数据参数 #####################
 # 压缩方式 UNCOMPRESSED | SNAPPY | LZ4 (仅对IoTDB有效)
@@ -397,7 +397,7 @@ WRITE_OPERATION_TIMEOUT_MS=120000
 READ_OPERATION_TIMEOUT_MS=300000
 
 # 是否启用固定查询模式,所有查询线程使用相同的设备和传感器组合，生成一致的查询 SQL
-# ENABLE_FIXED_QUERY=true
+ENABLE_FIXED_QUERY=false
 
 ################## 操作信息：写入参数 ###################
 # 每批每个设备写入数据行数，一行是某个设备所有传感器在某一时间戳的数据
