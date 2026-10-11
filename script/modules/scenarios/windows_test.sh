@@ -49,6 +49,17 @@ COMMON_DIR="$(cd "${SCRIPT_DIR}/../../common" && pwd)"
 # shellcheck source=script/common/runtime_common.sh
 source "${COMMON_DIR}/runtime_common.sh"
 
+append_iotdb_properties() {
+    local properties_file="$1"
+
+    cat >> "${properties_file}" <<EOF
+enable_seq_space_compaction=false
+enable_unseq_space_compaction=false
+enable_cross_space_compaction=false
+query_timeout_threshold=60000000
+EOF
+}
+
 op_type=""
 current_protocol_code=""
 query_id=""
