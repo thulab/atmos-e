@@ -563,9 +563,3 @@ IOTDB_DATA_DIR=/data/qa/apache-iotdb/data/data
 IOTDB_WAL_DIR=/data/qa/apache-iotdb/data/wal
 IOTDB_SYSTEM_DIR=/data/qa/apache-iotdb/data/system
 MONITOR_INTERVAL=0
-
-# Single-node Windows-test compatibility settings
-enable_seq_space_compaction=false
-enable_unseq_space_compaction=false
-enable_cross_space_compaction=false
-query_timeout_threshold=60000000

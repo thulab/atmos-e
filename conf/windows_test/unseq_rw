@@ -555,9 +555,3 @@ IS_REGULAR_FREQUENCY=false
 # 测试过程中当前测试结果日志的输出间隔，单位为秒
 # 设为0时，benchmark 仅在结束前输出一次测试结果日志
 RESULT_PRINT_INTERVAL=0
-
-# Single-node Windows-test compatibility settings
-enable_seq_space_compaction=false
-enable_unseq_space_compaction=false
-enable_cross_space_compaction=false
-query_timeout_threshold=60000000
