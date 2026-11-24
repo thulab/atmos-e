@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 根据提交变更和规则选择精准测试，并记录测试影响范围。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "precise_test_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -48,6 +50,7 @@ PRECISE_SKIPPED_TESTS=()
 PRECISE_MATCHED_RULES=()
 PRECISE_FALLBACK_REASON=""
 
+# 输出精准测试模块的诊断日志。
 precise_log() {
     if declare -F log >/dev/null 2>&1; then
         log "$*"
@@ -56,6 +59,7 @@ precise_log() {
     fi
 }
 
+# 返回精准测试规则配置文件路径。
 precise_rules_file() {
     local atmos_root="${ATMOS_PATH:-}"
 
@@ -70,6 +74,7 @@ precise_rules_file() {
     printf '%s\n' "${atmos_root}/conf/precise_test_rules.conf"
 }
 
+# 返回提交范围精准测试规则配置文件路径。
 precise_commit_rules_file() {
     local atmos_root="${ATMOS_PATH:-}"
 
@@ -84,6 +89,7 @@ precise_commit_rules_file() {
     printf '%s\n' "${atmos_root}/conf/precise_test_commit_rules.conf"
 }
 
+# 判断测试名称是否属于系统支持的测试集合。
 precise_is_known_test() {
     local test_name="$1"
     local known_test=""
@@ -96,6 +102,7 @@ precise_is_known_test() {
     return 1
 }
 
+# 判断数组是否包含指定测试名称。
 precise_array_contains() {
     local wanted="$1"
     shift
@@ -109,6 +116,7 @@ precise_array_contains() {
     return 1
 }
 
+# 将有效测试名称加入待执行测试列表并避免重复。
 precise_add_selected_test() {
     local test_name="$1"
 
@@ -120,6 +128,7 @@ precise_add_selected_test() {
     PRECISE_SELECTED_TESTS+=("${test_name}")
 }
 
+# 将所有已知测试加入待执行列表。
 precise_add_all_tests() {
     local test_name=""
 
@@ -128,6 +137,7 @@ precise_add_all_tests() {
     done
 }
 
+# 解析测试名称列表并逐项加入选择结果。
 precise_add_test_list() {
     local test_list="$1"
     local item=""
@@ -152,6 +162,7 @@ precise_add_test_list() {
     done
 }
 
+# 根据匹配规则将对应测试添加到选择结果。
 precise_add_matched_rule() {
     local rule_id="$1"
 
@@ -162,6 +173,7 @@ precise_add_matched_rule() {
     PRECISE_MATCHED_RULES+=("${rule_id}")
 }
 
+# 使用指定分隔符拼接数组元素。
 precise_join_array() {
     local delimiter="$1"
     shift
@@ -178,6 +190,7 @@ precise_join_array() {
     done
 }
 
+# 将变更路径解析为对应仓库内的相对路径。
 precise_resolve_repo_path() {
     local candidate=""
     local -a candidates=()
@@ -202,6 +215,7 @@ precise_resolve_repo_path() {
     return 1
 }
 
+# 输出当前提交涉及的变更文件列表。
 precise_emit_changed_files() {
     local commit_ref="$1"
     local repo_path="$2"
@@ -211,6 +225,7 @@ precise_emit_changed_files() {
     git -C "${repo_path}" diff-tree --root --no-commit-id --name-only -r -m "${resolved_commit}" | sort -u
 }
 
+# 清空精准测试计划及其临时状态。
 precise_reset_plan() {
     PRECISE_SELECTED_TESTS=()
     PRECISE_SKIPPED_TESTS=()
@@ -218,6 +233,7 @@ precise_reset_plan() {
     PRECISE_FALLBACK_REASON=""
 }
 
+# 从场景文本内容匹配规则并选择应执行的测试。
 precise_select_tests_from_scenario_text() {
     local source_type="$1"
     local source_text="$2"
@@ -250,6 +266,7 @@ precise_select_tests_from_scenario_text() {
     return "${matched}"
 }
 
+# 根据变更文件列表匹配规则并选择应执行的测试。
 precise_select_tests_from_files() {
     local changed_files="$1"
     local rules_file=""
@@ -313,12 +330,14 @@ precise_select_tests_from_files() {
     fi
 }
 
+# 从提交说明中识别精准测试选择指令。
 precise_select_tests_from_commit_message() {
     local commit_message="$1"
 
     precise_select_tests_from_scenario_text "commit" "${commit_message}" || true
 }
 
+# 根据选中测试列表生成需要跳过的测试列表。
 precise_build_skipped_tests() {
     local test_name=""
 
@@ -330,6 +349,7 @@ precise_build_skipped_tests() {
     done
 }
 
+# 检查数据库中指定表是否存在。
 precise_table_exists() {
     local table_name="$1"
     local count=""
@@ -338,6 +358,7 @@ precise_table_exists() {
     [ "${count}" = "1" ]
 }
 
+# 检查数据库表中指定字段是否存在。
 precise_column_exists() {
     local table_name="$1"
     local column_name="$2"
@@ -347,6 +368,7 @@ precise_column_exists() {
     [ "${count}" = "1" ]
 }
 
+# 将未选中的测试状态更新为跳过。
 precise_update_skipped_statuses() {
     local commit_ref="$1"
     local table_name="${TABLENAME:-commit_history}"
@@ -362,6 +384,7 @@ precise_update_skipped_statuses() {
     done
 }
 
+# 将精准测试选择及提交影响信息写入数据库。
 precise_record_impact() {
     local commit_ref="$1"
     local commit_time="$2"
@@ -412,6 +435,7 @@ precise_record_impact() {
     mysql_exec "${sql}" >/dev/null 2>&1 || precise_log "precise test: failed to record impact for ${commit_ref}"
 }
 
+# 综合变更、规则和提交说明生成并应用精准测试计划。
 apply_precise_test_plan() {
     local commit_ref="$1"
     local commit_time="${2:-0}"

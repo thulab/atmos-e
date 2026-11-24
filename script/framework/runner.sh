@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 加载框架各组件并提供场景校验和任务运行入口。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "framework requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -15,6 +17,7 @@ source "${FRAMEWORK_ROOT}/hooks.sh"
 source "${FRAMEWORK_ROOT}/scenario.sh"
 source "${FRAMEWORK_ROOT}/lifecycle.sh"
 
+# 重置上下文、校验场景定义并执行任务生命周期。
 run_scenario() {
     local status=0
 

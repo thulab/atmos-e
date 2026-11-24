@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# 提供 Benchmark 运行初始化、进程管理及结果文件辅助函数。
+
+# 初始化 Benchmark 执行所需的公共配置和运行参数。
 init_common_items() {
     okPoint=0
     okOperation=0
@@ -37,11 +40,13 @@ init_common_items() {
     maxDiskIOSizeWrite=0
 }
 
+# 清理本次测试遗留或仍在运行的相关进程。
 cleanup_processes() {
     check_benchmark_pid
     check_iotdb_pid
 }
 
+# 按当前测试配置启动 Benchmark 并返回执行状态。
 start_benchmark() {
     sudo_safe_rm "${BM_PATH}/logs"
     sudo_safe_rm "${BM_PATH}/data"
@@ -51,6 +56,7 @@ start_benchmark() {
     )
 }
 
+# 在 Benchmark 输出目录中查找结果 CSV 文件。
 find_result_csv() {
     local had_nullglob=0
     local files=()
@@ -69,6 +75,7 @@ find_result_csv() {
     fi
 }
 
+# 为超时或卡住的 Benchmark 测试生成占位结果文件。
 create_stuck_result_csv() {
     local csv_file="$1"
     local result_label="$2"
@@ -81,6 +88,7 @@ create_stuck_result_csv() {
     done
 }
 
+# 查询监控接口并提取单个指标值。
 get_single_index() {
     local query="$1"
     local end="$2"
@@ -98,6 +106,7 @@ get_single_index() {
     printf '%s\n' "${index_value}"
 }
 
+# 统计指定错误日志的文件大小。
 collect_error_log_size() {
     local datanode_error_log_file="${TEST_IOTDB_PATH}/logs/log_datanode_error.log"
     local confignode_error_log_file="${TEST_IOTDB_PATH}/logs/log_confignode_error.log"

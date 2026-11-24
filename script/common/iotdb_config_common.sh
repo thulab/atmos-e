@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 提供 IoTDB 环境及配置文件的通用修改函数。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "iotdb_config_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -9,6 +11,7 @@ if shopt -oq posix; then
     return 1 2>/dev/null || exit 1
 fi
 
+# 设置 IoTDB DataNode 的堆内存大小。
 set_iotdb_datanode_heap_memory() {
     local datanode_env="$1"
     local heap_size="${2:-20G}"
@@ -16,6 +19,7 @@ set_iotdb_datanode_heap_memory() {
     sed -i "s/^#\\?ON_HEAP_MEMORY=.*$/ON_HEAP_MEMORY=\"${heap_size}\"/" "${datanode_env}"
 }
 
+# 向 IoTDB 配置追加监控所需的属性项。
 append_iotdb_metric_properties() {
     local properties_file="$1"
     local cluster_name="${2:-${TEST_TYPE:-IoTDB}}"
@@ -35,6 +39,7 @@ dn_metric_prometheus_reporter_port=9091
 EOF
 }
 
+# 向 IoTDB 配置追加关闭指定压缩功能的属性项。
 append_iotdb_compaction_disabled_properties() {
     local properties_file="$1"
 

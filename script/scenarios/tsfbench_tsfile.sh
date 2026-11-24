@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Scenario: TSFBenchmark TsFile file-format performance test.
-# Purpose: exercise TsFile table/tree profiles with TSFBench's file-only
-# workloads. This scenario does not start IoTDB nodes.
+# 场景名称：TSFile 文件格式性能测试
+# 测试目的：通过 TSFBench 文件类负载评估 TsFile 在树模型和表模型配置下的性能。
+# 具体步骤：
+# 步骤一：准备 TSFile 候选版本、TSFBench 及 Python 构建环境。
+# 步骤二：根据用例配置准备并校验候选后端。
+# 步骤三：运行 TSFBench 文件类工作负载并生成结果 CSV。
+# 步骤四：解析 CSV 结果并记录失败阶段信息。
+# 步骤五：将测试结果持久化到数据库。
 
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"

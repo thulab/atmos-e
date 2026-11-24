@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# 校验场景声明，并将场景维度展开为可执行的用例集合。
+
+# 检查场景必需字段、用例定义及失败策略是否合法。
 scenario_validate_definition() {
     [ -n "${SCENARIO_ID:-}" ] || return 20
     [ -n "${TASK_TEST_TYPE:-}" ] || return 20
@@ -14,6 +17,7 @@ scenario_validate_definition() {
     run_hook scenario_validate
 }
 
+# 输出显式定义的用例，或按维度生成用例矩阵。
 scenario_cases() {
     if declare -p SCENARIO_CASES >/dev/null 2>&1 && [ "${#SCENARIO_CASES[@]}" -gt 0 ]; then
         printf '%s\n' "${SCENARIO_CASES[@]}"
@@ -22,6 +26,7 @@ scenario_cases() {
     fi
 }
 
+# 对逗号分隔的多个维度做笛卡尔积并输出用例行。
 scenario_matrix() {
     local -a dimensions=("$@")
     local dimension=""

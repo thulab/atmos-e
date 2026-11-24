@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# 提供可选生命周期钩子和标准阶段函数的统一调用入口。
+
+# 若指定钩子已定义则调用，并向其转发全部参数。
 run_hook() {
     local hook_name="$1"
     shift
@@ -8,6 +11,7 @@ run_hook() {
     fi
 }
 
+# 按顺序执行阶段前置钩子、阶段实现及后置钩子。
 run_phase() {
     local phase="$1"
     shift

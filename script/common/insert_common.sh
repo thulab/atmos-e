@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 实现写入场景的配置解析、用例执行、结果持久化及任务生命周期适配。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "insert_common.sh 需要使用 bash 运行" >&2
     return 1 2>/dev/null || exit 1
@@ -53,11 +55,13 @@ result_has_insert_case_id=0
 result_has_insert_layout_type=0
 result_has_insert_write_mode=0
 result_has_result_kind=0
+# 检查写入场景运行所需的依赖项。
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
     require_commands bc
 }
 
+# 根据写入用例维度构造稳定的用例标识。
 build_insert_case_id() {
     local current_layout_type="$1"
     local current_write_mode="${2:-}"
@@ -69,6 +73,7 @@ build_insert_case_id() {
     fi
 }
 
+# 初始化写入测试上下文和当前用例运行参数。
 prepare_insert_context() {
     local current_case_id="$1"
     local current_api_type="$2"
@@ -85,6 +90,7 @@ prepare_insert_context() {
     fi
 }
 
+# 按用例维度解析对应的写入配置文件。
 resolve_insert_config_source() {
     local current_case_id="$1"
     local current_api_type="$2"
@@ -129,6 +135,7 @@ resolve_insert_config_source() {
     die "缺少 benchmark 配置文件: case=${current_case_id}, api=${current_api_type}"
 }
 
+# 根据写入配置输出需要执行的用例矩阵。
 emit_insert_cases() {
     local current_ts_type=""
     local current_api_type=""
@@ -165,6 +172,7 @@ emit_insert_cases() {
     done
 }
 
+# 检查结果表是否包含指定字段。
 result_table_has_column() {
     local column_name="$1"
     local count="0"
@@ -180,6 +188,7 @@ result_table_has_column() {
     [ "${count:-0}" -gt 0 ]
 }
 
+# 检测结果表中可用的元数据字段。
 detect_result_table_metadata_columns() {
     result_has_protocol_code=0
     result_has_insert_case_id=0
@@ -204,6 +213,7 @@ detect_result_table_metadata_columns() {
     fi
 }
 
+# 输出写入结果表可选的扩展字段名。
 result_extra_columns() {
     local extra_columns=""
 
@@ -226,6 +236,7 @@ result_extra_columns() {
     printf '%s' "${extra_columns}"
 }
 
+# 输出与扩展字段对应的写入结果值。
 result_extra_values() {
     local protocol_code="$1"
     local extra_values=""
@@ -249,12 +260,14 @@ result_extra_values() {
     printf '%s' "${extra_values}"
 }
 
+# 将指定的配置属性追加到 IoTDB 属性文件。
 append_iotdb_properties() {
     local properties_file="$1"
 
     append_iotdb_compaction_disabled_properties "${properties_file}"
 }
 
+# 规范化数值文本以便后续 SQL 写入和计算。
 normalize_decimal() {
     awk -v value="${1:-0}" 'BEGIN {
         value += 0
@@ -268,6 +281,7 @@ normalize_decimal() {
     }'
 }
 
+# 发送写入测试运行状态或结果通知。
 sendMsg() {
     local error_type="$1"
     local date_time=""
@@ -357,6 +371,7 @@ sendMsg() {
     return 0
 }
 
+# 检查写入吞吐监控数据并处理异常状态。
 check_throughput_monitor() {
     local current_commit_date_time="$1"
     local current_throughput="$2"
@@ -443,6 +458,7 @@ check_throughput_monitor() {
     return 0
 }
 
+# 初始化写入测试所需的配置、路径和公共参数。
 init_items() {
     init_common_items
     insert_case_id=""
@@ -458,10 +474,12 @@ init_items() {
     maxDiskIOSizeWrite=0
 }
 
+# 修改 IoTDB root 用户密码以匹配测试配置。
 change_root_password() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1
 }
 
+# 采集当前写入用例运行期间的监控数据。
 collect_monitor_data() {
     local ip="${1:-${TEST_IP}}"
 
@@ -469,6 +487,7 @@ collect_monitor_data() {
     collect_resource_monitor_data "${ip}" "${disk_id_regex}" "${m_start_time}" "${m_end_time}"
 }
 
+# 兼容旧版写入流程的测试数据备份调用方式。
 legacy_backup_test_data_compat() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -488,6 +507,7 @@ legacy_backup_test_data_compat() {
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
 
+# 兼容旧版写入流程的配置文件移动调用方式。
 legacy_mv_config_file_compat() {
     local current_ts_type="$1"
     local current_api_type="$2"
@@ -495,6 +515,7 @@ legacy_mv_config_file_compat() {
     copy_benchmark_config "${ATMOS_PATH}/conf/${TEST_TYPE}/${current_ts_type}_${current_api_type}"
 }
 
+# 备份当前写入用例产生的测试数据和运行文件。
 backup_test_data() {
     local protocol_code="$1"
     local current_case_id="$2"
@@ -513,6 +534,7 @@ backup_test_data() {
     archive_test_runtime_artifacts "${backup_dir}"
 }
 
+# 将测试所需配置文件复制或移动到目标位置。
 mv_config_file() {
     local current_case_id="$1"
     local current_api_type="$2"
@@ -520,6 +542,7 @@ mv_config_file() {
     copy_benchmark_config "$(resolve_insert_config_source "${current_case_id}" "${current_api_type}")"
 }
 
+# 将写入测试的统计结果写入数据库结果表。
 insert_result_row() {
     local protocol_code="$1"
     local current_case_id="$2"
@@ -585,6 +608,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 执行一次写入测试，包括环境准备、Benchmark 和结果采集。
 test_operation() {
     local protocol_code="$1"
     local current_case_id="$2"
@@ -676,6 +700,7 @@ test_operation() {
     return "${monitor_failed}"
 }
 
+# 执行写入公共脚本的命令行主流程。
 main() {
     local protocol=""
     local current_case_id=""
@@ -727,6 +752,7 @@ main() {
     fi
 }
 
+# 准备写入场景任务运行环境并登记清理操作。
 scenario_task_prepare() {
     trap restore_test_type_file EXIT
     ensure_runtime_dependencies
@@ -737,6 +763,7 @@ scenario_task_prepare() {
     mark_test_in_progress
 }
 
+# 认领下一条待测提交并填充任务上下文。
 scenario_task_claim() {
     fetch_next_commit || return 1
     TASK_CTX[commit_id]="${commit_id}"
@@ -752,14 +779,17 @@ scenario_task_claim() {
     test_date_time="$(date +%Y%m%d%H%M%S)"
 }
 
+# 将当前写入任务状态更新为运行中。
 scenario_task_mark_running() {
     task_mark_running
 }
 
+# 使用当前用例上下文执行写入测试。
 scenario_case_execute() {
     test_operation "${CASE_PROTOCOL}" "${CASE_CASE}" "${CASE_API}"
 }
 
+# 标记写入任务成功并更新相关提交状态。
 scenario_task_finish_success() {
     task_finish_success
     if [ "${author}" != "Timecho" ]; then
@@ -767,6 +797,7 @@ scenario_task_finish_success() {
     fi
 }
 
+# 将写入任务标记为失败。
 scenario_task_finish_failure() {
     task_finish_failure
 }

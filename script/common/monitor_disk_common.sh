@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 根据 IoTDB 数据目录和配置解析监控磁盘，并采集资源指标。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "monitor_disk_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -9,6 +11,7 @@ if shopt -oq posix; then
     return 1 2>/dev/null || exit 1
 fi
 
+# 获取用于磁盘检测的默认 IoTDB 数据目录。
 get_monitor_disk_fallback_path() {
     local data_path="${TEST_IOTDB_PATH}/data"
 
@@ -20,6 +23,7 @@ get_monitor_disk_fallback_path() {
     printf '%s\n' "${TEST_IOTDB_PATH}"
 }
 
+# 从 IoTDB 属性文件读取指定配置项的最后一个值。
 get_iotdb_property_value() {
     local properties_file="$1"
     local property_key="$2"
@@ -42,6 +46,7 @@ get_iotdb_property_value() {
     ' "${properties_file}"
 }
 
+# 将 IoTDB 路径列表拆分为逐行输出的独立路径。
 split_iotdb_path_list() {
     local value="$1"
     local item=""
@@ -57,6 +62,7 @@ split_iotdb_path_list() {
     done
 }
 
+# 清理并规范化磁盘监控目标路径。
 normalize_monitor_target_path() {
     local path="$1"
 
@@ -73,6 +79,7 @@ normalize_monitor_target_path() {
     esac
 }
 
+# 汇总配置中的 IoTDB 数据路径作为磁盘检测目标。
 get_monitor_disk_target_paths() {
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
     local property_key=""
@@ -102,6 +109,7 @@ get_monitor_disk_target_paths() {
     fi
 }
 
+# 从目标路径向上查找最近存在的文件系统路径。
 find_existing_monitor_path() {
     local path="$1"
 
@@ -114,6 +122,7 @@ find_existing_monitor_path() {
     printf '%s\n' "${path}"
 }
 
+# 判断目标值是否存在于给定值列表中。
 contains_value() {
     local expected="$1"
     shift
@@ -126,6 +135,7 @@ contains_value() {
     return 1
 }
 
+# 将磁盘标识列表构造成可用于指标查询的正则表达式。
 build_disk_id_regex() {
     local regex=""
     local current_disk_id=""
@@ -143,6 +153,7 @@ build_disk_id_regex() {
     printf '^(%s)$\n' "${regex}"
 }
 
+# 根据挂载路径解析其所属的底层磁盘标识。
 detect_disk_id_from_path() {
     local target_path="$1"
     local existing_path=""
@@ -177,6 +188,7 @@ detect_disk_id_from_path() {
     printf '%s\n' "${resolved_device##*/}"
 }
 
+# 解析监控目标对应的磁盘标识并设置查询匹配规则。
 resolve_monitor_disk_id() {
     local target_path=""
     local detected_disk_id=""
@@ -205,6 +217,7 @@ resolve_monitor_disk_id() {
     fi
 }
 
+# 在给定时间窗口内采集 CPU 和磁盘 I/O 监控指标。
 collect_resource_monitor_data() {
     local ip="${1:-${TEST_IP}}"
     local disk_id_pattern="${2:-}"

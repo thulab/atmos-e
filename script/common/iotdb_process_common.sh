@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 封装 IoTDB 协议选择、服务启动和服务停止操作。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "iotdb_process_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -9,6 +11,7 @@ if shopt -oq posix; then
     return 1 2>/dev/null || exit 1
 fi
 
+# 根据协议版本设置对应的客户端类配置。
 set_protocol_class() {
     local protocol_code="$1"
     local config_node="${protocol_code:0:1}"
@@ -28,6 +31,7 @@ data_region_consensus_protocol_class=${PROTOCOL_CLASS[${data_region}]}
 EOF
 }
 
+# 启动 IoTDB 服务进程。
 start_iotdb() {
     (
         cd "${TEST_IOTDB_PATH}" || exit 1
@@ -40,6 +44,7 @@ start_iotdb() {
     )
 }
 
+# 停止 IoTDB 服务进程。
 stop_iotdb() {
     if [ ! -d "${TEST_IOTDB_PATH}" ]; then
         return 0

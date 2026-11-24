@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 封装任务状态表查询、任务状态更新及待测提交获取逻辑。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "task_db_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -9,6 +11,7 @@ if shopt -oq posix; then
     return 1 2>/dev/null || exit 1
 fi
 
+# 返回当前配置对应的任务状态表名称。
 task_status_table_name() {
     local table_name="${TASK_TABLENAME:-${TASK_TABLE_NAME:-}}"
 
@@ -16,6 +19,7 @@ task_status_table_name() {
     printf '%s\n' "${table_name}"
 }
 
+# 执行任务状态表相关 SQL 并输出查询结果。
 task_status_query_exec() {
     local sql="$1"
 
@@ -26,6 +30,7 @@ task_status_query_exec() {
     fi
 }
 
+# 更新当前提交记录的测试状态。
 update_task_status() {
     local status="$1"
     local table_name=""
@@ -34,6 +39,7 @@ update_task_status() {
     mysql_exec "update ${table_name} set ${TEST_TYPE} = $(sql_quote "${status}") where commit_id = $(sql_quote "${commit_id}")"
 }
 
+# 将当前提交之前尚未处理的提交标记为跳过。
 mark_older_commits_skip() {
     local table_name=""
 
@@ -41,6 +47,7 @@ mark_older_commits_skip() {
     mysql_exec "update ${table_name} set ${TEST_TYPE} = 'skip' where ${TEST_TYPE} is NULL and commit_date_time < $(sql_quote "${commit_date_time}")"
 }
 
+# 查询下一条待测试的提交记录。
 query_next_commit() {
     local status_filter="$1"
     local table_name=""
@@ -53,6 +60,7 @@ query_next_commit() {
     fi
 }
 
+# 获取下一条提交并加载其提交标识、作者及时间信息。
 fetch_next_commit() {
     local row=""
     local raw_commit_date_time=""

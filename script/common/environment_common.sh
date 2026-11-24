@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# 为场景和公共脚本提供可被调用方覆盖的环境变量默认值。
 # Stable environment defaults shared by scenario and common scripts.
 # A caller may set any value before sourcing this file to override the default.
 : "${INIT_PATH:=/root/zk_test}"

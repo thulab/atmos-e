@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
+# 管理任务、运行和用例上下文，并在用例生命周期中同步维度字段。
+
 declare -gA TASK_CTX=()
 declare -gA RUN_CTX=()
 declare -gA CASE_CTX=()
 declare -gA RESULT_CTX=()
 
+# 清空当前任务、运行、用例及结果上下文。
 context_reset() {
     TASK_CTX=()
     RUN_CTX=()
@@ -12,6 +15,7 @@ context_reset() {
     RESULT_CTX=()
 }
 
+# 初始化一次运行的标识、开始时间、状态和失败用例计数。
 run_context_begin() {
     RUN_CTX[id]="$(date '+%Y%m%d%H%M%S')-$$"
     RUN_CTX[start_time]="$(date '+%Y-%m-%d %H:%M:%S')"
@@ -19,6 +23,7 @@ run_context_begin() {
     RUN_CTX[failed_cases]=0
 }
 
+# 根据键值维度初始化用例上下文，并导出常用维度变量。
 case_context_begin() {
     local assignment=""
     local key=""
@@ -55,6 +60,7 @@ case_context_begin() {
     CASE_ATTEMPT="${CASE_CTX[attempt]:-1}"
 }
 
+# 记录当前用例的结束时间。
 case_context_finish() {
     CASE_CTX[end_time]="$(date '+%Y-%m-%d %H:%M:%S')"
 }

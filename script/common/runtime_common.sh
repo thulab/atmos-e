@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 提供运行依赖、配置定位、IoTDB 生命周期及公共监控采集能力。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "runtime_common.sh 需要使用 bash 运行" >&2
     return 1 2>/dev/null || exit 1
@@ -100,20 +102,24 @@ source "${RUNTIME_COMMON_DIR}/monitor_disk_common.sh"
 source "${RUNTIME_COMMON_DIR}/benchmark_runtime_common.sh"
 init_common_items
 
+# 将传入的 IoTDB 属性追加到指定配置文件。
 append_iotdb_properties() {
     local properties_file="$1"
 
     :
 }
 
+# 检查脚本运行所需的基础命令和工具。
 ensure_base_runtime_dependencies() {
     require_commands awk cat cp curl date du grep jq jps kill mkdir mv mysql rm sed sudo tr wc
 }
 
+# 检查完整测试运行所需的依赖项。
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
 }
 
+# 输出查询名称的候选格式以兼容不同配置命名。
 emit_query_name_candidates() {
     local current_name="$1"
     local alternate_name=""
@@ -130,6 +136,7 @@ emit_query_name_candidates() {
     fi
 }
 
+# 规范化查询名称以用于查找对应配置文件。
 normalize_query_name() {
     local current_name="$1"
 
@@ -141,6 +148,7 @@ normalize_query_name() {
     printf '%s\n' "${current_name}"
 }
 
+# 按给定根目录顺序解析配置文件的实际路径。
 resolve_config_from_roots() {
     local config_name="$1"
     shift
@@ -163,6 +171,7 @@ resolve_config_from_roots() {
     return 1
 }
 
+# 根据测试类型和用例维度构造作用域路径。
 build_scoped_path() {
     local base_path="${1%/}"
     shift
@@ -180,6 +189,7 @@ build_scoped_path() {
     printf '%s\n' "${path}"
 }
 
+# 创建并准备测试数据备份目录。
 prepare_backup_directory() {
     local backup_dir="$1"
     local backup_parent="${backup_dir%/*}"
@@ -191,6 +201,7 @@ prepare_backup_directory() {
     sudo mkdir -p -- "${backup_dir}"
 }
 
+# 归档本次测试产生的运行日志和临时文件。
 archive_test_runtime_artifacts() {
     local backup_dir="$1"
     local csv_source="${2:-${BM_PATH}/data/csvOutput}"
@@ -207,6 +218,7 @@ archive_test_runtime_artifacts() {
     fi
 }
 
+# 检查 Benchmark 版本是否符合当前测试要求。
 check_benchmark_version() {
     local bm_new=""
     local bm_old=""
@@ -227,10 +239,12 @@ check_benchmark_version() {
     fi
 }
 
+# 检查 Benchmark 进程状态并处理遗留进程。
 check_benchmark_pid() {
     check_pid_and_kill "App" "benchmark 进程"
 }
 
+# 根据测试环境设置运行所需的环境变量。
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
 
@@ -243,6 +257,7 @@ set_env() {
     copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env" "env"
 }
 
+# 按测试配置修改 IoTDB 的运行参数。
 modify_iotdb_config() {
     local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
@@ -256,6 +271,7 @@ modify_iotdb_config() {
     append_iotdb_properties "${properties_file}"
 }
 
+# 轮询等待 IoTDB 服务进入可连接状态。
 wait_for_iotdb_ready() {
     local attempt=0
     local iotdb_state=""
@@ -285,6 +301,7 @@ wait_for_iotdb_ready() {
     return 1
 }
 
+# 检查测试进程状态并在异常时触发相应处理。
 monitor_test_status() {
     local current_name="$1"
     local result_label="$2"
@@ -313,6 +330,7 @@ monitor_test_status() {
     done
 }
 
+# 采集指定时刻的监控指标快照。
 collect_monitor_snapshot() {
     local ip="${1:-${TEST_IP}}"
     local metric_time="${2:-$(date +%s)}"
@@ -323,6 +341,7 @@ collect_monitor_snapshot() {
     numOfUnse0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"unseq\"})" "${metric_time}")"
 }
 
+# 采集指定时间窗口内的监控数据。
 collect_monitor_window_data() {
     local ip="${1:-${TEST_IP}}"
     local window_start_time="${2:-${m_start_time}}"
@@ -345,6 +364,7 @@ collect_monitor_window_data() {
     errorLogSize="$(collect_error_log_size)"
 }
 
+# 读取测试开始前保存的监控基线指标。
 collect_before_monitor_metrics() {
     collect_monitor_snapshot "${TEST_IP}" "$(date +%s)"
     dataFileSize_before="${dataFileSize}"
@@ -352,12 +372,14 @@ collect_before_monitor_metrics() {
     numOfUnse0Level_before="${numOfUnse0Level}"
 }
 
+# 汇总测试过程中的通用监控指标。
 collect_common_monitor_data() {
     local ip="${1:-${TEST_IP}}"
 
     collect_monitor_window_data "${ip}" "${m_start_time}" "${m_end_time}"
 }
 
+# 将 Benchmark 配置复制到当前测试工作目录。
 copy_benchmark_config() {
     local config_source="$1"
     local config_target="${BM_PATH}/conf/config.properties"

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 读取并解析 Benchmark CSV 中的写入和查询统计结果。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "benchmark_result_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -9,6 +11,7 @@ if shopt -oq posix; then
     return 1 2>/dev/null || exit 1
 fi
 
+# 从 Benchmark CSV 中读取指定操作类型的原始统计项。
 read_benchmark_csv_operation_result() {
     local csv_file="$1"
     local operation_label="$2"
@@ -58,6 +61,7 @@ read_benchmark_csv_operation_result() {
     printf '%s\t%s\n' "${throughput_line}" "${latency_line}"
 }
 
+# 解析 Benchmark CSV 操作统计并输出统一结果字段。
 parse_benchmark_csv_operation_result() {
     local csv_file="$1"
     local operation_label="$2"
@@ -69,12 +73,14 @@ parse_benchmark_csv_operation_result() {
         Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<< "${result_line}"
 }
 
+# 解析写入测试的 Benchmark 结果。
 parse_ingestion_result() {
     local csv_file="$1"
 
     parse_benchmark_csv_operation_result "${csv_file}" "INGESTION"
 }
 
+# 解析查询测试的 Benchmark 结果。
 parse_query_result() {
     local csv_file="$1"
     local query_label="$2"

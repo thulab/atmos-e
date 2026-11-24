@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 定义框架的用例、批量用例和任务级生命周期执行流程。
+
 readonly FRAMEWORK_NO_TASK=10
 readonly FRAMEWORK_CONFIG_ERROR=20
 readonly FRAMEWORK_CASE_ERROR=50
@@ -19,6 +21,7 @@ readonly -a FRAMEWORK_CASE_PHASES=(
     case_backup
 )
 
+# 执行单个用例的标准阶段链，并记录成功或失败结果。
 run_case() {
     local -a assignments=("$@")
     local status=0
@@ -57,6 +60,7 @@ run_case() {
     return "${status}"
 }
 
+# 遍历场景生成的用例矩阵，并按失败策略聚合执行结果。
 run_all_cases() {
     local matrix_row=""
     local status=0
@@ -78,6 +82,7 @@ run_all_cases() {
     [ "${failed}" -eq 0 ]
 }
 
+# 管理任务准备、认领、运行、收尾及最终成功或失败回调。
 run_task() {
     local status=0
 

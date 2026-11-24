@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 实现跨节点 Pipe 测试的部署、执行、监控、结果汇总和数据备份。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "pipe_common.sh requires bash" >&2
     return 1 2>/dev/null || exit 1
@@ -115,18 +117,21 @@ source "${PIPE_COMMON_DIR}/benchmark_result_common.sh"
 source "${PIPE_COMMON_DIR}/../modules/result.sh"
 source "${PIPE_COMMON_DIR}/../modules/results/pipe_result.sh"
 
+# 清理并格式化远程命令返回的日志文本。
 format_log_output() {
     local value="${1:-}"
 
     printf '%s' "${value}" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//'
 }
 
+# 将 Pipe 状态文本转换为统一格式。
 normalize_pipe_state() {
     local value="${1:-}"
 
     printf '%s' "${value}" | tr '[:lower:]' '[:upper:]'
 }
 
+# 从 SHOW PIPE 查询结果中提取指定 Pipe 的记录行。
 extract_pipe_row_from_show_output() {
     local output="$1"
 
@@ -160,6 +165,7 @@ extract_pipe_row_from_show_output() {
     '
 }
 
+# 从 Pipe 查询记录中解析状态字段。
 extract_pipe_state_from_row() {
     local pipe_row="$1"
 
@@ -169,10 +175,12 @@ extract_pipe_state_from_row() {
         | sed -n '1p'
 }
 
+# 检查 Pipe 测试运行所需的工具和依赖。
 ensure_runtime_dependencies() {
     require_commands awk cp curl date du grep jq mkdir mysql rm scp sed ssh sudo tr
 }
 
+# 创建 Pipe 测试数据备份目录。
 prepare_backup_directory() {
     local backup_dir="$1"
     local backup_parent="${backup_dir%/*}"
@@ -184,6 +192,7 @@ prepare_backup_directory() {
     sudo mkdir -p -- "${backup_dir}"
 }
 
+# 将数值输入规范化，无法解析时返回零。
 numeric_or_zero() {
     local value="${1:-0}"
 
@@ -194,6 +203,7 @@ numeric_or_zero() {
     fi
 }
 
+# 从 SQL 查询输出中提取计数值。
 extract_count_from_query_output() {
     local output="$1"
 
@@ -212,6 +222,7 @@ extract_count_from_query_output() {
     '
 }
 
+# 检查 Pipe 测试所用 Benchmark 版本。
 check_benchmark_version() {
     local bm_new=""
     local bm_old=""
@@ -232,6 +243,7 @@ check_benchmark_version() {
     fi
 }
 
+# 在指定远程节点上执行命令并返回执行结果。
 remote_exec() {
     local host="$1"
     shift
@@ -239,6 +251,7 @@ remote_exec() {
     ssh -n "${SSH_OPTIONS[@]}" "${ACCOUNT}@${host}" "$@"
 }
 
+# 构造可安全传递到远程 Shell 执行的命令文本。
 build_remote_shell_command() {
     local joined=""
 
@@ -246,6 +259,7 @@ build_remote_shell_command() {
     printf '%s' "${joined% }"
 }
 
+# 在远程节点指定目录启动后台命令。
 remote_start_in_dir() {
     local host="$1"
     local work_dir="$2"
@@ -262,6 +276,7 @@ nohup "$@" >/dev/null 2>&1 </dev/null &
 EOF
 }
 
+# 根据远程节点配置构造 IoTDB CLI 命令。
 build_remote_cli_command() {
     local host="$1"
     local dialect="$2"
@@ -278,6 +293,7 @@ build_remote_cli_command() {
     printf '%s' "${joined% }"
 }
 
+# 通过远程节点的 IoTDB CLI 执行 SQL。
 remote_cli() {
     local host="$1"
     local dialect="$2"
@@ -288,6 +304,7 @@ remote_cli() {
     remote_exec "${host}" "${command}"
 }
 
+# 查询远程节点仍在运行的 Benchmark 进程数量。
 remote_benchmark_running_count() {
     local host="$1"
     local count=""
@@ -300,6 +317,7 @@ remote_benchmark_running_count() {
     printf '%s\n' "${count}"
 }
 
+# 获取远程节点 Benchmark 错误日志总大小。
 remote_collect_error_log_size() {
     local host="$1"
     local command=""
@@ -323,6 +341,7 @@ printf '%s\n' "${total}"
 EOF
 }
 
+# 从监控服务查询并提取单个时间序列指标值。
 get_single_index() {
     local query="$1"
     local end_time="$2"
@@ -342,6 +361,7 @@ get_single_index() {
     printf '%s\n' "${index_value}"
 }
 
+# 初始化当前 Pipe 用例的节点、时间和结果状态。
 init_case_state() {
     local idx=0
     local device=0
@@ -387,6 +407,7 @@ init_case_state() {
     done
 }
 
+# 在 Benchmark 配置文件中新增或更新指定配置项。
 upsert_benchmark_config_value() {
     local config_file="$1"
     local key="$2"
@@ -397,6 +418,7 @@ upsert_benchmark_config_value() {
     printf '%s=%s\n' "${key}" "${value}" >> "${config_file}" || return 1
 }
 
+# 确保 Benchmark 配置包含 Pipe 测试所需的数据结构设置。
 ensure_pipe_benchmark_schema_config() {
     local config_file="$1"
 
@@ -409,6 +431,7 @@ ensure_pipe_benchmark_schema_config() {
     upsert_benchmark_config_value "${config_file}" "IoTDB_TABLE_NUMBER" "1" || return 1
 }
 
+# 追加集群节点通用的 IoTDB 属性配置。
 append_common_iotdb_properties() {
     local stage_dir="$1"
     local datanode_env="${stage_dir}/apache-iotdb/conf/datanode-env.sh"
@@ -452,6 +475,7 @@ dn_metric_prometheus_reporter_port=9091
 EOF
 }
 
+# 根据协议版本追加对应的 IoTDB 配置属性。
 append_protocol_properties() {
     local properties_file="$1"
     local protocol_code="$2"
@@ -474,6 +498,7 @@ data_region_consensus_protocol_class=${PROTOCOL_CLASS[${data_region}]}
 EOF
 }
 
+# 将节点专属配置追加到对应 IoTDB 属性文件。
 append_node_properties() {
     local properties_file="$1"
     local host="$2"
@@ -489,6 +514,7 @@ cn_seed_config_node=${config_seed}
 EOF
 }
 
+# 准备 Pipe 测试的基础目录和共享文件。
 prepare_base_stage() {
     local protocol_code="$1"
     local base_dir="${LOCAL_STAGE_ROOT}/base"
@@ -517,6 +543,7 @@ prepare_base_stage() {
     }
 }
 
+# 将 Pipe 专用 Benchmark 配置部署到测试目录。
 copy_pipe_benchmark_config() {
     local stage_dir="$1"
     local current_ts_type="$2"
@@ -534,6 +561,7 @@ copy_pipe_benchmark_config() {
     ensure_pipe_benchmark_schema_config "${config_target}" || return 1
 }
 
+# 将 Pipe 测试所需许可证复制到指定节点目录。
 copy_pipe_license() {
     local stage_dir="$1"
     local host="$2"
@@ -549,6 +577,7 @@ copy_pipe_license() {
     cp -rf "${license_source}" "${license_target}" || return 1
 }
 
+# 为集群中的单个节点准备测试目录和配置。
 prepare_node_stage() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -567,6 +596,7 @@ prepare_node_stage() {
     printf '%s\n' "${stage_dir}"
 }
 
+# 清理并重置所有远程测试节点的运行环境。
 reset_remote_nodes() {
     local host=""
 
@@ -579,6 +609,7 @@ reset_remote_nodes() {
     sleep "${NODE_RESET_WAIT_SECONDS}"
 }
 
+# 将配置、程序和测试资源部署到全部远程节点。
 deploy_all_nodes() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -598,6 +629,7 @@ deploy_all_nodes() {
     done
 }
 
+# 轮询等待远程 IoTDB 节点启动并可连接。
 wait_for_remote_iotdb_ready() {
     local host="$1"
     local attempt=0
@@ -614,12 +646,14 @@ wait_for_remote_iotdb_ready() {
     return 1
 }
 
+# 更新远程 IoTDB 节点的 root 用户密码。
 change_remote_root_password() {
     local host="$1"
 
     remote_exec "${host}" "${TEST_IOTDB_PATH}/sbin/start-cli.sh -h ${host} -p 6667 -e \"ALTER USER root SET PASSWORD '${IOTDB_PW}';\"" >/dev/null 2>&1
 }
 
+# 启动指定远程 IoTDB 节点。
 start_remote_node() {
     local host="$1"
 
@@ -634,6 +668,7 @@ start_remote_node() {
     change_remote_root_password "${host}" || return 1
 }
 
+# 按集群配置依次启动全部远程 IoTDB 节点。
 start_all_remote_nodes() {
     local host=""
 
@@ -645,6 +680,7 @@ start_all_remote_nodes() {
     done
 }
 
+# 停止指定远程 IoTDB 节点。
 stop_remote_node() {
     local host="$1"
 
@@ -653,6 +689,7 @@ stop_remote_node() {
     remote_exec "${host}" "[ -d ${TEST_IOTDB_PATH} ] && ${TEST_IOTDB_PATH}/sbin/stop-confignode.sh >/dev/null 2>&1 || true" >/dev/null 2>&1 || true
 }
 
+# 停止集群中的全部远程 IoTDB 节点。
 stop_all_remote_nodes() {
     local host=""
 
@@ -661,6 +698,7 @@ stop_all_remote_nodes() {
     done
 }
 
+# 根据目标数据库版本选择 Pipe SQL 方言。
 pipe_dialect() {
     local current_ts_type="$1"
 
@@ -671,6 +709,7 @@ pipe_dialect() {
     fi
 }
 
+# 构造创建 Pipe 所需的 SQL 语句。
 build_pipe_create_sql() {
     local current_ts_type="$1"
     local sink_host="$2"
@@ -686,6 +725,7 @@ build_pipe_create_sql() {
         "${PIPE_NAME}" "${source_properties}" "${IOTDB_PW}" "${sink_host}"
 }
 
+# 判断 Pipe 查询输出中目标 Pipe 是否处于运行状态。
 pipe_is_running_in_show_output() {
     local output="$1"
     local pipe_row=""
@@ -699,6 +739,7 @@ pipe_is_running_in_show_output() {
     [ "$(normalize_pipe_state "${pipe_state}")" = "RUNNING" ]
 }
 
+# 等待远程节点上的 Pipe 达到可用状态。
 wait_for_remote_pipe_ready() {
     local host="$1"
     local dialect="$2"
@@ -732,6 +773,7 @@ wait_for_remote_pipe_ready() {
     return 1
 }
 
+# 在集群节点间创建本次测试所需的全部 Pipe。
 create_all_pipes() {
     local current_ts_type="$1"
     local dialect=""
@@ -776,6 +818,7 @@ create_all_pipes() {
     [ "${ready_count}" -eq "${#NODE_IPS[@]}" ]
 }
 
+# 在远程节点启动对应的 Benchmark 写入任务。
 start_remote_benchmarks() {
     local host=""
     local running_count=0
@@ -795,6 +838,7 @@ start_remote_benchmarks() {
     done
 }
 
+# 刷新全部远程 IoTDB 节点的数据缓冲区。
 flush_remote_nodes() {
     local current_ts_type="$1"
     local dialect=""
@@ -806,6 +850,7 @@ flush_remote_nodes() {
     done
 }
 
+# 生成用于查询设备数量的 SQL 候选语句。
 build_device_count_sql_candidates() {
     local current_ts_type="$1"
 
@@ -824,6 +869,7 @@ EOF
     fi
 }
 
+# 为目标节点解析适用的设备数量查询模板。
 resolve_device_count_query_template() {
     local host="$1"
     local current_ts_type="$2"
@@ -871,6 +917,7 @@ resolve_device_count_query_template() {
     return 1
 }
 
+# 查询各节点 Pipe 数据同步前后的设备数量。
 query_node_device_counts() {
     local host="$1"
     local current_ts_type="$2"
@@ -933,6 +980,7 @@ done
 EOF
 }
 
+# 保存集群 A 侧采集到的计数结果。
 store_counts_a() {
     local new_counts=("$@")
     local device=0
@@ -953,6 +1001,7 @@ store_counts_a() {
     return "${changed}"
 }
 
+# 保存集群 B 侧采集到的计数结果。
 store_counts_b() {
     local new_counts=("$@")
     local device=0
@@ -973,6 +1022,7 @@ store_counts_b() {
     return "${changed}"
 }
 
+# 根据计数结果计算最小数据点数量。
 calculate_min_point_num() {
     local device=0
     local min_value=""
@@ -993,6 +1043,7 @@ calculate_min_point_num() {
     printf '%s\n' "${min_value:-0}"
 }
 
+# 输出数值数组中的最小值。
 calculate_array_min() {
     local min_value=""
     local current_value=""
@@ -1009,6 +1060,7 @@ calculate_array_min() {
     printf '%s\n' "${min_value:-0}"
 }
 
+# 根据开始和结束时间计算耗时秒数。
 calculate_cost_time_seconds() {
     if [ -z "${start_time}" ] || [ -z "${end_time}" ]; then
         printf '0\n'
@@ -1018,6 +1070,7 @@ calculate_cost_time_seconds() {
     printf '%s\n' "$(( $(datetime_to_epoch "${end_time}") - $(datetime_to_epoch "${start_time}") ))"
 }
 
+# 监控 Pipe 用例运行状态并记录同步过程指标。
 monitor_pipe_case() {
     local start_epoch=0
     local last_update_epoch=0
@@ -1118,6 +1171,7 @@ monitor_pipe_case() {
     done
 }
 
+# 采集指定节点在当前用例中的资源监控指标。
 collect_node_metrics() {
     local index="$1"
     local host="$2"
@@ -1162,11 +1216,13 @@ collect_node_metrics() {
     max_disk_io_size_write[$index]="$(get_single_index "sum(rate(disk_io_size{instance=~\"${host}:9091\",disk_id=~\"${DISK_ID_REGEX}\",type=~\"write\"}[${metric_window}s]))" "${m_end_time}")"
 }
 
+# 汇总 Pipe 测试涉及的全部节点监控数据。
 collect_all_monitor_data() {
     collect_node_metrics 0 "${NODE_IPS[0]}"
     collect_node_metrics 1 "${NODE_IPS[1]}"
 }
 
+# 在候选目录中查找首个 Benchmark 结果 CSV 文件。
 find_first_result_csv() {
     local result_dir="$1"
     local had_nullglob=0
@@ -1189,6 +1245,7 @@ find_first_result_csv() {
     fi
 }
 
+# 解析指定节点的写入 Benchmark 结果文件。
 parse_node_ingestion_result() {
     local csv_file="$1"
     local index="$2"
@@ -1220,6 +1277,7 @@ parse_node_ingestion_result() {
     latencies[$index]="${latency_value:-0}"
 }
 
+# 收集单个节点的 Benchmark 结果和运行状态。
 collect_node_result() {
     local host="$1"
     local index="$2"
@@ -1233,6 +1291,7 @@ collect_node_result() {
     parse_node_ingestion_result "${csv_file}" "${index}" || return 1
 }
 
+# 收集并合并全部节点的测试结果。
 collect_all_results() {
     sudo_safe_rm "${LOCAL_RESULT_ROOT}"
     mkdir -p "${LOCAL_RESULT_ROOT}" || return 1
@@ -1240,6 +1299,7 @@ collect_all_results() {
     collect_node_result "${NODE_IPS[1]}" 1 || true
 }
 
+# 为尚未设置时间戳的用例补齐起止时间。
 ensure_case_times_initialized() {
     local now_time=""
 
@@ -1258,6 +1318,7 @@ ensure_case_times_initialized() {
     fi
 }
 
+# 将 Pipe 测试结果写入数据库结果表。
 insert_result_row() {
     local insert_sql=""
 
@@ -1317,6 +1378,7 @@ INSERT INTO ${RESULT_TABLE_NAME} (
     mysql_exec "${insert_sql}"
 }
 
+# 备份当前 Pipe 用例的数据、配置和日志文件。
 backup_case_data() {
     local backup_dir="${BACKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${current_protocol_code}"
     local host=""
@@ -1344,6 +1406,7 @@ backup_case_data() {
     fi
 }
 
+# 执行单个 Pipe 集群用例的完整测试流程。
 run_pipe_case() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -1406,6 +1469,7 @@ run_pipe_case() {
     return "${case_failed}"
 }
 
+# 执行 Pipe 公共脚本的命令行主流程。
 main() {
     local case_spec=""
     local protocol_code=""
@@ -1446,6 +1510,7 @@ main() {
     fi
 }
 
+# 准备 Pipe 场景任务运行环境。
 scenario_task_prepare() {
     trap restore_test_type_file EXIT
     ensure_runtime_dependencies
@@ -1456,6 +1521,7 @@ scenario_task_prepare() {
     mark_test_in_progress
 }
 
+# 认领待测提交并初始化 Pipe 任务上下文。
 scenario_task_claim() {
     fetch_next_commit || return 1
     TASK_CTX[commit_id]="${commit_id}"
@@ -1464,10 +1530,14 @@ scenario_task_claim() {
     test_date_time="$(date +%Y%m%d%H%M%S)"
 }
 
+# 将 Pipe 任务状态更新为运行中。
 scenario_task_mark_running() { task_mark_running; }
+# 根据当前协议和用例类型执行 Pipe 测试。
 scenario_case_execute() { run_pipe_case "${CASE_PROTOCOL}" "${CASE_TYPE}"; }
+# 将 Pipe 任务标记成功并完成提交状态更新。
 scenario_task_finish_success() {
     task_finish_success
     task_skip_older
 }
+# 将 Pipe 任务标记为失败。
 scenario_task_finish_failure() { task_finish_failure; }

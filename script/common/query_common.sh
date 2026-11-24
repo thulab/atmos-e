@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 实现查询场景配置准备、用例执行、结果采集和任务生命周期适配。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "query_common.sh 需要使用 bash 运行" >&2
     return 1 2>/dev/null || exit 1
@@ -86,6 +88,7 @@ query_suite_type=""
 sensor_type=""
 query_num=1
 
+# 初始化查询测试所需的配置、路径和运行参数。
 init_items() {
     init_common_items
     ts_type=""
@@ -97,11 +100,13 @@ init_items() {
     query_num=1
 }
 
+# 校验查询测试的关键配置项。
 validate_query_settings() {
     [[ "${QUERY_REPEAT_COUNT}" =~ ^[1-9][0-9]*$ ]] || die "QUERY_REPEAT_COUNT 必须是正整数"
     [ "${#QUERY_LIST[@]}" -eq "${#QUERY_LABELS[@]}" ] || die "QUERY_LIST 和 QUERY_LABELS 的数量不一致"
 }
 
+# 解析当前查询用例使用的数据集目录。
 resolve_query_dataset_source() {
     local protocol_code="$1"
     local current_suite_type="$2"
@@ -109,6 +114,7 @@ resolve_query_dataset_source() {
     printf '%s\n' "${QUERY_DATASET_PATH}/${protocol_code}/${current_suite_type}/data"
 }
 
+# 按查询名称和用例维度解析查询配置文件。
 resolve_query_config_source() {
     local current_suite_type="$1"
     local current_query="$2"
@@ -144,6 +150,7 @@ resolve_query_config_source() {
     printf '%s\n' "${resolved_path}"
 }
 
+# 初始化当前查询用例的运行上下文。
 prepare_query_context() {
     local current_suite_type="$1"
     local current_query="$2"
@@ -160,14 +167,17 @@ prepare_query_context() {
     query_num="${current_repeat}"
 }
 
+# 输出查询结果表的可选扩展字段名。
 result_extra_columns() {
     :
 }
 
+# 输出查询结果记录对应的扩展字段值。
 result_extra_values() {
     :
 }
 
+# 根据查询用例维度生成日志目录后缀。
 query_log_dir_suffix() {
     local current_query="$1"
 
@@ -178,12 +188,14 @@ query_log_dir_suffix() {
     fi
 }
 
+# 追加查询场景专用的 IoTDB 属性配置。
 append_query_specific_iotdb_properties() {
     local properties_file="$1"
 
     :
 }
 
+# 将传入属性追加到 IoTDB 配置文件。
 append_iotdb_properties() {
     local properties_file="$1"
 
@@ -195,6 +207,7 @@ EOF
     append_query_specific_iotdb_properties "${properties_file}"
 }
 
+# 将查询测试所需数据集复制到 IoTDB 数据目录。
 copy_query_dataset() {
     local protocol_code="$1"
     local current_suite_type="$2"
@@ -205,12 +218,14 @@ copy_query_dataset() {
     cp -rf -- "${source_path}" "${TEST_IOTDB_PATH}/"
 }
 
+# 采集当前查询用例执行期间的监控数据。
 collect_monitor_data() {
     local ip="${1:-${TEST_IP}}"
 
     collect_common_monitor_data "${ip}"
 }
 
+# 兼容旧版查询流程的测试数据备份调用方式。
 legacy_backup_test_data_compat() {
     local current_suite_type="$1"
     local backup_parent="${BACKUP_PATH}/${current_suite_type}"
@@ -228,6 +243,7 @@ legacy_backup_test_data_compat() {
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
 
+# 兼容旧版查询流程的配置文件移动调用方式。
 legacy_mv_config_file_compat() {
     local current_suite_type="$1"
     local current_query="$2"
@@ -235,6 +251,7 @@ legacy_mv_config_file_compat() {
     copy_benchmark_config "$(resolve_query_config_source "${current_suite_type}" "${current_query}")"
 }
 
+# 备份当前查询用例使用的数据和运行文件。
 backup_test_data() {
     local protocol_code="$1"
     local current_suite_type="$2"
@@ -248,6 +265,7 @@ backup_test_data() {
     archive_test_runtime_artifacts "${backup_dir}"
 }
 
+# 将查询测试配置文件复制或移动到目标位置。
 mv_config_file() {
     local current_suite_type="$1"
     local current_query="$2"
@@ -256,6 +274,7 @@ mv_config_file() {
     copy_benchmark_config "$(resolve_query_config_source "${current_suite_type}" "${current_query}" "${current_sensor_type}")"
 }
 
+# 在需要时追加表模型查询的专用配置项。
 append_tablemode_config_if_needed() {
     local current_suite_type="$1"
 
@@ -264,6 +283,7 @@ append_tablemode_config_if_needed() {
     fi
 }
 
+# 将查询测试统计结果写入数据库结果表。
 insert_result_row() {
     local protocol_code="$1"
     local extra_columns=""
@@ -335,6 +355,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 归档当前查询用例产生的日志文件。
 archive_query_logs() {
     local current_query="$1"
     local log_suffix=""
@@ -351,6 +372,7 @@ archive_query_logs() {
     mv "${live_log_dir}" "${archived_log_dir}"
 }
 
+# 执行一次查询测试并完成结果解析和持久化。
 test_operation() {
     local protocol_code="$1"
     local current_suite_type=""
@@ -473,6 +495,7 @@ test_operation() {
     return "${operation_failed}"
 }
 
+# 执行查询公共脚本的命令行主流程。
 main() {
     local protocol=""
     local task_failed=0
@@ -511,6 +534,7 @@ main() {
     fi
 }
 
+# 准备查询场景任务环境并设置收尾处理。
 scenario_task_prepare() {
     trap restore_test_type_file EXIT
     ensure_runtime_dependencies
@@ -522,6 +546,7 @@ scenario_task_prepare() {
     mark_test_in_progress
 }
 
+# 认领下一条待测提交并填充任务上下文。
 scenario_task_claim() {
     fetch_next_commit || return 1
     TASK_CTX[commit_id]="${commit_id}"
@@ -530,10 +555,14 @@ scenario_task_claim() {
     test_date_time="$(date +%Y%m%d%H%M%S)"
 }
 
+# 将查询任务状态切换为运行中。
 scenario_task_mark_running() { task_mark_running; }
+# 使用当前协议维度执行查询用例。
 scenario_case_execute() { test_operation "${CASE_PROTOCOL}"; }
+# 标记查询任务成功并更新历史提交状态。
 scenario_task_finish_success() {
     task_finish_success
     task_skip_older
 }
+# 将查询任务标记为失败。
 scenario_task_finish_failure() { task_finish_failure; }
