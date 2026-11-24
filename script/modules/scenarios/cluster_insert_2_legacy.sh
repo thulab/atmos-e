@@ -64,6 +64,7 @@ if [ "${BM_OLD}" != "cat: git.properties: No such file or directory" ] && [ "${B
 	rm -rf ${BM_PATH}
 	cp -rf ${BM_REPOS_PATH} ${BM_PATH}
 fi
+# 初始化双集群写入测试的主机、路径和用例参数。
 init_items() {
 init_common_items
 ############定义监控采集项初始值##########################
@@ -74,9 +75,11 @@ end_time=0
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
+# 按错误类别发送双集群测试通知。
 sendEmail() {
 sendEmail=$(${TOOLS_PATH}/sendEmail.sh $1 >/dev/null 2>&1 &)
 }
+# 查找并停止遗留的 Benchmark 进程。
 check_benchmark_pid() { # 检查benchmark的pid，有就停止
 	monitor_pid=$(jps | grep App | awk '{print $1}')
 	if [ "${monitor_pid}" = "" ]; then
@@ -86,6 +89,7 @@ check_benchmark_pid() { # 检查benchmark的pid，有就停止
 		echo "BM程序已停止！"
 	fi
 }
+# 查找并停止双集群节点上的 IoTDB 进程。
 check_iotdb_pid() { # 检查iotdb的pid，有就停止
 	iotdb_pid=$(jps | grep DataNode | awk '{print $1}')
 	if [ "${iotdb_pid}" = "" ]; then
@@ -110,6 +114,7 @@ check_iotdb_pid() { # 检查iotdb的pid，有就停止
 	fi
 	echo "程序检测和清理操作已完成！"
 }
+# 部署编译产物并准备双集群测试目录。
 set_env() { # 拷贝编译好的iotdb到测试路径
 	if [ ! -d "${TEST_PATH}" ]; then
 		mkdir -p ${TEST_PATH}
@@ -129,6 +134,7 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 
 	cp -rf ${REPOS_PATH}/${commit_id}/apache-iotdb/* ${TEST_PATH}/DN/apache-iotdb/
 }
+# 配置双集群 IoTDB 内存参数并调整合并设置。
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
 	sed -i "s/^#ON_HEAP_MEMORY=\"2G\".*$/ON_HEAP_MEMORY=\"20G\"/g" ${TEST_DATANODE_PATH}/conf/datanode-env.sh
@@ -155,6 +161,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	echo "dn_metric_level=ALL" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "dn_metric_prometheus_reporter_port=9091" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 }
+# 根据协议版本选择双集群 Benchmark 使用的客户端类。
 set_protocol_class() {
 	config_node=$1
 	schema_region=$2
@@ -168,6 +175,7 @@ set_protocol_class() {
 	echo "schema_region_consensus_protocol_class=${protocol_class[${schema_region}]}" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "data_region_consensus_protocol_class=${protocol_class[${data_region}]}" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 }
+# 通过远程命令配置并启动双集群节点和 Benchmark 负载。
 setup_nCmD() {
 while getopts 'c:d:t:' OPT; do
     case $OPT in
@@ -328,6 +336,7 @@ if [ "$check_config_num" == "$config_num" ] && [ "$check_data_num" == "$data_num
 	fi
 fi
 }
+# 监控 Benchmark 执行并采集进程、文件句柄和线程指标。
 monitor_test_status() { # 监控测试运行状态，获取最大打开文件数量和最大线程数
 	while true; do
 		flag=0
@@ -363,6 +372,7 @@ monitor_test_status() { # 监控测试运行状态，获取最大打开文件数
 		fi
 	done
 }
+# 查询监控服务并解析指定时间点的单项指标。
 function get_single_index() {
     # 获取 prometheus 单个指标的值
     local end=$2
@@ -374,6 +384,7 @@ function get_single_index() {
 	fi
 	echo ${index_value}
 }
+# 汇总两端 IoTDB 数据目录大小及顺序、乱序文件数量。
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	TEST_IP=$1
 	dataFileSize=0
@@ -404,6 +415,7 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	maxDiskIOSizeRead=$(get_single_index "rate(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	maxDiskIOSizeWrite=$(get_single_index "rate(disk_io_size{instance=~\"${TEST_IP}:9091\",disk_id=~\"vdc\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 }
+# 备份双集群写入测试数据、配置和日志。
 backup_test_data() { # 备份测试数据
 	sudo rm -rf ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 	sudo mkdir -p ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
@@ -411,10 +423,12 @@ backup_test_data() { # 备份测试数据
 	sudo mv ${TEST_DATANODE_PATH} ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 	sudo cp -rf ${BM_PATH}/data/csvOutput ${BUCKUP_PATH}/$1/${commit_date_time}_${commit_id}_${protocol_class}
 }
+# 将双集群测试配置部署到目标节点目录。
 mv_config_file() { # 移动配置文件
 	rm -rf ${BM_PATH}/conf/config.properties
 	cp -rf ${ATMOS_PATH}/conf/${test_type}/$1/$2 ${BM_PATH}/conf/config.properties
 }
+# 执行一次双集群写入测试并汇总结果与监控数据。
 test_operation() {
 	ts_type=$1
 	data_type=$2

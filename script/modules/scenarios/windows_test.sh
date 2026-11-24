@@ -49,6 +49,7 @@ COMMON_DIR="$(cd "${SCRIPT_DIR}/../../common" && pwd)"
 # shellcheck source=script/common/runtime_common.sh
 source "${COMMON_DIR}/runtime_common.sh"
 
+# 将 Windows 测试场景属性追加到 IoTDB 配置。
 append_iotdb_properties() {
     local properties_file="$1"
 
@@ -68,6 +69,7 @@ query_suite_type=""
 query_sensor_type=""
 query_repeat_no=""
 result_kind=""
+# 初始化 Windows 测试用例、查询列表及运行参数。
 init_items() {
     init_common_items
     query_id=""
@@ -84,14 +86,17 @@ init_items() {
     maxDiskIOSizeWrite=0
 }
 
+# 将 IoTDB root 用户密码设置为测试所需密码。
 change_root_password() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1
 }
 
+# 执行 IoTDB flush，确保写入数据可供后续查询。
 flush_iotdb() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -u root -pw "${IOTDB_PW}" -h 127.0.0.1 -p 6667 -e "flush" >/dev/null 2>&1
 }
 
+# 根据用例名称解析对应的配置文件路径。
 resolve_config_source() {
     local config_name="$1"
     local config_root="${ATMOS_PATH}/conf/${TEST_TYPE}"
@@ -102,16 +107,19 @@ resolve_config_source() {
     printf '%s\n' "${resolved_path}"
 }
 
+# 将 Windows 场景配置复制到 IoTDB 或 Benchmark 目录。
 copy_windows_config() {
     local config_name="$1"
 
     copy_benchmark_config "$(resolve_config_source "${config_name}")"
 }
 
+# 收集当前 Windows 测试用例的监控指标。
 collect_monitor_data() {
     collect_resource_monitor_data "${TEST_IP}" "${MONITOR_DISK_ID}" "${m_start_time}" "${m_end_time}"
 }
 
+# 兼容旧版 Windows 测试的备份函数调用参数。
 legacy_backup_test_data_compat() {
     local current_insert_type="$1"
     local backup_parent="${BACKUP_PATH}/${current_insert_type}"
@@ -129,6 +137,7 @@ legacy_backup_test_data_compat() {
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
 
+# 备份 Windows 测试数据、配置和运行日志。
 backup_test_data() {
     local current_insert_type="$1"
     local backup_dir=""
@@ -141,6 +150,7 @@ backup_test_data() {
     archive_test_runtime_artifacts "${backup_dir}"
 }
 
+# 准备写入结果记录所需的上下文及字段值。
 prepare_ingestion_result_context() {
     query_id=""
     query_label_name=""
@@ -150,6 +160,7 @@ prepare_ingestion_result_context() {
     result_kind="ingestion"
 }
 
+# 准备查询结果记录所需的上下文及字段值。
 prepare_query_result_context() {
     local current_query="$1"
     local current_query_label="$2"
@@ -162,6 +173,7 @@ prepare_query_result_context() {
     result_kind="query"
 }
 
+# 将 Windows 测试用例的结果写入数据库。
 insert_result_row() {
     local query_repeat_value="NULL"
     local insert_sql=""
@@ -218,6 +230,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 构造并持久化当前失败用例的结果记录。
 record_failure_result() {
     local failure_code="$1"
 
@@ -227,6 +240,7 @@ record_failure_result() {
     insert_result_row
 }
 
+# 执行指定的 Benchmark 写入或性能用例。
 run_benchmark_case() {
     local current_name="$1"
     local result_label="$2"
@@ -282,6 +296,7 @@ run_benchmark_case() {
     return 0
 }
 
+# 执行单条查询用例并记录结果与监控数据。
 run_query_case() {
     local current_query="$1"
     local query_label="$2"
@@ -320,6 +335,7 @@ run_query_case() {
     return "${query_failed}"
 }
 
+# 执行单条写入用例并刷新数据供查询套件使用。
 run_insert_case() {
     local current_insert_type="$1"
     local query_index=0
@@ -388,6 +404,7 @@ run_insert_case() {
     return "${case_failed}"
 }
 
+# 按协议执行完整 Windows 场景用例并汇总失败状态。
 test_operation() {
     local protocol_code="$1"
     local current_insert_type=""
@@ -403,6 +420,7 @@ test_operation() {
     return "${operation_failed}"
 }
 
+# 执行 Windows 测试脚本的命令行主流程。
 main() {
     local protocol=""
     local task_failed=0
@@ -441,9 +459,15 @@ main() {
     fi
 }
 
+# 准备测试环境、检查配置并注册退出时的状态恢复。
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; [ "${#QUERY_LIST[@]}" -eq "${#QUERY_LABELS[@]}" ] || return 20; if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then check_benchmark_version; fi; mark_test_in_progress; }
+# 认领待测提交并记录其元数据。
 scenario_task_claim() { fetch_next_commit || return 1; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; test_date_time="$(date +%Y%m%d%H%M%S)"; }
+# 将 Windows 测试任务状态更新为运行中。
 scenario_task_mark_running() { update_task_status "ontesting"; }
+# 按当前协议维度执行 Windows 测试套件。
 scenario_case_execute() { test_operation "${CASE_PROTOCOL}"; }
+# 标记测试成功并跳过较早的待处理提交。
 scenario_task_finish_success() { update_task_status "done"; mark_older_commits_skip; }
+# 将 Windows 测试任务标记为失败。
 scenario_task_finish_failure() { update_task_status "RError"; }

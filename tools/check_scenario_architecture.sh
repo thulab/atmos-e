@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 检查场景入口脚本是否遵守框架架构边界和调用约定。
 set -u
 set -o pipefail
 
@@ -6,6 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCENARIO_DIR="${ROOT}/script/scenarios"
 failed=0
 
+# 搜索场景入口中的禁用操作并记录违规结果。
 check_forbidden() {
     local label="$1"
     local pattern="$2"

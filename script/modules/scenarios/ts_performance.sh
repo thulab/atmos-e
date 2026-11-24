@@ -73,17 +73,20 @@ dataFileSize_after=0
 operation_pid=0
 export_properties_applied=0
 
+# 检查 TsFile 工具性能测试运行所需的命令和依赖。
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
     require_commands find
 }
 
+# 将测试属性追加到 IoTDB 配置文件。
 append_iotdb_properties() {
     local properties_file="$1"
 
     append_iotdb_compaction_disabled_properties "${properties_file}"
 }
 
+# 清零当前 TsFile 阶段的耗时和监控指标。
 reset_phase_metrics() {
     init_common_items
     numOfSe0Level_before=0
@@ -97,6 +100,7 @@ reset_phase_metrics() {
     dataFileSize_after=0
 }
 
+# 统计目录大小并转换为 GiB。
 directory_size_gib() {
     local path="$1"
     local size_bytes=0
@@ -110,6 +114,7 @@ directory_size_gib() {
     bytes_to_gib "${size_bytes:-0}"
 }
 
+# 递归统计指定目录中的 TsFile 数量。
 count_tsfiles() {
     local path="$1"
 
@@ -121,6 +126,7 @@ count_tsfiles() {
     find "${path}" -type f -name '*.tsfile' | wc -l | awk '{print $1}'
 }
 
+# 采集 TsFile 导入或导出阶段的数据文件统计。
 collect_data_stats() {
     local base_path="$1"
     local stage="$2"
@@ -144,10 +150,12 @@ collect_data_stats() {
     fi
 }
 
+# 采集当前工具阶段结束后的监控指标。
 collect_after_monitor_metrics() {
     collect_monitor_window_data "${TEST_IP}" "${m_start_time}" "${m_end_time}"
 }
 
+# 终止当前仍在运行的 TsFile 工具操作。
 stop_active_operation() {
     if [ "${operation_pid}" -gt 0 ] 2>/dev/null; then
         if kill -0 "${operation_pid}" 2>/dev/null; then
@@ -161,11 +169,13 @@ stop_active_operation() {
     operation_pid=0
 }
 
+# 清理 TsFile 工具性能测试遗留进程。
 cleanup_processes() {
     stop_active_operation
     check_iotdb_pid
 }
 
+# 追加 TsFile 导出阶段所需的 IoTDB 配置。
 append_export_properties() {
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
 
@@ -176,6 +186,7 @@ query_timeout_threshold=60000000
 EOF
 }
 
+# 为表模型性能用例准备数据库和表结构。
 prepare_tablemode_schema() {
     local import_schema_tool="${TEST_IOTDB_PATH}/tools/schema/import-schema.sh"
 
@@ -192,11 +203,13 @@ prepare_tablemode_schema() {
     "${import_schema_tool}" -sql_dialect table -s "${TABLEMODE_SCHEMA_FILE}" -db "${TABLEMODE_DATABASE}" >/dev/null 2>&1 || return 1
 }
 
+# 创建并清理指定导出阶段的输出目录。
 prepare_export_output_dir() {
     sudo_safe_rm "${EXPORT_DATA_DIR}"
     mkdir -p "${EXPORT_SEQUENCE_DIR}"
 }
 
+# 归档当前阶段生成的日志文件。
 archive_phase_log() {
     local phase="$1"
     local archive_file="${LIVE_LOG_DIR}/log.${phase}"
@@ -207,6 +220,7 @@ archive_phase_log() {
     fi
 }
 
+# 检查日志文件是否包含阶段完成标记。
 log_file_has_completion_marker() {
     local log_file="$1"
 
@@ -214,6 +228,7 @@ log_file_has_completion_marker() {
     grep -Eq 'Import completely!|Export completely!|Work has been completed!' "${log_file}"
 }
 
+# 监控工具进程并依据日志标记判断阶段完成或失败。
 monitor_test_status() {
     local phase="$1"
     local start_epoch=0
@@ -243,6 +258,7 @@ monitor_test_status() {
     done
 }
 
+# 查询 IoTDB 中当前测试数据点数量。
 query_point_count() {
     local output=""
     local point_count=""
@@ -261,6 +277,7 @@ query_point_count() {
     printf '%s\n' "${point_count}"
 }
 
+# 启动指定 TsFile 工具阶段命令并记录运行状态。
 launch_phase_command() {
     local phase="$1"
     local case_dataset_path="${DATASET_PATH}/${data_type}/${ts_type}"
@@ -402,6 +419,7 @@ launch_phase_command() {
     operation_pid=$!
 }
 
+# 将 TsFile 各阶段测试指标写入数据库结果表。
 insert_result_row() {
     local remark="$1"
     local insert_sql=""
@@ -443,6 +461,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 执行单个 TsFile 导入或导出阶段并采集结果。
 run_ts_phase() {
     local phase="$1"
     local before_base="$2"
@@ -519,6 +538,7 @@ run_ts_phase() {
     return "${phase_failed}"
 }
 
+# 备份 TsFile 测试数据、工具输出和阶段日志。
 backup_test_data() {
     local current_ts_type="$1"
     local current_data_type="$2"
@@ -540,6 +560,7 @@ backup_test_data() {
     sudo mv "${TEST_IOTDB_PATH}" "${backup_dir}"
 }
 
+# 按数据模型和工具阶段编排完整性能测试。
 test_operation() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -575,6 +596,7 @@ test_operation() {
     return "${case_failed}"
 }
 
+# 执行 TsFile 工具性能脚本的命令行主流程。
 main() {
     local protocol=""
     local case_item=""
@@ -615,9 +637,15 @@ main() {
     fi
 }
 
+# 准备测试运行环境并设置退出时的状态恢复操作。
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; mark_test_in_progress; }
+# 认领待测提交并准备提交对应的测试版本。
 scenario_task_claim() { fetch_next_commit || return 1; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; test_date_time="$(date +%Y%m%d%H%M%S)"; }
+# 将任务状态更新为运行中。
 scenario_task_mark_running() { update_task_status "ontesting"; }
+# 执行当前数据模型和阶段对应的 TsFile 测试。
 scenario_case_execute() { test_operation "${CASE_PROTOCOL}" "${CASE_TYPE}" "${CASE_DATA_TYPE}"; }
+# 标记测试成功并处理较早的待测提交。
 scenario_task_finish_success() { update_task_status "done"; mark_older_commits_skip; }
+# 将 TsFile 性能测试任务标记为失败。
 scenario_task_finish_failure() { update_task_status "RError"; }

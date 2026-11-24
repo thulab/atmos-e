@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 轮询 IoTDB 仓库提交，编译新版本、发布构建产物并登记测试任务。
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"
 fi
@@ -49,10 +50,12 @@ COMPILE_STATUS_COLUMNS=(
     last_cache_query
 )
 
+# 检查编译、数据库、版本控制和通知所需的外部命令。
 ensure_dependencies() {
     require_commands awk cp curl cut date find git mkdir mysql ping rm sed timeout tr mvn
 }
 
+# 根据错误类别生成并发送钉钉或邮件通知。
 sendEmail() {
     local error_type="$1"
     local date_time=""
@@ -142,6 +145,7 @@ sendEmail() {
     return 0
 }
 
+# 同步 IoTDB 源码仓库到指定远程分支。
 sync_source_repo() {
     [ -d "${IOTDB_PATH}/.git" ] || die "IOTDB_PATH is not a git repo: ${IOTDB_PATH}"
 
@@ -160,12 +164,14 @@ sync_source_repo() {
     }
 }
 
+# 将完整提交哈希截短为数据库使用的提交标识。
 shorten_commit_id() {
     local raw_commit="$1"
 
     printf '%s\n' "${raw_commit}" | cut -c1-"${COMPILE_COMMIT_ID_LENGTH}"
 }
 
+# 检查数据库中是否已有指定提交的记录。
 commit_exists() {
     local current_commit="$1"
     local result=""
@@ -174,6 +180,7 @@ commit_exists() {
     [ -n "${result}" ]
 }
 
+# 将当前提交及编译状态写入提交历史表。
 insert_commit_record() {
     local status="$1"
     local insert_sql=""
@@ -188,6 +195,7 @@ insert_commit_record() {
     fi
 }
 
+# 为已有提交记录补齐缺失的测试状态字段。
 update_existing_status_columns() {
     local current_commit="$1"
     local status="$2"
@@ -200,6 +208,7 @@ update_existing_status_columns() {
     done
 }
 
+# 定位本次 Maven 构建生成的 IoTDB 发布目录。
 resolve_distribution_dir() {
     local candidate=""
     local -a candidates=(
@@ -216,6 +225,7 @@ resolve_distribution_dir() {
     return 1
 }
 
+# 将编译产物发布到提交对应的版本目录。
 publish_distribution() {
     local source_dir=""
     local target_dir="${REPO_PATH}/${commit_id}/apache-iotdb"
@@ -238,6 +248,7 @@ publish_distribution() {
     fi
 }
 
+# 编译当前已检出的 IoTDB 提交并保存构建日志。
 compile_current_commit() {
     local mvn_status=0
 
@@ -247,6 +258,7 @@ compile_current_commit() {
     return "${mvn_status}"
 }
 
+# 从 Git 当前提交读取哈希、标题、作者和提交时间。
 load_commit_metadata() {
     commit_id="$(shorten_commit_id "$(git log --pretty=format:%H -1)")"
     commit_headline="$(git log --pretty=format:%s -1 | tr -d '"' | tr -d "'")"
@@ -255,6 +267,7 @@ load_commit_metadata() {
     commit_date_time="$(git log --pretty=format:%ai -1 | cut -b 1-19 | sed s/-//g | sed s/://g | sed s/[[:space:]]//g)"
 }
 
+# 检查、编译并登记单个提交的构建和测试计划。
 process_commit() {
     local target_commit="$1"
 
@@ -287,6 +300,7 @@ process_commit() {
     fi
 }
 
+# 遍历最近提交窗口并逐个处理新提交。
 process_recent_commits() {
     local raw_commit=""
     local target_commit=""
@@ -302,6 +316,7 @@ process_recent_commits() {
     log "checked recent ${COMPILE_COMMIT_WINDOW} commits"
 }
 
+# 在配置的周期开启时刷新 Benchmark 仓库副本。
 refresh_benchmark_repo_if_needed() {
     local day_of_week=""
     local hour=""
@@ -318,12 +333,14 @@ refresh_benchmark_repo_if_needed() {
     fi
 }
 
+# 删除超过保留期限的运行记录和旧发布目录。
 cleanup_old_runtime_records() {
     log "cleanup test runtime records older than 15 days"
     find /nasdata/repository/*/*/ -mtime +15 -type d -name "*" -exec rm -rf {} \;
     rm -rf /root/zk_test/release/*
 }
 
+# 按检查间隔探测配置的测试节点并通知不可达地址。
 check_ip_reachability_if_due() {
     local ip=""
     local now_epoch=""
@@ -351,6 +368,7 @@ check_ip_reachability_if_due() {
     printf '%s\n' "${now_epoch}" > "${IP_CHECK_TIMESTAMP_FILE}"
 }
 
+# 执行编译轮询、仓库同步、清理和节点巡检主流程。
 main() {
     check_password
     ensure_dependencies

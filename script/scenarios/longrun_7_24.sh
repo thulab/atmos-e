@@ -69,6 +69,7 @@ TABLENAME="test_result_longrun_7_24" #数据库中表的名称
 TASK_TABLENAME="commit_history" #数据库中任务表的名称
 ############prometheus##########################
 metric_server="111.200.37.158:19090"
+# 将长稳场景状态写入调度器状态文件。
 write_test_type_file() {
 	local value="$1"
 	local temp_file="${TEST_TYPE_FILE}.${RUN_TOKEN}.tmp"
@@ -80,16 +81,19 @@ write_test_type_file() {
 	}
 }
 
+# 判断当前进程是否仍拥有调度器状态锁。
 owns_test_type_state() {
 	[ -f "${TEST_TYPE_FILE}" ] && [ "$(tr -d '\r\n' < "${TEST_TYPE_FILE}")" = "${RUNNING_STATE}" ]
 }
 
+# 在脚本退出时恢复长稳场景调度状态。
 restore_test_type_file() {
 	if owns_test_type_state; then
 		write_test_type_file "${test_type}" || true
 	fi
 }
 
+# 释放长稳场景状态锁并恢复调度标记。
 release_test_type_file() {
 	if owns_test_type_state; then
 		write_test_type_file "${test_type}" || return 1
@@ -116,6 +120,7 @@ fi
 CONSISTENT_WORK_DIR="${TEST_PATH}/consistent_${test_type}"
 CONSISTENT_LOG_FILE="${CONSISTENT_WORK_DIR}/data_consistent.log"
 
+# 从 Benchmark CSV 提取指定操作的吞吐和延迟数据。
 read_benchmark_csv_operation_result() {
 	local csv_file="$1"
 	local operation_label="$2"
@@ -165,6 +170,7 @@ read_benchmark_csv_operation_result() {
 	printf '%s\t%s\n' "${throughput_line}" "${latency_line}"
 }
 
+# 将 Benchmark 操作统计解析到公共结果变量。
 parse_benchmark_csv_operation_result() {
 	local csv_file="$1"
 	local operation_label="$2"
@@ -176,12 +182,14 @@ parse_benchmark_csv_operation_result() {
 		Latency MIN P10 P25 MEDIAN P75 P90 P95 P99 P999 MAX <<< "${result_line}"
 }
 
+# 解析写入操作的 Benchmark CSV 结果。
 parse_ingestion_result() {
 	local csv_file="$1"
 
 	parse_benchmark_csv_operation_result "${csv_file}" "INGESTION"
 }
 
+# 解析指定查询类型的 Benchmark CSV 结果。
 parse_query_result() {
 	local csv_file="$1"
 	local query_label="$2"
@@ -189,6 +197,7 @@ parse_query_result() {
 	parse_benchmark_csv_operation_result "${csv_file}" "${query_label}"
 }
 
+# 从标准 Benchmark 结果文件名提取时间戳。
 benchmark_csv_timestamp() {
 	local filename="${1##*/}"
 	local -a fields=()
@@ -210,6 +219,7 @@ benchmark_csv_timestamp() {
 		"${fields[4]}" "${fields[5]}" "${fields[6]}"
 }
 
+# 在结果目录中查找时间最新的 Benchmark CSV 文件。
 find_latest_result_csv() {
 	local result_dir="$1"
 	local file=""
@@ -248,6 +258,7 @@ if [ "${BM_OLD}" != "cat: git.properties: No such file or directory" ] && [ "${B
 	rm -rf ${BM_PATH}
 	cp -rf ${BM_REPOS_PATH} ${BM_PATH}
 fi
+# 初始化长稳测试结果字段和双节点运行参数。
 init_items() {
 ############定义监控采集项初始值##########################
 test_date_time=0
@@ -294,9 +305,11 @@ v_warnMessage=""
 ############定义监控采集项初始值##########################
 }
 local_ip=`ifconfig -a|grep inet|grep -v 127.0.0.1|grep -v inet6|awk '{print $2}'|tr -d "addr:"`
+# 按错误类别发送长稳测试通知。
 sendEmail() {
 sendEmail=$(${TOOLS_PATH}/sendEmail.sh $1 >/dev/null 2>&1 &)
 }
+# 检查并停止残留的 Benchmark 进程。
 check_benchmark_pid() { # 检查benchmark的pid，有就停止
 	monitor_pid=$(jps | grep App | awk '{print $1}')
 	if [ "${monitor_pid}" = "" ]; then
@@ -306,6 +319,7 @@ check_benchmark_pid() { # 检查benchmark的pid，有就停止
 		echo "BM程序已停止！"
 	fi
 }
+# 检查并停止长稳测试节点上的 IoTDB 进程。
 check_iotdb_pid() { # 检查iotdb的pid，有就停止
 	iotdb_pid=$(jps | grep DataNode | awk '{print $1}')
 	if [ "${iotdb_pid}" = "" ]; then
@@ -330,6 +344,7 @@ check_iotdb_pid() { # 检查iotdb的pid，有就停止
 	fi
 	echo "程序检测和清理操作已完成！"
 }
+# 部署两端 IoTDB 和 Benchmark 长稳运行环境。
 set_env() { # 拷贝编译好的iotdb到测试路径
 	local iotdb_source="${REPOS_PATH}/${commit_id}/apache-iotdb"
 	[ -d "${iotdb_source}" ] || return 1
@@ -344,6 +359,7 @@ set_env() { # 拷贝编译好的iotdb到测试路径
 	rm -rf "${BM_PATH_TREE}/data" "${BM_PATH_TREE}/logs" || return 1
 	rm -rf "${BM_PATH_TABLE}/data" "${BM_PATH_TABLE}/logs" || return 1
 }
+# 按长稳测试要求配置 IoTDB 内存及合并参数。
 modify_iotdb_config() { # iotdb调整内存，关闭合并
 	#修改IoTDB的配置
 	[ -f "${TEST_DATANODE_PATH}/conf/datanode-env.sh" ] || return 1
@@ -392,6 +408,7 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	echo "enable_auto_repair_compaction=false" >> ${TEST_CONFIGNODE_PATH}/conf/iotdb-system.properties
 
 }
+# 根据协议版本设置 Benchmark 客户端实现。
 set_protocol_class() { 
 	config_node=$1
 	schema_region=$2
@@ -405,6 +422,7 @@ set_protocol_class() {
 	echo "schema_region_consensus_protocol_class=${protocol_class[${schema_region}]}" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "data_region_consensus_protocol_class=${protocol_class[${data_region}]}" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 }
+# 等待所有远程主机的 SSH 连接可用。
 wait_for_all_ssh_ready() {
 	local ip=""
 	local all_ready=0
@@ -427,6 +445,7 @@ wait_for_all_ssh_ready() {
 		sleep 10
 	done
 }
+# 配置双节点服务并启动长稳 Benchmark 写入负载。
 setup_nCmD() {
 OPTIND=1
 while getopts 'c:d:t:' OPT; do
@@ -590,16 +609,19 @@ if [ "$bm_num" != '' ]; then
 	echo "All BMs have been started"
 fi
 }
+# 检查远程节点是否已生成指定结果文件。
 remote_result_exists() {
 	local benchmark_path=$1
 	ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} "find '${benchmark_path}/data/csvOutput' -maxdepth 1 -type f -name '*result.csv' -print -quit 2>/dev/null | grep -q ."
 }
+# 为远程超时的 Benchmark 创建占位结果文件。
 create_remote_stuck_result() {
 	local benchmark_path=$1
 	local csv_path="${benchmark_path}/data/csvOutput/Stuck_result.csv"
 	local array1="INGESTION ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1 ,-1"
 	ssh "${SSH_BATCH_OPTIONS[@]}" ${ACCOUNT}@${B_IP_list[1]} "mkdir -p '${benchmark_path}/data/csvOutput' && : > '${csv_path}' && i=0; while [ \$i -lt 100 ]; do printf '%s\n' '${array1}' >> '${csv_path}'; i=\$((i + 1)); done"
 }
+# 输出远程 Benchmark 日志末尾内容用于诊断。
 log_benchmark_tail() {
 	local benchmark_path="$1"
 	local benchmark_label="$2"
@@ -611,10 +633,12 @@ log_benchmark_tail() {
 		"if [ -f '${benchmark_log}' ]; then tail -n 5 '${benchmark_log}'; else echo 'benchmark log not found: ${benchmark_log}'; fi" 2>&1 || \
 		echo "failed to read ${benchmark_label} benchmark log: ${benchmark_log}" >&2
 }
+# 输出远程 Benchmark 最近的若干条日志记录。
 log_benchmark_recent_lines() {
 	log_benchmark_tail "${BM_PATH_TREE}" "tree"
 	log_benchmark_tail "${BM_PATH_TABLE}" "table"
 }
+# 查询远程主机当前运行的 Benchmark 进程数。
 query_benchmark_process_count() {
 	local benchmark_host="${ACCOUNT}@${B_IP_list[1]}"
 	local process_count=""
@@ -638,6 +662,7 @@ query_benchmark_process_count() {
 	echo "无法查询 benchmark 进程状态" >&2
 	return 1
 }
+# 监控两个 Benchmark 实例并等待结果文件均生成。
 monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件才算成功
 	local process_count=0
 	local now_epoch=0
@@ -694,6 +719,7 @@ monitor_test_status() { # 监控两组 benchmark，必须都生成结果文件�
 		sleep 60
 	done
 }
+# 查询监控服务并解析单项资源指标。
 function get_single_index() {
     # 获取 prometheus 单个指标的值
 	local query=$1
@@ -710,6 +736,7 @@ function get_single_index() {
 	echo "${index_value}"
 }
 
+# 等待双节点间 Pipe 数据同步达到完成条件。
 wait_for_sync_completion() {
 	local query_host="${D_IP_list[1]}"
 	local flush_cli="${TEST_DATANODE_PATH}/sbin/start-cli.sh"
@@ -809,6 +836,7 @@ wait_for_sync_completion() {
 	done
 }
 
+# 收集两端数据目录大小及顺序、乱序文件数量。
 collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	TEST_IP=$1
 	dataFileSize=0
@@ -839,6 +867,7 @@ collect_monitor_data() { # 收集iotdb数据大小，顺、乱序文件数量
 	maxDiskIOSizeRead=$(get_single_index "rate(disk_io_size{instance=~\"${D_IP_list[${TEST_IP}]}:9091\",disk_id=~\"sda\",type=~\"read\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 	maxDiskIOSizeWrite=$(get_single_index "rate(disk_io_size{instance=~\"${D_IP_list[${TEST_IP}]}:9091\",disk_id=~\"sda\",type=~\"write\"}[$((m_end_time-m_start_time))s])" $m_end_time)
 }
+# 将长稳测试配置部署到对应节点目录。
 mv_config_file() { # 移动配置文件
 	[ -f "${ATMOS_PATH}/conf/${test_type}/benchmark/aligned" ] || return 1
 	[ -f "${ATMOS_PATH}/conf/${test_type}/benchmark/tablemode" ] || return 1
@@ -847,6 +876,7 @@ mv_config_file() { # 移动配置文件
 	rm -f "${BM_PATH_TABLE}/conf/config.properties" || return 1
 	cp -f "${ATMOS_PATH}/conf/${test_type}/benchmark/tablemode" "${BM_PATH_TABLE}/conf/config.properties" || return 1
 }
+# 从远程节点获取 Benchmark 结果 CSV。
 fetch_remote_result_csv() {
 	local benchmark_path=$1
 	local result_dir="${BM_PATH}/TestResult/csvOutput"
@@ -863,6 +893,7 @@ fetch_remote_result_csv() {
 	printf '%s\n' "${local_result_file}"
 }
 
+# 备份当前长稳测试的 Benchmark 结果目录。
 backup_result_csv_directory() {
 	local result_name="$1"
 	local result_dir="${BM_PATH}/TestResult/csvOutput"
@@ -873,6 +904,7 @@ backup_result_csv_directory() {
 	sudo cp -rf "${result_dir}/." "${backup_dir}/" || return 1
 }
 
+# 判断当前配置是否启用了查询负载。
 query_is_enabled() {
 	local config_file=$1
 	local query_index=$2
@@ -886,6 +918,7 @@ query_is_enabled() {
 	' "${config_file}")
 	[[ "${ratio}" =~ ^[0-9]+$ ]] && [ "${ratio}" -gt 0 ]
 }
+# 将远程节点存在的 dump 文件复制到归档目录。
 move_remote_dump_if_exists() {
 	local host=$1
 	local source_path=$2
@@ -893,10 +926,12 @@ move_remote_dump_if_exists() {
 	ssh ${ACCOUNT}@${host} "if [ -f '${source_path}' ]; then sudo mv '${source_path}' '${target_path}'; fi" || echo "dump 备份失败: ${host}:${source_path}" >&2
 	return 0
 }
+# 将一致性校验信息写入长稳测试日志。
 log_consistency() {
 	printf '%s\n' "$1" | tee -a "${CONSISTENT_LOG_FILE}"
 }
 
+# 重建一致性校验阶段使用的临时工作目录。
 reset_consistency_work_dir() {
 	local expected_dir="${TEST_PATH}/consistent_${test_type}"
 
@@ -914,6 +949,7 @@ reset_consistency_work_dir() {
 	}
 }
 
+# 初始化数据一致性结果和默认计数值。
 init_data_consistent_default() {
 	local idx=0
 
@@ -931,6 +967,7 @@ init_data_consistent_default() {
 	done
 }
 
+# 确保结果表存在数据一致性记录字段。
 ensure_data_consistent_column() {
 	local column_exists=""
 
@@ -940,6 +977,7 @@ ensure_data_consistent_column() {
 	fi
 }
 
+# 确保结果表包含空数据文件统计字段。
 ensure_zero_zero_tsfile_columns() {
 	local column_name=""
 	local column_exists=""
@@ -952,6 +990,7 @@ ensure_zero_zero_tsfile_columns() {
 	done
 }
 
+# 将一致性检查警告追加到场景日志。
 append_log_warning() {
 	local warning="$1"
 
@@ -962,6 +1001,7 @@ append_log_warning() {
 	fi
 }
 
+# 解压远程节点上的压缩日志文件供校验使用。
 decompress_remote_log_files() {
 	local host="$1"
 	local log_glob="$2"
@@ -977,6 +1017,7 @@ decompress_remote_log_files() {
 		done" >/dev/null 2>&1
 }
 
+# 统计远程日志中指定模式出现的次数。
 count_remote_log_pattern() {
 	local host="$1"
 	local log_glob="$2"
@@ -993,6 +1034,7 @@ count_remote_log_pattern() {
 	printf '%s\n' "${count}"
 }
 
+# 检查远程日志中的模式计数是否满足预期。
 check_log_pattern() {
 	local node_type="$1"
 	local host="$2"
@@ -1010,6 +1052,7 @@ check_log_pattern() {
 	fi
 }
 
+# 综合检查长稳运行日志并记录异常结果。
 check_log() {
 	local host=""
 	local idx=0
@@ -1070,6 +1113,7 @@ check_log() {
 	return 0
 }
 
+# 选择执行一致性查询的可用 IoTDB 节点。
 pick_query_host() {
 	local stop_host="${1:-}"
 	local ip=""
@@ -1093,6 +1137,7 @@ pick_query_host() {
 	return 1
 }
 
+# 在指定节点通过 CLI 执行一致性校验查询。
 run_consistency_cli() {
 	local host="$1"
 	local dialect="$2"
@@ -1121,6 +1166,7 @@ run_consistency_cli() {
 	return ${rc}
 }
 
+# 规范化一致性查询输出以便两端结果比较。
 normalize_consistency_query_output() {
 	local source_file="$1"
 	local normalized_file="$2"
@@ -1136,6 +1182,7 @@ normalize_consistency_query_output() {
 	' "${source_file}" > "${normalized_file}"
 }
 
+# 比较双节点查询输出并记录一致性结果。
 compare_consistency_query_output() {
 	local baseline_file="$1"
 	local stop_file="$2"
@@ -1164,6 +1211,7 @@ compare_consistency_query_output() {
 	return 0
 }
 
+# 停止指定远程主机上的 DataNode 服务。
 stop_remote_datanode() {
 	local host="$1"
 
@@ -1171,6 +1219,7 @@ stop_remote_datanode() {
 	ssh ${ACCOUNT}@${host} "cd \"${TEST_DATANODE_PATH}\" && ./sbin/stop-datanode.sh" >> "${CONSISTENT_LOG_FILE}" 2>&1
 }
 
+# 在远程节点以非阻塞方式启动 DataNode。
 start_remote_datanode_nonblocking() {
 	local host="$1"
 	local remote_cmd=""
@@ -1192,6 +1241,7 @@ start_remote_datanode_nonblocking() {
 	return 0
 }
 
+# 等待远程 DataNode 进程完全停止。
 wait_remote_datanode_stopped() {
 	local host="$1"
 	local timeout_seconds="${2:-120}"
@@ -1213,6 +1263,7 @@ wait_remote_datanode_stopped() {
 	done
 }
 
+# 检查远程主机上的 DataNode 是否正在运行。
 show_datanode_running() {
 	local file="$1"
 	local host="$2"
@@ -1220,6 +1271,7 @@ show_datanode_running() {
 	grep -F "${host}" "${file}" | grep -q "Running"
 }
 
+# 等待远程 DataNode 服务恢复运行状态。
 wait_remote_datanode_running() {
 	local query_host="$1"
 	local target_host="$2"
@@ -1241,6 +1293,7 @@ wait_remote_datanode_running() {
 	done
 }
 
+# 执行双端数据、查询结果及文件状态一致性检查。
 check_data_consistent() {
 	local baseline_query_host=""
 	local stop_host=""
@@ -1386,6 +1439,7 @@ check_data_consistent() {
 	return 0
 }
 
+# 统计两端零点数 TsFile 的数量并保存结果。
 collect_zero_zero_tsfile_counts() {
 	local output_file="${CONSISTENT_WORK_DIR}/zero_zero_tsfile.log"
 	local host=""
@@ -1447,6 +1501,7 @@ collect_zero_zero_tsfile_counts() {
 	return 0
 }
 
+# 根据长稳测试指标构造数据库插入语句。
 build_result_insert_sql() {
 	local consistency_value="${data_consistent[${node_id}]:-1}"
 	local tree_value="${tree_count[${node_id}]:-0}"
@@ -1455,6 +1510,7 @@ build_result_insert_sql() {
 	insert_sql="insert into ${TABLENAME} (commit_date_time,test_date_time,commit_id,author,node_id,ts_type,data_type,op_type,okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,data_consistent,tree_count,table_count,remark,protocol,errorLogSize) values(${commit_date_time},${test_date_time},'${commit_id}','${author}',${node_id},'${ts_type}','${data_type}','${op_type}',${okPoint},${okOperation},${failPoint},${failOperation},${throughput},${Latency},${MIN},${P10},${P25},${MEDIAN},${P75},${P90},${P95},${P99},${P999},${MAX},${numOfSe0Level},'${start_time}','${end_time}',${cost_time},${numOfUnse0Level},${dataFileSize},${maxNumofOpenFiles},${maxNumofThread},${walFileSize},${avgCPULoad},${maxCPULoad},${maxDiskIOSizeRead},${maxDiskIOSizeWrite},${maxDiskIOOpsRead},${maxDiskIOOpsWrite},'${consistency_value}',${tree_value},${table_value},'${data_type}','${protocol_class}','${fail_flag}');"
 }
 
+# 执行一次长稳测试周期并汇总双端结果。
 test_operation() {
 	ts_type=$1
 	data_type=$2

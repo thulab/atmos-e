@@ -57,6 +57,7 @@ query_suite_type=""
 query_sensor_type=""
 query_repeat_no=""
 result_kind=""
+# 初始化常规读写测试套件及运行参数。
 init_items() {
     init_common_items
     query_id=""
@@ -73,14 +74,17 @@ init_items() {
     maxDiskIOSizeWrite=0
 }
 
+# 将 IoTDB root 用户密码设置为测试所需密码。
 change_root_password() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1
 }
 
+# 刷新 IoTDB 缓冲数据，准备后续查询用例。
 flush_iotdb() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -u root -pw "${IOTDB_PW}" -h 127.0.0.1 -p 6667 -e "flush" >/dev/null 2>&1
 }
 
+# 按用例标识解析常规测试配置文件。
 resolve_config_source() {
     local config_name="$1"
     local config_root="${ATMOS_PATH}/conf/${TEST_TYPE}"
@@ -91,16 +95,19 @@ resolve_config_source() {
     printf '%s\n' "${resolved_path}"
 }
 
+# 复制当前常规读写用例的配置到运行目录。
 copy_routine_config() {
     local config_name="$1"
 
     copy_benchmark_config "$(resolve_config_source "${config_name}")"
 }
 
+# 收集常规测试运行期间的系统和 IoTDB 指标。
 collect_monitor_data() {
     collect_resource_monitor_data "${TEST_IP}" "${MONITOR_DISK_ID}" "${m_start_time}" "${m_end_time}"
 }
 
+# 兼容旧版常规测试的备份函数调用参数。
 legacy_backup_test_data_compat() {
     local current_insert_type="$1"
     local backup_parent="${BACKUP_PATH}/${current_insert_type}"
@@ -118,6 +125,7 @@ legacy_backup_test_data_compat() {
     sudo cp -rf "${BM_PATH}/data/csvOutput" "${backup_dir}"
 }
 
+# 备份常规测试使用的数据、配置及日志。
 backup_test_data() {
     local current_insert_type="$1"
     local backup_dir=""
@@ -130,6 +138,7 @@ backup_test_data() {
     archive_test_runtime_artifacts "${backup_dir}"
 }
 
+# 准备写入结果行所需的字段和上下文。
 prepare_ingestion_result_context() {
     query_id=""
     query_label_name=""
@@ -139,6 +148,7 @@ prepare_ingestion_result_context() {
     result_kind="ingestion"
 }
 
+# 准备查询结果行所需的字段和上下文。
 prepare_query_result_context() {
     local current_query="$1"
     local current_query_label="$2"
@@ -151,6 +161,7 @@ prepare_query_result_context() {
     result_kind="query"
 }
 
+# 将常规测试结果写入数据库结果表。
 insert_result_row() {
     local query_repeat_value="NULL"
     local insert_sql=""
@@ -221,6 +232,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 记录失败用例及其错误信息和结果字段。
 record_failure_result() {
     local failure_code="$1"
 
@@ -230,6 +242,7 @@ record_failure_result() {
     insert_result_row
 }
 
+# 执行常规场景中的 Benchmark 写入或混合负载。
 run_benchmark_case() {
     local current_name="$1"
     local result_label="$2"
@@ -285,6 +298,7 @@ run_benchmark_case() {
     return 0
 }
 
+# 执行单条常规查询并收集查询结果。
 run_query_case() {
     local current_query="$1"
     local query_label="$2"
@@ -323,6 +337,7 @@ run_query_case() {
     return "${query_failed}"
 }
 
+# 执行单条常规写入用例并准备查询数据。
 run_insert_case() {
     local current_insert_type="$1"
     local query_index=0
@@ -389,6 +404,7 @@ run_insert_case() {
     return "${case_failed}"
 }
 
+# 编排常规写入、查询用例并聚合执行状态。
 test_operation() {
     local protocol_code="$1"
     local current_insert_type=""
@@ -404,6 +420,7 @@ test_operation() {
     return "${operation_failed}"
 }
 
+# 执行常规测试脚本的命令行主流程。
 main() {
     local protocol=""
     local task_failed=0
@@ -442,9 +459,15 @@ main() {
     fi
 }
 
+# 准备常规测试运行环境并设置退出恢复操作。
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; [ "${#QUERY_LIST[@]}" -eq "${#QUERY_LABELS[@]}" ] || return 20; if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then check_benchmark_version; fi; mark_test_in_progress; }
+# 认领待测提交并记录提交元数据。
 scenario_task_claim() { fetch_next_commit || return 1; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; test_date_time="$(date +%Y%m%d%H%M%S)"; }
+# 将常规测试任务状态更新为运行中。
 scenario_task_mark_running() { update_task_status "ontesting"; }
+# 按当前协议执行常规读写测试。
 scenario_case_execute() { test_operation "${CASE_PROTOCOL}"; }
+# 标记任务成功并处理较早的待测提交。
 scenario_task_finish_success() { update_task_status "done"; mark_older_commits_skip; }
+# 将常规测试任务标记为失败。
 scenario_task_finish_failure() { update_task_status "RError"; }

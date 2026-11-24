@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 调度器入口：周期性读取测试类型、同步代码并启动对应场景。
+
 if [ -z "${BASH_VERSION:-}" ]; then
     echo "atmos.sh requires bash" >&2
     return 1 2>/dev/null || exit 1

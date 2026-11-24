@@ -157,16 +157,19 @@ write_fail_point=0
 write_ok_operation=0
 write_fail_operation=0
 
+# 检查删除测试运行所需的系统命令和依赖项。
 ensure_runtime_dependencies() {
     require_commands awk cat cp curl date du find grep jq jps kill mkdir mysql rm sed sudo tr wc
 }
 
+# 将删除场景所需属性追加到 IoTDB 配置文件。
 append_iotdb_properties() {
     local properties_file="$1"
 
     append_iotdb_compaction_disabled_properties "${properties_file}"
 }
 
+# 检查 Benchmark 版本是否满足删除测试要求。
 check_benchmark_version() {
     local bm_new=""
     local bm_old=""
@@ -187,6 +190,7 @@ check_benchmark_version() {
     fi
 }
 
+# 初始化删除测试用例、运行路径和结果字段。
 init_items() {
     init_common_items
     disk_id_regex="^${DEFAULT_DISK_ID}$"
@@ -198,10 +202,12 @@ init_items() {
     maxDiskIOSizeWrite=0
 }
 
+# 检查并清理遗留的 Benchmark 进程。
 check_benchmark_pid() {
     check_pid_and_kill "App" "benchmark"
 }
 
+# 按删除测试需求修改 IoTDB 配置。
 modify_iotdb_config() {
     local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
@@ -215,6 +221,7 @@ modify_iotdb_config() {
     append_iotdb_properties "${properties_file}"
 }
 
+# 轮询等待 IoTDB 服务启动并可连接。
 wait_for_iotdb_ready() {
     local attempt=0
     local iotdb_state=""
@@ -242,6 +249,7 @@ wait_for_iotdb_ready() {
     return 1
 }
 
+# 监控 Benchmark 删除前后写入阶段的运行状态。
 monitor_test_status() {
     local current_name="$1"
     local result_label="$2"
@@ -270,6 +278,7 @@ monitor_test_status() {
     done
 }
 
+# 按文件名模式统计数据目录中的文件数量。
 count_data_files_by_name() {
     local file_name="$1"
     local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
@@ -282,14 +291,17 @@ count_data_files_by_name() {
     find "${data_dir}" -type f -name "${file_name}" 2>/dev/null | wc -l | awk '{print $1}'
 }
 
+# 统计数据目录下的 TsFile 文件数量。
 count_tsfiles() {
     count_data_files_by_name "*.tsfile"
 }
 
+# 统计数据目录下的 mods 删除标记文件数量。
 count_mods_files() {
     count_data_files_by_name "*.mods2"
 }
 
+# 按存储层级统计 TsFile 文件数量。
 count_tsfiles_by_level() {
     local target_level="$1"
     local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
@@ -319,16 +331,19 @@ count_tsfiles_by_level() {
     '
 }
 
+# 记录写入阶段结束后的数据文件统计。
 collect_file_stats_after_write() {
     write_tsfile_count="$(count_tsfiles)"
     log "write file stats: tsfile_count=${write_tsfile_count}"
 }
 
+# 记录删除操作完成后的数据文件统计。
 collect_file_stats_after_delete() {
     delete_mods_file_count="$(count_mods_files)"
     log "delete file stats: mods_file_count=${delete_mods_file_count}"
 }
 
+# 记录压缩处理完成后的数据文件统计。
 collect_file_stats_after_compaction() {
     compacted_level0_tsfile_count="$(count_tsfiles_by_level 0)"
     compacted_level1_tsfile_count="$(count_tsfiles_by_level 1)"
@@ -336,6 +351,7 @@ collect_file_stats_after_compaction() {
     log "compacted file stats: level0_tsfile_count=${compacted_level0_tsfile_count} level1_tsfile_count=${compacted_level1_tsfile_count} mods_file_count=${compacted_mods_file_count}"
 }
 
+# 采集指定时刻的系统监控快照。
 collect_monitor_snapshot() {
     local ip="${1:-${TEST_IP}}"
     local metric_time="${2:-$(date +%s)}"
@@ -346,6 +362,7 @@ collect_monitor_snapshot() {
     numOfUnse0Level="$(get_single_index "sum(file_global_count{instance=~\"${ip}:9091\",name=\"unseq\"})" "${metric_time}")"
 }
 
+# 采集指定起止时间范围内的监控数据。
 collect_monitor_window_data() {
     local ip="${1:-${TEST_IP}}"
     local window_start_time="${2:-${m_start_time}}"
@@ -368,10 +385,12 @@ collect_monitor_window_data() {
     errorLogSize="$(collect_error_log_size)"
 }
 
+# 返回用于磁盘指标检测的默认数据目录。
 get_monitor_disk_fallback_path() {
     printf '%s\n' "${TEST_IOTDB_PATH}/data"
 }
 
+# 汇总删除测试运行时的 IoTDB 和系统监控指标。
 collect_monitor_data() {
     local ip="${1:-${TEST_IP}}"
 
@@ -379,6 +398,7 @@ collect_monitor_data() {
     collect_resource_monitor_data "${ip}" "${disk_id_regex}" "${m_start_time}" "${m_end_time}"
 }
 
+# 将删除测试对应的 Benchmark 配置复制到运行目录。
 copy_benchmark_config() {
     local config_source="$1"
     local config_target="${BM_PATH}/conf/config.properties"
@@ -388,10 +408,12 @@ copy_benchmark_config() {
     cp -rf "${config_source}" "${config_target}"
 }
 
+# 设置 IoTDB root 用户密码以便测试连接。
 change_root_password() {
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" -e "ALTER USER root SET PASSWORD '${IOTDB_PW}'" >/dev/null 2>&1
 }
 
+# 将补充说明合并到当前测试结果备注字段。
 append_remark() {
     local message="$1"
     if [ -z "${remark}" ]; then
@@ -401,6 +423,7 @@ append_remark() {
     fi
 }
 
+# 将数值转换为可安全嵌入 SQL 的格式。
 sql_number() {
     local value="${1:-0}"
     if [[ "${value}" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
@@ -410,6 +433,7 @@ sql_number() {
     fi
 }
 
+# 准备删除测试使用的 IoTDB 安装和运行目录。
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
     local delete_conf_path="${ATMOS_PATH}/conf/${TEST_TYPE}"
@@ -437,12 +461,14 @@ set_env() {
     fi
 }
 
+# 生成删除测试写入阶段使用的 Benchmark 配置。
 prepare_benchmark_config() {
     local phase_config="$1"
 
     copy_benchmark_config "${phase_config}"
 }
 
+# 启动 Benchmark 写入数据，为删除用例准备数据集。
 run_benchmark_write() {
     local phase_name="$1"
     local phase_config="$2"
@@ -489,6 +515,7 @@ run_benchmark_write() {
     return 1
 }
 
+# 通过 IoTDB CLI 执行指定 SQL 并返回命令输出。
 run_iotdb_sql() {
     local sql="$1"
     "${TEST_IOTDB_PATH}/sbin/start-cli.sh" \
@@ -499,6 +526,7 @@ run_iotdb_sql() {
         -e "${sql}" 2>&1
 }
 
+# 从 CLI 查询输出中提取最后一个非空字段值。
 extract_last_value() {
     awk -F'|' '
         /^\|/ {
@@ -524,6 +552,7 @@ extract_last_value() {
     '
 }
 
+# 执行查询并返回结果中的单个值。
 query_value() {
     local sql="$1"
     local output=""
@@ -539,6 +568,7 @@ query_value() {
     printf '%s\n' "${value}"
 }
 
+# 执行 SQL 并检查命令是否成功。
 execute_sql() {
     local label="$1"
     local sql="$2"
@@ -556,6 +586,7 @@ execute_sql() {
     return 1
 }
 
+# 执行 SQL 并记录执行耗时。
 execute_timed_sql() {
     local label="$1"
     local sql="$2"
@@ -581,6 +612,7 @@ execute_timed_sql() {
     return 1
 }
 
+# 断言实际结果与预期值相等。
 assert_value() {
     local label="$1"
     local sql="$2"
@@ -603,6 +635,7 @@ assert_value() {
     return 1
 }
 
+# 断言查询计数结果与指定常量相符。
 assert_count_literal() {
     local label="$1"
     local begin_ms="$2"
@@ -616,6 +649,7 @@ assert_count_literal() {
         "${result_var}"
 }
 
+# 断言指定查询返回的时间序列点数符合预期。
 assert_point_count() {
     local label="$1"
     local point_ms="$2"
@@ -628,6 +662,7 @@ assert_point_count() {
         "${scratch_var}"
 }
 
+# 断言指定时间点的数据值符合预期。
 assert_point_value() {
     local label="$1"
     local point_ms="$2"
@@ -640,6 +675,7 @@ assert_point_value() {
         "${scratch_var}"
 }
 
+# 使用认证信息轮询等待 IoTDB 服务就绪。
 wait_for_iotdb_ready_with_auth() {
     local attempt=0
     local iotdb_state=""
@@ -662,6 +698,7 @@ wait_for_iotdb_ready_with_auth() {
     return 1
 }
 
+# 重启 IoTDB 服务并等待其恢复可用。
 restart_iotdb_and_wait() {
     stop_iotdb
     sleep "${BENCHMARK_STOP_WAIT_SECONDS}"
@@ -671,6 +708,7 @@ restart_iotdb_and_wait() {
     wait_for_iotdb_ready_with_auth
 }
 
+# 启用删除测试后续步骤所需的压缩配置。
 enable_compaction_config() {
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
 
@@ -681,6 +719,7 @@ enable_cross_space_compaction=true
 EOF
 }
 
+# 等待后台压缩任务进入空闲状态。
 wait_for_compaction_quiet() {
     local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
     local log_file="${TEST_IOTDB_PATH}/logs/log_datanode_compaction.log"
@@ -726,6 +765,7 @@ wait_for_compaction_quiet() {
     done
 }
 
+# 执行首次删除后的数据一致性检查。
 run_consistency_checks_after_first_delete() {
     assert_count_literal "delete window after delete" "${DELETE1_START_MS}" "${DELETE1_END_MS}" 0 delete1_window_count
     assert_count_literal "before delete window" "${RANGE_START_MS}" "${DELETE1_START_MS}" "${EXPECT_TWO_DAYS}" before_delete_window_count
@@ -736,6 +776,7 @@ run_consistency_checks_after_first_delete() {
     assert_point_count "boundary after delete exists" "${BOUNDARY_AFTER_DELETE_MS}" 1
 }
 
+# 重新写入数据并验证删除后重写行为。
 run_reinsert_checks() {
     execute_sql "reinsert first deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT1_MS}, true)"
     execute_sql "reinsert second deleted point" "insert into root.test.g_0.d_0(timestamp, s_0) values(${REINSERT2_MS}, true)"
@@ -743,6 +784,7 @@ run_reinsert_checks() {
     assert_point_value "reinsert second point visible" "${REINSERT2_MS}" true
 }
 
+# 重启 IoTDB 后验证删除数据状态是否保持一致。
 run_restart_checks() {
     assert_count_literal "restart delete window count" "${DELETE1_START_MS}" "${DELETE1_END_MS}" 2 restart_delete1_window_count
     assert_point_count "restart boundary before delete exists" "${BOUNDARY_BEFORE_DELETE_MS}" 1
@@ -752,6 +794,7 @@ run_restart_checks() {
     assert_point_value "restart reinsert second point visible" "${REINSERT2_MS}" true
 }
 
+# 执行压缩前后数据一致性和文件状态校验。
 run_compaction_checks() {
     assert_count_literal "compacted delete window count" "${DELETE1_START_MS}" "${DELETE1_END_MS}" 2 compacted_delete1_window_count
     assert_count_literal "compacted before count" "${RANGE_START_MS}" "${DELETE1_START_MS}" "${EXPECT_TWO_DAYS}" compacted_before_count
@@ -759,6 +802,7 @@ run_compaction_checks() {
     assert_count_literal "compacted total count" "${RANGE_START_MS}" "${RANGE_END_MS}" "${EXPECT_COMPACTED_TOTAL}" compacted_total_count
 }
 
+# 将删除测试各阶段统计结果写入数据库。
 insert_delete_result_row() {
     local protocol_code="$1"
     local insert_sql=""
@@ -827,6 +871,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 编排写入、删除、重启和压缩校验完整测试流程。
 test_operation() {
     local protocol_code="$1"
 
@@ -939,6 +984,7 @@ test_operation() {
     [ "${fail_num}" -eq 0 ]
 }
 
+# 执行删除测试脚本的命令行主流程。
 main() {
     local protocol=""
     local task_failed=0
@@ -980,9 +1026,15 @@ main() {
     fi
 }
 
+# 准备删除测试运行环境、依赖并设置退出状态恢复。
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; if [ "${ENABLE_BENCHMARK_VERSION_CHECK}" = "1" ]; then check_benchmark_version; fi; mark_test_in_progress; }
+# 认领提交并按提交人选择对应的结果表。
 scenario_task_claim() { fetch_next_commit || return 1; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; if [ "${author}" = "Timecho" ]; then result_table="${TABLENAME_T}"; else result_table="${TABLENAME}"; fi; test_date_time="$(date +%Y%m%d%H%M%S)"; }
+# 将删除测试任务状态更新为运行中。
 scenario_task_mark_running() { update_task_status "ontesting"; }
+# 按当前协议执行删除测试用例。
 scenario_case_execute() { test_operation "${CASE_PROTOCOL}"; }
+# 标记任务成功并按提交人策略处理历史任务。
 scenario_task_finish_success() { update_task_status "done"; if [ "${author}" != "Timecho" ]; then mark_older_commits_skip; fi; }
+# 将删除测试任务标记为失败。
 scenario_task_finish_failure() { update_task_status "RError"; }

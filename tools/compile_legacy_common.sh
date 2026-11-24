@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# 提供旧版编译流程使用的提交记录初始化和邮件通知函数。
+
+# 初始化提交记录及测试状态字段。
 init_items() {
     commit_date_time=0
     commit_id=0
@@ -29,6 +32,7 @@ init_items() {
     remark=0
 }
 
+# 根据错误类型构造并发送编译或测试失败通知。
 sendEmail() {
     error_type=$1
     date_time=$(date +%Y%m%d%H%M%S)

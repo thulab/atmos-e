@@ -60,6 +60,7 @@ comp_start_time="0"
 comp_end_time="0"
 dataFileSize_before="0"
 dataFileSize_after="0"
+# 检查压缩测试运行所需的系统命令和工具。
 ensure_runtime_dependencies() {
     ensure_base_runtime_dependencies
     require_command du
@@ -67,6 +68,7 @@ ensure_runtime_dependencies() {
     require_command tail
 }
 
+# 统计指定 IoTDB 数据目录的总大小。
 collect_data_directory_size() {
     local data_dir="${TEST_IOTDB_PATH}/data"
     local size_bytes=0
@@ -80,6 +82,7 @@ collect_data_directory_size() {
     bytes_to_gib "${size_bytes:-0}"
 }
 
+# 将压缩测试属性追加到 IoTDB 配置文件。
 append_iotdb_properties() {
     local properties_file="$1"
 
@@ -90,6 +93,7 @@ EOF
     append_iotdb_compaction_disabled_properties "${properties_file}"
 }
 
+# 初始化压缩用例路径、模式和结果字段。
 init_items() {
     init_common_items
     ts_type=""
@@ -113,10 +117,12 @@ init_items() {
     maxDiskIOSizeWrite=0
 }
 
+# 清理本轮测试遗留的 IoTDB 和 Benchmark 进程。
 cleanup_processes() {
     check_iotdb_pid
 }
 
+# 将指定压缩数据集复制到 IoTDB 测试目录。
 copy_dataset() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -126,6 +132,7 @@ copy_dataset() {
     cp -rf -- "${source_path}" "${TEST_IOTDB_PATH}/"
 }
 
+# 根据用例类型配置顺序、乱序或跨空间压缩模式。
 configure_compaction_mode() {
     local current_compaction_type="$1"
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
@@ -158,6 +165,7 @@ enable_cross_space_compaction=${cross_enabled}
 EOF
 }
 
+# 等待数据和压缩任务达到可开始测试的条件。
 wait_for_compaction_ready() {
     local retries="$1"
     local interval_seconds="$2"
@@ -175,6 +183,7 @@ wait_for_compaction_ready() {
     return 1
 }
 
+# 将压缩超时信息追加到测试日志。
 append_timeout_compaction_log() {
     local current_compaction_type="$1"
     local log_file="${TEST_IOTDB_PATH}/logs/log_datanode_compaction.log"
@@ -193,6 +202,7 @@ append_timeout_compaction_log() {
     esac
 }
 
+# 轮询压缩执行状态并记录完成时间或超时结果。
 monitor_compaction_completion() {
     local current_compaction_type="$1"
     local data_dir="${TEST_IOTDB_PATH}/data/datanode/data"
@@ -234,6 +244,7 @@ monitor_compaction_completion() {
     done
 }
 
+# 解析 IoTDB 压缩日志并提取压缩统计数据。
 parse_compaction_log() {
     local log_file="${TEST_IOTDB_PATH}/logs/log_datanode_compaction.log"
     local line=""
@@ -251,6 +262,7 @@ parse_compaction_log() {
     [ -n "${comp_end_time}" ] || return 1
 }
 
+# 压缩结束后统计数据目录及文件状态。
 collect_data_after() {
     compaction_rate=0
     ts_dataSize=0
@@ -264,6 +276,7 @@ collect_data_after() {
     fi
 }
 
+# 采集压缩用例运行期间的系统监控指标。
 collect_monitor_metrics() {
     collect_resource_monitor_data "${TEST_IP}" "${DEFAULT_DISK_ID_REGEX}" "${m_start_time}" "${m_end_time}"
     dataFileSize_after="$(collect_data_directory_size)"
@@ -276,6 +289,7 @@ collect_monitor_metrics() {
     fi
 }
 
+# 将压缩耗时、吞吐和资源指标写入结果表。
 insert_result_row() {
     local protocol_code="$1"
     local insert_sql=""
@@ -324,6 +338,7 @@ EOF
     log "${ts_type} ${comp_type} 压实耗时 ${cost_time} 秒"
 }
 
+# 归档压缩日志、配置和结果等测试产物。
 archive_compaction_artifacts() {
     local current_compaction_type="$1"
     local logs_dir="${TEST_IOTDB_PATH}/logs"
@@ -337,6 +352,7 @@ archive_compaction_artifacts() {
     mv "${logs_dir}" "${target_dir}/"
 }
 
+# 备份压缩测试使用的数据目录和运行文件。
 backup_test_data() {
     local current_ts_type="$1"
     local protocol_code="$2"
@@ -354,6 +370,7 @@ backup_test_data() {
     sudo mv "${TEST_IOTDB_PATH}" "${backup_dir}"
 }
 
+# 记录 IoTDB 启动失败对应的压缩测试结果。
 record_startup_failure() {
     local protocol_code="$1"
 
@@ -363,6 +380,7 @@ record_startup_failure() {
     insert_result_row "${protocol_code}"
 }
 
+# 执行一个压缩用例的准备、监控、解析和结果持久化。
 run_compaction_case() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -429,6 +447,7 @@ run_compaction_case() {
     return "${case_failed}"
 }
 
+# 按协议和压缩类型遍历并执行压缩测试用例。
 test_operation() {
     local protocol_code="$1"
     local current_ts_type="$2"
@@ -455,6 +474,7 @@ test_operation() {
     return "${operation_failed}"
 }
 
+# 执行压缩场景独立入口的主流程。
 main() {
     local protocol=""
     local ts=""
@@ -492,9 +512,15 @@ main() {
     fi
 }
 
+# 准备压缩任务运行环境并注册退出时的状态恢复。
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; mark_test_in_progress; }
+# 认领待测试提交并记录提交元数据。
 scenario_task_claim() { fetch_next_commit || return 1; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; test_date_time="$(date +%Y%m%d%H%M%S)"; }
+# 将压缩任务状态更新为运行中。
 scenario_task_mark_running() { update_task_status "ontesting"; }
+# 执行当前协议和压缩类型对应的用例。
 scenario_case_execute() { test_operation "${CASE_PROTOCOL}" "${CASE_TYPE}"; }
+# 标记任务成功并跳过较早的待处理提交。
 scenario_task_finish_success() { update_task_status "done"; mark_older_commits_skip; }
+# 将压缩任务标记为失败。
 scenario_task_finish_failure() { update_task_status "RError"; }

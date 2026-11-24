@@ -82,22 +82,26 @@ source "${COMMON_DIR}/iotdb_config_common.sh"
 # shellcheck source=script/common/iotdb_process_common.sh
 source "${COMMON_DIR}/iotdb_process_common.sh"
 
+# 校验指定目录存在且可用于测试。
 require_directory() {
     local path="$1"
     local label="$2"
     [ -d "${path}" ] || die "缺少目录 ${label}: ${path}"
 }
 
+# 校验指定文件存在且可读取。
 require_file() {
     local path="$1"
     local label="$2"
     [ -f "${path}" ] || die "缺少文件 ${label}: ${path}"
 }
 
+# 检查 SQL 覆盖率测试依赖的工具和运行组件。
 ensure_runtime_dependencies() {
     require_commands awk cp date find git grep jps kill mkdir mv mysql rm sed sudo timeout tr wc
 }
 
+# 清理目标目录内容并保留目录本身。
 clear_directory_contents() {
     local path="$1"
 
@@ -113,6 +117,7 @@ clear_directory_contents() {
     find "${path}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 }
 
+# 复制必需目录中的内容到测试工作区。
 copy_required_dir_contents() {
     local source_dir="$1"
     local target_dir="$2"
@@ -123,6 +128,7 @@ copy_required_dir_contents() {
     cp -rf -- "${source_dir}/." "${target_dir}/"
 }
 
+# 根据路径类型复制必需的文件或目录。
 copy_required_path() {
     local source_path="$1"
     local target_path="$2"
@@ -132,12 +138,14 @@ copy_required_path() {
     cp -rf -- "${source_path}" "${target_path}"
 }
 
+# 重置当前 SQL 覆盖测试套件的计数指标。
 reset_suite_metrics() {
     start_time=""
     end_time=""
     cost_time=0
 }
 
+# 停止当前运行中的测试工具或 IoTDB 服务。
 stop_active_test() {
     if [ "${active_test_pid}" -gt 0 ] 2>/dev/null; then
         if kill -0 "${active_test_pid}" 2>/dev/null; then
@@ -150,11 +158,13 @@ stop_active_test() {
     active_test_pid=0
 }
 
+# 清理 SQL 测试遗留的进程和临时资源。
 cleanup_processes() {
     stop_active_test
     check_iotdb_pid
 }
 
+# 准备 SQL 覆盖测试使用的 IoTDB 环境。
 set_env() {
     local source_path="${REPOS_PATH}/${commit_id}/apache-iotdb"
 
@@ -173,6 +183,7 @@ set_env() {
     copy_if_exists "${ATMOS_PATH}/conf/${TEST_TYPE}/env" "${TEST_IOTDB_PATH}/.env" "env"
 }
 
+# 按覆盖率测试要求调整 IoTDB 配置文件。
 modify_iotdb_config() {
     local datanode_env="${TEST_IOTDB_PATH}/conf/datanode-env.sh"
     local properties_file="${TEST_IOTDB_PATH}/conf/iotdb-system.properties"
@@ -200,6 +211,7 @@ compaction_schedule_interval_in_ms=1000
 EOF
 }
 
+# 轮询等待 IoTDB 服务启动并接受连接。
 wait_for_iotdb_ready() {
     local attempt=0
     local iotdb_state=""
@@ -215,6 +227,7 @@ wait_for_iotdb_ready() {
     return 1
 }
 
+# 同步 SQL 测试用例仓库到目标版本。
 sync_testcase_repo() {
     require_directory "${TESTCASE_PATH}" "SQL 测试用例目录"
 
@@ -227,6 +240,7 @@ sync_testcase_repo() {
     fi
 }
 
+# 将 SQL 覆盖率测试汇总结果写入数据库。
 insert_result_row() {
     local remark="$1"
     local pass_value="$2"
@@ -257,6 +271,7 @@ EOF
     mysql_exec "${insert_sql}"
 }
 
+# 保存首次写入或初始化阶段的结果状态。
 record_first_insert_result() {
     local first_start_ms=0
     local first_end_ms=0
@@ -271,6 +286,7 @@ record_first_insert_result() {
     insert_result_row "${FIRST_INSERT_REMARK}" 0 0 "${first_start_ms}" "${first_end_ms}" "${first_cost_ms}"
 }
 
+# 配置 SQL 测试工具执行时使用的用户凭据。
 configure_test_tool_user() {
     local testcase_mode_dir="$1"
 
@@ -290,6 +306,7 @@ configure_test_tool_user() {
     cp -rf "${TEST_IOTDB_PATH}/lib/." "${TEST_TOOL_PATH}/user/driver/iotdb/"
 }
 
+# 根据运行模式准备测试工具、配置和数据资源。
 prepare_mode_resources() {
     local mode="$1"
 
@@ -324,6 +341,7 @@ prepare_mode_resources() {
     esac
 }
 
+# 编译 SQL 覆盖率测试工具并记录编译状态。
 compile_test_tool() {
     require_file "${TEST_TOOL_PATH}/compile.sh" "compile.sh"
     (
@@ -332,6 +350,7 @@ compile_test_tool() {
     )
 }
 
+# 监控测试结果文件生成和更新状态。
 monitor_result_file() {
     local result_file="${TEST_TOOL_PATH}/result.xml"
     local start_epoch=0
@@ -357,6 +376,7 @@ monitor_result_file() {
     done
 }
 
+# 启动 SQL 覆盖率测试工具并保存进程信息。
 start_test_tool() {
     require_file "${TEST_TOOL_PATH}/test.sh" "test.sh"
 
@@ -369,6 +389,7 @@ start_test_tool() {
     active_test_pid=$!
 }
 
+# 从测试结果文件解析通过和失败用例数量。
 parse_result_counts() {
     local result_file="${TEST_TOOL_PATH}/result.xml"
     local pass_value=0
@@ -380,6 +401,7 @@ parse_result_counts() {
     printf '%s\t%s\n' "${pass_value}" "${fail_value}"
 }
 
+# 返回指定测试模式对应的启动等待时长。
 mode_startup_wait_seconds() {
     local mode="$1"
 
@@ -396,6 +418,7 @@ mode_startup_wait_seconds() {
     esac
 }
 
+# 备份 SQL 测试数据、结果文件和运行日志。
 backup_test_data() {
     local mode="$1"
     local backup_parent="${BACKUP_PATH}/${mode}"
@@ -419,6 +442,7 @@ backup_test_data() {
     fi
 }
 
+# 持久化测试工具或 IoTDB 启动失败结果。
 record_startup_failure() {
     local remark="$1"
     local failure_time=""
@@ -427,6 +451,7 @@ record_startup_failure() {
     insert_result_row "${remark}" 0 -3 "${failure_time}" "${failure_time}" -3
 }
 
+# 持久化 SQL 测试工具编译失败结果。
 record_compile_failure() {
     local remark="$1"
     local failure_time=""
@@ -435,6 +460,7 @@ record_compile_failure() {
     insert_result_row "${remark}" 0 -2 "${failure_time}" "${failure_time}" -2
 }
 
+# 执行指定模式的 SQL 覆盖率测试完整套件。
 run_mode_suite() {
     local mode="$1"
     local suite_failed=0
@@ -521,6 +547,7 @@ run_mode_suite() {
     return "${suite_failed}"
 }
 
+# 执行 SQL 覆盖率脚本的命令行主流程。
 main() {
     local mode=""
     local task_failed=0
@@ -555,9 +582,15 @@ main() {
     fi
 }
 
+# 准备 SQL 覆盖率任务运行环境并注册退出恢复。
 scenario_task_prepare() { trap restore_test_type_file EXIT; ensure_runtime_dependencies; check_password; mark_test_in_progress; }
+# 认领提交并同步对应的 SQL 测试用例仓库。
 scenario_task_claim() { fetch_next_commit || return 1; TASK_CTX[commit_id]="${commit_id}"; TASK_CTX[author]="${author}"; TASK_CTX[commit_date_time]="${commit_date_time}"; sync_testcase_repo; }
+# 将 SQL 覆盖率任务状态更新为运行中。
 scenario_task_mark_running() { update_task_status "ontesting"; }
+# 执行当前模式配置对应的覆盖率测试套件。
 scenario_case_execute() { run_mode_suite "${CASE_MODE}"; }
+# 标记任务成功并处理较早的待测提交。
 scenario_task_finish_success() { update_task_status "done"; mark_older_commits_skip; }
+# 将 SQL 覆盖率任务标记为失败。
 scenario_task_finish_failure() { update_task_status "RError"; }

@@ -35,6 +35,7 @@ if [ "${PASSWORD}" = "" ]; then
 	echo "需要关注密码设置！"
 fi
 ############定义监控采集项初始值##########################
+# 初始化原生 API 测试所需的路径、版本和执行参数。
 init_items() {
 tests_num=0
 errors_num=0
@@ -46,6 +47,7 @@ start_time=0
 end_time=0
 flag=0
 }
+# 准备当前用例所需的 TimechoDB 发布目录。
 set_timechodb() { # 准备 TimechoDB
 	if [ ! -d "${TEST_TIMECHODB_PATH}" ]; then
 		mkdir -p ${TEST_TIMECHODB_PATH}
@@ -55,6 +57,7 @@ set_timechodb() { # 准备 TimechoDB
 	fi
 	unzip ${TIMECHODB_PATH}/timechodb-*-SNAPSHOT-bin.zip -d ${TEST_TIMECHODB_PATH}/
 }
+# 查找并停止遗留的 TimechoDB Java 进程。
 check_timechodb_pid() { # 检查timechodb的pid，有就停止
 	timechodb_pid=$(jps | grep DataNode | awk '{print $1}')
 	if [ "${timechodb_pid}" = "" ]; then
@@ -72,6 +75,7 @@ check_timechodb_pid() { # 检查timechodb的pid，有就停止
 	fi
 	echo "程序检测和清理操作已完成！"
 }
+# 启动 TimechoDB 服务并准备原生 API 测试环境。
 start_timechodb() { # 启动iotdb
 	cd ${TEST_TIMECHODB_PATH}/timechodb-*-SNAPSHOT-bin
   cp -rf ${ATMOS_PATH}/conf/${test_type}/license activation/
@@ -81,6 +85,7 @@ start_timechodb() { # 启动iotdb
 	data_start=$(./sbin/start-datanode.sh -H ${TEST_TIMECHODB_PATH}/dn_dump.hprof >/dev/null 2>&1 &)
 	cd ~/
 }
+# 执行 Python 原生 API 测试并记录其运行结果。
 test_python_native_api_test() { # 测试Python原生接口
 	# 拷贝Python工具到测试路径
 	if [ ! -d "${TEST_PYTHON_TOOL_PATH}" ]; then

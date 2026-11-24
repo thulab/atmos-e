@@ -66,6 +66,7 @@ TREEVIEW_TABLE_DATABASE="${TREEVIEW_TABLE_DATABASE:-${TREEVIEW_DB_NAME}_${TREEVI
 TREEVIEW_TABLE_NAME="${TREEVIEW_TABLE_NAME:-${TREEVIEW_TABLE_NAME_PREFIX}0}"
 TREEVIEW_TREE_PREFIX="${TREEVIEW_TREE_PREFIX:-root.${TREEVIEW_DB_NAME}.${TREEVIEW_GROUP_NAME_PREFIX}${TREEVIEW_GROUP_INDEX}}"
 
+# 返回 TreeView 查询基础测试套件的配置参数。
 treeview_base_suite() {
     local current_suite_type="$1"
 
@@ -85,6 +86,7 @@ treeview_base_suite() {
     esac
 }
 
+# 按数据模型解析 TreeView 查询配置套件。
 treeview_config_suite() {
     local current_suite_type="$1"
 
@@ -101,6 +103,7 @@ treeview_config_suite() {
     esac
 }
 
+# 返回指定数据模型对应的数据集根目录。
 treeview_dataset_root() {
     local current_suite_type="$1"
 
@@ -117,6 +120,7 @@ treeview_dataset_root() {
     esac
 }
 
+# 将目标视图类型映射为源数据集类型。
 treeview_source_data_type() {
     local current_suite_type="$1"
 
@@ -133,6 +137,7 @@ treeview_source_data_type() {
     esac
 }
 
+# 解析 TreeView 查询用例可用的数据集目录。
 resolve_query_dataset_source() {
     local protocol_code="$1"
     local current_suite_type="$2"
@@ -144,6 +149,7 @@ resolve_query_dataset_source() {
     printf '%s/%s/%s/data\n' "${dataset_root}" "${protocol_code}" "${base_suite}"
 }
 
+# 解析 TreeView 查询用例对应的查询配置文件。
 resolve_query_config_source() {
     local current_suite_type="$1"
     local current_query="$2"
@@ -159,6 +165,7 @@ resolve_query_config_source() {
     printf '%s\n' "${resolved_path}"
 }
 
+# 初始化 TreeView 查询场景的运行上下文和路径。
 prepare_query_context() {
     local current_suite_type="$1"
     local current_query="$2"
@@ -177,6 +184,7 @@ prepare_query_context() {
     query_num="${current_repeat}"
 }
 
+# 在表模型用例需要时追加专属 IoTDB 配置。
 append_tablemode_config_if_needed() {
     local current_suite_type="$1"
 
@@ -189,6 +197,7 @@ IoTDB_TABLE_NUMBER=1
 EOF
 }
 
+# 在 IoTDB CLI 中执行 TreeView 场景所需的 SQL。
 treeview_cli_sql() {
     local sql="$1"
     local output=""
@@ -215,6 +224,7 @@ treeview_cli_sql() {
     printf '%s\n' "${output}"
 }
 
+# 建立树模型源数据到表模型视图的映射配置。
 prepare_tree_to_table_view() {
     local current_suite_type="$1"
     local view_name="${TREEVIEW_TABLE_DATABASE}.${TREEVIEW_TABLE_NAME}"
@@ -227,6 +237,7 @@ prepare_tree_to_table_view() {
     treeview_cli_sql "SELECT count(s_0) FROM ${view_name} WHERE device_id = 'd_0'" >/dev/null || return 1
 }
 
+# 将视图查询配置文件放入当前测试运行目录。
 mv_config_file() {
     local current_suite_type="$1"
     local current_query="$2"
