@@ -209,6 +209,7 @@ schema_region_group_extension_policy=CUSTOM
 data_region_group_extension_policy=CUSTOM
 inner_compaction_candidate_file_num=2
 compaction_schedule_interval_in_ms=1000
+enable_sync_schema_deletion=true
 EOF
 }
 
