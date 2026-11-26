@@ -161,6 +161,7 @@ stop_active_test() {
 # 清理 SQL 测试遗留的进程和临时资源。
 cleanup_processes() {
     stop_active_test
+    check_pid_and_kill "InterFace" "SQL test tool"
     check_iotdb_pid
 }
 
