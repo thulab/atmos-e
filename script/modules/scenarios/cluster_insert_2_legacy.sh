@@ -495,6 +495,39 @@ test_operation() {
 	sudo scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/
 }
 
+# 备份各 DataNode 上的 OOM heap dump，并将副本路径追加到回归日志。
+backup_tvlist_prealloc_dumps() {
+	local log_dir="$1"
+	local log_file="$2"
+	local dump_file="${TEST_DATANODE_PATH}/dn_dump.hprof"
+	local dump_state=""
+	local dump_dir=""
+	local node_index=""
+	local backup_status=0
+
+	for ((node_index = 1; node_index <= 5; node_index++)); do
+		dump_dir="${log_dir}/${commit_date_time}_${commit_id}/node${node_index}"
+		if dump_state=$(ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
+			"if [ -f '${dump_file}' ]; then printf present; else printf absent; fi"); then
+			if [ "${dump_state}" = "present" ]; then
+				if ! mkdir -p "${dump_dir}" || \
+					! scp "${ACCOUNT}@${D_IP_list[${node_index}]}:${dump_file}" "${dump_dir}/dn_dump.hprof"; then
+					echo "DataNode ${D_IP_list[${node_index}]} dump 备份失败" | tee -a "${log_file}"
+					backup_status=1
+				else
+					echo "DataNode ${D_IP_list[${node_index}]} dump 已备份到 ${dump_dir}/dn_dump.hprof" | tee -a "${log_file}"
+				fi
+			else
+				echo "DataNode ${D_IP_list[${node_index}]} 未发现 OOM dump" | tee -a "${log_file}"
+			fi
+		else
+			echo "无法检查 DataNode ${D_IP_list[${node_index}]} 的 dump 文件" | tee -a "${log_file}"
+			backup_status=1
+		fi
+	done
+	return "${backup_status}"
+}
+
 # 在现有 benchmark 用例结束后重启 3C5D 集群并运行 TVList 内存回归。
 run_tvlist_prealloc_regression() {
 	local repro_local="${INIT_PATH}/tvlist-prealloc-repro-client"
@@ -504,7 +537,10 @@ run_tvlist_prealloc_regression() {
 	local nodes=""
 	local metrics_urls=""
 	local client_status=0
+	local client_copy_status=0
+	local heap_script_copy_status=0
 	local heap_status=0
+	local dump_backup_status=0
 	local stop_status=0
 	local node_index=""
 	local status=0
@@ -531,6 +567,13 @@ run_tvlist_prealloc_regression() {
 	modify_iotdb_config || return 1
 	set_protocol_class 2 2 3 || return 1
 	if ! (OPTIND=1; setup_nCmD -c3 -d5 -t0); then
+		echo "3C5D 集群启动失败，检查并备份已生成的 OOM dump。" | tee -a "${log_file}"
+		backup_tvlist_prealloc_dumps "${log_dir}" "${log_file}" || true
+		for ((node_index = 1; node_index < ${#IP_list[*]}; node_index++)); do
+			ssh "${ACCOUNT}@${IP_list[${node_index}]}" \
+				"${TEST_DATANODE_PATH}/sbin/stop-standalone.sh > /dev/null 2>&1" || true
+		done
+		sleep 10
 		return 1
 	fi
 
@@ -543,32 +586,50 @@ run_tvlist_prealloc_regression() {
 		metrics_urls+="http://${D_IP_list[${node_index}]}:9091/metrics"
 	done
 
-	ssh "${ACCOUNT}@${B_IP_list[1]}" "mkdir -p '${repro_remote}/tools'" || return 1
-	scp -r "${repro_local}" "${ACCOUNT}@${B_IP_list[1]}:${INIT_PATH}/" || return 1
+	if ! ssh "${ACCOUNT}@${B_IP_list[1]}" "mkdir -p '${repro_remote}/tools'" || \
+		! scp -r "${repro_local}" "${ACCOUNT}@${B_IP_list[1]}:${INIT_PATH}/"; then
+		echo "TVList 客户端复制到 Benchmark 机器失败" | tee -a "${log_file}"
+		client_copy_status=1
+	fi
 	for ((node_index = 1; node_index <= 5; node_index++)); do
-		ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" "mkdir -p '${repro_remote}/tools'" || return 1
-		scp "${repro_local}/tools/check_datanode_heap.sh" \
-			"${ACCOUNT}@${D_IP_list[${node_index}]}:${repro_remote}/tools/" || return 1
+		if ! ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" "mkdir -p '${repro_remote}/tools'" || \
+			! scp "${repro_local}/tools/check_datanode_heap.sh" \
+				"${ACCOUNT}@${D_IP_list[${node_index}]}:${repro_remote}/tools/"; then
+			echo "DataNode ${D_IP_list[${node_index}]} 的堆检查脚本复制失败" | tee -a "${log_file}"
+			heap_script_copy_status=1
+		fi
 	done
 
-	ssh "${ACCOUNT}@${B_IP_list[1]}" \
-		"cd '${repro_remote}' && bash ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-rows 120000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
-		2>&1 | tee "${log_file}"
-	client_status=${PIPESTATUS[0]}
+	if [ "${client_copy_status}" -eq 0 ]; then
+		ssh "${ACCOUNT}@${B_IP_list[1]}" \
+			"cd '${repro_remote}' && bash ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-rows 120000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
+			2>&1 | tee "${log_file}"
+		client_status=${PIPESTATUS[0]}
+	else
+		client_status=1
+	fi
 	if [ "${client_status}" -ne 0 ]; then
 		echo "TVList 客户端失败，退出码=${client_status}" | tee -a "${log_file}"
 	fi
 
 	for ((node_index = 1; node_index <= 5; node_index++)); do
 		echo "检查 DataNode ${D_IP_list[${node_index}]} 的 Object[] 堆占用" | tee -a "${log_file}"
-		ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
-			"bash '${repro_remote}/tools/check_datanode_heap.sh' --max-obj-array-mb '${max_obj_array_mb}' --max-obj-to-double-ratio '${max_obj_to_double_ratio}'" \
-			2>&1 | tee -a "${log_file}"
-		status=${PIPESTATUS[0]}
+		if [ "${heap_script_copy_status}" -eq 0 ]; then
+			ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
+				"bash -lc 'bash \"${repro_remote}/tools/check_datanode_heap.sh\" --max-obj-array-mb \"${max_obj_array_mb}\" --max-obj-to-double-ratio \"${max_obj_to_double_ratio}\"'" \
+				2>&1 | tee -a "${log_file}"
+			status=${PIPESTATUS[0]}
+		else
+			status=1
+		fi
 		if [ "${status}" -ne 0 ]; then
 			heap_status=1
 		fi
 	done
+
+	# OOM heap dump is generated on each DataNode. Back it up before stopping
+	# the cluster so the next set_env cleanup cannot remove it.
+	backup_tvlist_prealloc_dumps "${log_dir}" "${log_file}" || dump_backup_status=1
 
 	# 本测试检查结束后关闭节点，恢复 benchmark 用例结束时的停机状态。
 	for ((node_index = 1; node_index < ${#IP_list[*]}; node_index++)); do
@@ -577,7 +638,8 @@ run_tvlist_prealloc_regression() {
 	done
 	sleep 10
 
-	if [ "${client_status}" -ne 0 ] || [ "${heap_status}" -ne 0 ] || [ "${stop_status}" -ne 0 ]; then
+	if [ "${client_status}" -ne 0 ] || [ "${heap_status}" -ne 0 ] || \
+		[ "${dump_backup_status}" -ne 0 ] || [ "${stop_status}" -ne 0 ]; then
 		echo "TVList 预分配内存回归测试失败，详情见 ${log_file}"
 		return 1
 	fi
