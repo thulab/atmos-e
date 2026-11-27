@@ -523,8 +523,9 @@ run_tvlist_prealloc_regression() {
 	set_env || return 1
 	modify_iotdb_config || return 1
 	set_protocol_class 2 2 3 || return 1
-	OPTIND=1
-	setup_nCmD -c3 -d5 -t0 || return 1
+	if ! (OPTIND=1; setup_nCmD -c3 -d5 -t0); then
+		return 1
+	fi
 
 	for ((node_index = 1; node_index <= 5; node_index++)); do
 		if [ -n "${nodes}" ]; then
@@ -574,6 +575,41 @@ run_tvlist_prealloc_regression() {
 		return 1
 	fi
 	echo "TVList 预分配内存回归测试通过，日志：${log_file}"
+	return 0
+}
+
+# 将 TVList 回归结果写入结果表，复用本次任务最近一条 benchmark 记录的标识字段。
+record_tvlist_prealloc_result() {
+	local is_ok="$1"
+	local tvlist_start_time="$2"
+	local tvlist_end_time="$3"
+	local tvlist_cost_time="$4"
+	local insert_sql=""
+	local inserted_rows=""
+
+	insert_sql="INSERT INTO ${TABLENAME} (
+		commit_date_time,test_date_time,commit_id,author,node_id,ts_type,
+		okPoint,okOperation,failPoint,failOperation,throughput,Latency,MIN,P10,P25,MEDIAN,P75,P90,P95,P99,P999,MAX,numOfSe0Level,
+		start_time,end_time,cost_time,numOfUnse0Level,dataFileSize,maxNumofOpenFiles,maxNumofThread,walFileSize,avgCPULoad,maxCPULoad,
+		maxDiskIOSizeRead,maxDiskIOSizeWrite,maxDiskIOOpsRead,maxDiskIOOpsWrite,remark,protocol,isOk
+	)
+	SELECT
+		commit_date_time,test_date_time,commit_id,author,node_id,ts_type,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		'${tvlist_start_time}','${tvlist_end_time}',${tvlist_cost_time},0,0,0,0,0,0,0,0,0,0,0,
+		'tvlist-prealloc',protocol,${is_ok}
+	FROM ${TABLENAME}
+	WHERE commit_id='${commit_id}' AND test_date_time=${test_date_time} AND remark <> 'tvlist-prealloc'
+	ORDER BY node_id DESC
+	LIMIT 1"
+
+	inserted_rows=$(mysql -N -B -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} \
+		-e "${insert_sql}; SELECT ROW_COUNT();") || return 1
+	if [ "${inserted_rows}" != "1" ]; then
+		echo "TVList 结果记录写入失败，INSERT 影响行数=${inserted_rows:-0}"
+		return 1
+	fi
+	echo "TVList 结果记录已写入 ${TABLENAME}，remark=tvlist-prealloc，isOk=${is_ok}"
 	return 0
 }
 
@@ -658,8 +694,20 @@ else
 	echo "开始测试表模型时间序列乱序读写混合！"
 	test_operation tablemode unseq_rw 223
 	###############################测试完成###############################
+	tvlist_start_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+	tvlist_start_epoch=$(date +%s)
+	tvlist_is_ok=0
 	if ! run_tvlist_prealloc_regression; then
-		echo "TVList 回归未通过，本任务标记为 retest。"
+		tvlist_is_ok=1
+	fi
+	tvlist_end_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
+	tvlist_end_epoch=$(date +%s)
+	tvlist_cost_time=$((tvlist_end_epoch - tvlist_start_epoch))
+	if ! record_tvlist_prealloc_result "${tvlist_is_ok}" "${tvlist_start_time}" "${tvlist_end_time}" "${tvlist_cost_time}"; then
+		tvlist_is_ok=1
+	fi
+	if [ "${tvlist_is_ok}" -ne 0 ]; then
+		echo "TVList 回归未通过，本任务标记为 OOMErr。"
 		update_sql="update ${TASK_TABLENAME} set ${test_type} = 'OOMErr' where commit_id = '${commit_id}'"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}"
 		exit 1
