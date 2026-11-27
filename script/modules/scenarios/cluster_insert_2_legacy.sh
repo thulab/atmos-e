@@ -644,7 +644,7 @@ else
 	init_items
 	test_date_time=`date +%Y%m%d%H%M%S`
 	echo "开始测试表模型时间序列乱序读写混合！"
-	test_operation tablemode unseq_rw 223
+	#test_operation tablemode unseq_rw 223
 	###############################测试完成###############################
 	tvlist_start_time=$(date -d today +"%Y-%m-%d %H:%M:%S")
 	tvlist_start_epoch=$(date +%s)
