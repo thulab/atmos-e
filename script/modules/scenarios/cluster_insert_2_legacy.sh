@@ -516,8 +516,12 @@ run_tvlist_prealloc_regression() {
 	local max_obj_array_mb="${TVLIST_MAX_OBJ_ARRAY_MB:-256}"
 	local max_obj_to_double_ratio="${TVLIST_MAX_OBJ_TO_DOUBLE_RATIO:-1.5}"
 
-	if [ ! -x "${repro_local}/bin/run.sh" ] || [ ! -f "${repro_local}/tools/check_datanode_heap.sh" ]; then
-		echo "TVList 回归客户端或堆检查脚本不存在：${repro_local}"
+	if [ ! -f "${repro_local}/bin/run.sh" ]; then
+		echo "TVList 回归启动脚本不存在：${repro_local}/bin/run.sh"
+		return 1
+	fi
+	if [ ! -f "${repro_local}/tools/check_datanode_heap.sh" ]; then
+		echo "TVList DataNode 堆检查脚本不存在：${repro_local}/tools/check_datanode_heap.sh"
 		return 1
 	fi
 
@@ -548,7 +552,7 @@ run_tvlist_prealloc_regression() {
 	done
 
 	ssh "${ACCOUNT}@${B_IP_list[1]}" \
-		"cd '${repro_remote}' && ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-rows 120000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
+		"cd '${repro_remote}' && bash ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-rows 120000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
 		2>&1 | tee "${log_file}"
 	client_status=${PIPESTATUS[0]}
 	if [ "${client_status}" -ne 0 ]; then
@@ -558,7 +562,7 @@ run_tvlist_prealloc_regression() {
 	for ((node_index = 1; node_index <= 5; node_index++)); do
 		echo "检查 DataNode ${D_IP_list[${node_index}]} 的 Object[] 堆占用" | tee -a "${log_file}"
 		ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
-			"'${repro_remote}/tools/check_datanode_heap.sh' --max-obj-array-mb '${max_obj_array_mb}' --max-obj-to-double-ratio '${max_obj_to_double_ratio}'" \
+			"bash '${repro_remote}/tools/check_datanode_heap.sh' --max-obj-array-mb '${max_obj_array_mb}' --max-obj-to-double-ratio '${max_obj_to_double_ratio}'" \
 			2>&1 | tee -a "${log_file}"
 		status=${PIPESTATUS[0]}
 		if [ "${status}" -ne 0 ]; then
