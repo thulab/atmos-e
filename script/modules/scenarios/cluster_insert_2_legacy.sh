@@ -512,7 +512,7 @@ run_tvlist_prealloc_regression() {
 	# DataNode heap is configured to 20G above. Use the 16 GB recommendation's
 	# lower bound (4,000 devices per DataNode), scaled for this 3C5D cluster.
 	local wide_devices="${TVLIST_WIDE_DEVICES:-$((4000 * datanode_count))}"
-	local wide_cols="${TVLIST_WIDE_COLS:-250}"
+	local wide_cols="${TVLIST_WIDE_COLS:-500}"
 	local max_obj_array_mb="${TVLIST_MAX_OBJ_ARRAY_MB:-256}"
 	local max_obj_to_double_ratio="${TVLIST_MAX_OBJ_TO_DOUBLE_RATIO:-1.5}"
 
