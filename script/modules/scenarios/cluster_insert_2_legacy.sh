@@ -495,6 +495,88 @@ test_operation() {
 	sudo scp -r ${ACCOUNT}@${B_IP_list[1]}:${BM_PATH}/logs ${BUCKUP_PATH}/${ts_type}/${commit_date_time}_${commit_id}_${data_type}_${protocol_class}/
 }
 
+# 在现有 benchmark 用例结束后重启 3C5D 集群并运行 TVList 内存回归。
+run_tvlist_prealloc_regression() {
+	local repro_local="${INIT_PATH}/tvlist-prealloc-repro-client"
+	local repro_remote="${INIT_PATH}/tvlist-prealloc-repro-client"
+	local log_dir="${BUCKUP_PATH}/tvlist-prealloc"
+	local log_file="${log_dir}/${commit_date_time}_${commit_id}.log"
+	local nodes=""
+	local metrics_urls=""
+	local client_status=0
+	local heap_status=0
+	local stop_status=0
+	local node_index=""
+	local status=0
+	local wide_devices="${TVLIST_WIDE_DEVICES:-1200}"
+	local wide_cols="${TVLIST_WIDE_COLS:-250}"
+	local max_obj_array_mb="${TVLIST_MAX_OBJ_ARRAY_MB:-256}"
+	local max_obj_to_double_ratio="${TVLIST_MAX_OBJ_TO_DOUBLE_RATIO:-1.5}"
+
+	if [ ! -x "${repro_local}/bin/run.sh" ] || [ ! -f "${repro_local}/tools/check_datanode_heap.sh" ]; then
+		echo "TVList 回归客户端或堆检查脚本不存在：${repro_local}"
+		return 1
+	fi
+
+	mkdir -p "${log_dir}" || return 1
+	echo "开始 TVList 预分配内存回归测试（3C5D，协议 223）"
+	set_env || return 1
+	modify_iotdb_config || return 1
+	set_protocol_class 2 2 3 || return 1
+	OPTIND=1
+	setup_nCmD -c3 -d5 -t0 || return 1
+
+	for ((node_index = 1; node_index <= 5; node_index++)); do
+		if [ -n "${nodes}" ]; then
+			nodes+=","
+			metrics_urls+=","
+		fi
+		nodes+="${D_IP_list[${node_index}]}:6667"
+		metrics_urls+="http://${D_IP_list[${node_index}]}:9091/metrics"
+	done
+
+	ssh "${ACCOUNT}@${B_IP_list[1]}" "mkdir -p '${repro_remote}/tools'" || return 1
+	scp -r "${repro_local}" "${ACCOUNT}@${B_IP_list[1]}:${INIT_PATH}/" || return 1
+	for ((node_index = 1; node_index <= 5; node_index++)); do
+		ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" "mkdir -p '${repro_remote}/tools'" || return 1
+		scp "${repro_local}/tools/check_datanode_heap.sh" \
+			"${ACCOUNT}@${D_IP_list[${node_index}]}:${repro_remote}/tools/" || return 1
+	done
+
+	ssh "${ACCOUNT}@${B_IP_list[1]}" \
+		"cd '${repro_remote}' && ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
+		2>&1 | tee "${log_file}"
+	client_status=${PIPESTATUS[0]}
+	if [ "${client_status}" -ne 0 ]; then
+		echo "TVList 客户端失败，退出码=${client_status}" | tee -a "${log_file}"
+	fi
+
+	for ((node_index = 1; node_index <= 5; node_index++)); do
+		echo "检查 DataNode ${D_IP_list[${node_index}]} 的 Object[] 堆占用" | tee -a "${log_file}"
+		ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
+			"'${repro_remote}/tools/check_datanode_heap.sh' --max-obj-array-mb '${max_obj_array_mb}' --max-obj-to-double-ratio '${max_obj_to_double_ratio}'" \
+			2>&1 | tee -a "${log_file}"
+		status=${PIPESTATUS[0]}
+		if [ "${status}" -ne 0 ]; then
+			heap_status=1
+		fi
+	done
+
+	# 本测试检查结束后关闭节点，恢复 benchmark 用例结束时的停机状态。
+	for ((node_index = 1; node_index < ${#IP_list[*]}; node_index++)); do
+		ssh "${ACCOUNT}@${IP_list[${node_index}]}" \
+			"${TEST_DATANODE_PATH}/sbin/stop-standalone.sh > /dev/null 2>&1" || stop_status=1
+	done
+	sleep 10
+
+	if [ "${client_status}" -ne 0 ] || [ "${heap_status}" -ne 0 ] || [ "${stop_status}" -ne 0 ]; then
+		echo "TVList 预分配内存回归测试失败，详情见 ${log_file}"
+		return 1
+	fi
+	echo "TVList 预分配内存回归测试通过，日志：${log_file}"
+	return 0
+}
+
 ##准备开始测试
 echo "ontesting" > ${INIT_PATH}/test_type_file
 query_sql="SELECT commit_id,',',author,',',commit_date_time,',' FROM ${TASK_TABLENAME} WHERE ${test_type} = 'retest' ORDER BY commit_date_time desc limit 1 "
@@ -576,6 +658,12 @@ else
 	echo "开始测试表模型时间序列乱序读写混合！"
 	test_operation tablemode unseq_rw 223
 	###############################测试完成###############################
+	if ! run_tvlist_prealloc_regression; then
+		echo "TVList 回归未通过，本任务标记为 retest。"
+		update_sql="update ${TASK_TABLENAME} set ${test_type} = 'retest' where commit_id = '${commit_id}'"
+		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}"
+		exit 1
+	fi
 	echo "本轮测试${test_date_time}已结束."
 	update_sql="update ${TASK_TABLENAME} set ${test_type} = 'done' where commit_id = '${commit_id}'"
 	result_string=$(mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}")
