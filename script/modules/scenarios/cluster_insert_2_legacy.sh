@@ -508,7 +508,10 @@ run_tvlist_prealloc_regression() {
 	local stop_status=0
 	local node_index=""
 	local status=0
-	local wide_devices="${TVLIST_WIDE_DEVICES:-1200}"
+	local datanode_count=$((${#D_IP_list[*]} - 1))
+	# DataNode heap is configured to 20G above. Use the 16 GB recommendation's
+	# lower bound (4,000 devices per DataNode), scaled for this 3C5D cluster.
+	local wide_devices="${TVLIST_WIDE_DEVICES:-$((4000 * datanode_count))}"
 	local wide_cols="${TVLIST_WIDE_COLS:-250}"
 	local max_obj_array_mb="${TVLIST_MAX_OBJ_ARRAY_MB:-256}"
 	local max_obj_to_double_ratio="${TVLIST_MAX_OBJ_TO_DOUBLE_RATIO:-1.5}"
@@ -519,7 +522,7 @@ run_tvlist_prealloc_regression() {
 	fi
 
 	mkdir -p "${log_dir}" || return 1
-	echo "开始 TVList 预分配内存回归测试（3C5D，协议 223）"
+	echo "开始 TVList 预分配内存回归测试（3C5D，协议 223，宽表设备=${wide_devices}，列数=${wide_cols}）"
 	set_env || return 1
 	modify_iotdb_config || return 1
 	set_protocol_class 2 2 3 || return 1
@@ -545,7 +548,7 @@ run_tvlist_prealloc_regression() {
 	done
 
 	ssh "${ACCOUNT}@${B_IP_list[1]}" \
-		"cd '${repro_remote}' && ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
+		"cd '${repro_remote}' && ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-rows 120000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
 		2>&1 | tee "${log_file}"
 	client_status=${PIPESTATUS[0]}
 	if [ "${client_status}" -ne 0 ]; then
