@@ -161,6 +161,17 @@ modify_iotdb_config() { # iotdb调整内存，关闭合并
 	echo "dn_metric_level=ALL" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 	echo "dn_metric_prometheus_reporter_port=9091" >> ${TEST_DATANODE_PATH}/conf/iotdb-system.properties
 }
+# 为 TVList 回归单独配置 DataNode JVM 参数，不改变前面的 benchmark 用例。
+configure_tvlist_datanode_jvm_options() {
+	local datanode_env="${TEST_DATANODE_PATH}/conf/datanode-env.sh"
+	if [ ! -f "${datanode_env}" ]; then
+		echo "DataNode JVM 配置文件不存在：${datanode_env}"
+		return 1
+	fi
+	if ! grep -Fq -- "-XX:-UseCompressedOops" "${datanode_env}"; then
+		printf '\n%s\n' 'JAVA_OPTS="${JAVA_OPTS:-} -XX:-UseCompressedOops"' >> "${datanode_env}"
+	fi
+}
 # 根据协议版本选择双集群 Benchmark 使用的客户端类。
 set_protocol_class() {
 	config_node=$1
@@ -565,12 +576,13 @@ run_tvlist_prealloc_regression() {
 	echo "开始 TVList 预分配内存回归测试（3C5D，协议 223，宽表设备=${wide_devices}，列数=${wide_cols}）"
 	set_env || return 1
 	modify_iotdb_config || return 1
+	configure_tvlist_datanode_jvm_options || return 1
 	set_protocol_class 2 2 3 || return 1
 	if ! (OPTIND=1; setup_nCmD -c3 -d5 -t0); then
 		echo "3C5D 集群启动失败，检查并备份已生成的 OOM dump。" | tee -a "${log_file}"
 		backup_tvlist_prealloc_dumps "${log_dir}" "${log_file}" || true
-		for ((node_index = 1; node_index < ${#IP_list[*]}; node_index++)); do
-			ssh "${ACCOUNT}@${IP_list[${node_index}]}" \
+		for ((node_index = 1; node_index < ${#D_IP_list[*]}; node_index++)); do
+			ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
 				"${TEST_DATANODE_PATH}/sbin/stop-standalone.sh > /dev/null 2>&1" || true
 		done
 		sleep 10
@@ -602,7 +614,7 @@ run_tvlist_prealloc_regression() {
 
 	if [ "${client_copy_status}" -eq 0 ]; then
 		ssh "${ACCOUNT}@${B_IP_list[1]}" \
-			"cd '${repro_remote}' && bash ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-rows 120000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
+			"cd '${repro_remote}' && bash ./bin/run.sh --nodes '${nodes}' --user '${ACCOUNT}' --password '${IoTDB_PW}' --db-prefix root.cluster_insert_2_tvlist --dense-devices 20 --dense-cols 4 --dense-rows 400000 --wide-devices '${wide_devices}' --wide-cols '${wide_cols}' --cleanup-before true --cleanup-after false --metrics-url '${metrics_urls}'" \
 			2>&1 | tee "${log_file}"
 		client_status=${PIPESTATUS[0]}
 	else
@@ -632,15 +644,15 @@ run_tvlist_prealloc_regression() {
 	backup_tvlist_prealloc_dumps "${log_dir}" "${log_file}" || dump_backup_status=1
 
 	# 本测试检查结束后关闭节点，恢复 benchmark 用例结束时的停机状态。
-	for ((node_index = 1; node_index < ${#IP_list[*]}; node_index++)); do
-		ssh "${ACCOUNT}@${IP_list[${node_index}]}" \
+	for ((node_index = 1; node_index < ${#D_IP_list[*]}; node_index++)); do
+		ssh "${ACCOUNT}@${D_IP_list[${node_index}]}" \
 			"${TEST_DATANODE_PATH}/sbin/stop-standalone.sh > /dev/null 2>&1" || stop_status=1
 	done
 	sleep 10
 
 	if [ "${client_status}" -ne 0 ] || [ "${heap_status}" -ne 0 ] || \
 		[ "${dump_backup_status}" -ne 0 ] || [ "${stop_status}" -ne 0 ]; then
-		echo "TVList 预分配内存回归测试失败，详情见 ${log_file}"
+		echo "TVList 预分配内存回归测试失败（client=${client_status}, heap=${heap_status}, dumpBackup=${dump_backup_status}, stop=${stop_status}），详情见 ${log_file}"
 		return 1
 	fi
 	echo "TVList 预分配内存回归测试通过，日志：${log_file}"
@@ -668,14 +680,16 @@ record_tvlist_prealloc_result() {
 		'${tvlist_start_time}','${tvlist_end_time}',${tvlist_cost_time},0,0,0,0,0,0,0,0,0,0,0,
 		'tvlist-prealloc',protocol,${is_ok}
 	FROM ${TABLENAME}
-	WHERE commit_id='${commit_id}' AND test_date_time=${test_date_time} AND remark <> 'tvlist-prealloc'
-	ORDER BY node_id DESC
+	WHERE commit_id='${commit_id}' AND COALESCE(remark, '') <> 'tvlist-prealloc'
+	ORDER BY test_date_time DESC, node_id DESC
 	LIMIT 1"
 
+	mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} \
+		-e "${insert_sql}" || return 1
 	inserted_rows=$(mysql -N -B -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} \
-		-e "${insert_sql}; SELECT ROW_COUNT();") || return 1
+		-e "SELECT COUNT(*) FROM ${TABLENAME} WHERE commit_id='${commit_id}' AND remark='tvlist-prealloc' AND start_time='${tvlist_start_time}' AND end_time='${tvlist_end_time}'") || return 1
 	if [ "${inserted_rows}" != "1" ]; then
-		echo "TVList 结果记录写入失败，INSERT 影响行数=${inserted_rows:-0}"
+		echo "TVList 结果记录写入失败，匹配到的记录数=${inserted_rows:-0}"
 		return 1
 	fi
 	echo "TVList 结果记录已写入 ${TABLENAME}，remark=tvlist-prealloc，isOk=${is_ok}"
