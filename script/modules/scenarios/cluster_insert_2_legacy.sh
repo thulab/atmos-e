@@ -660,7 +660,7 @@ else
 	###############################测试完成###############################
 	if ! run_tvlist_prealloc_regression; then
 		echo "TVList 回归未通过，本任务标记为 retest。"
-		update_sql="update ${TASK_TABLENAME} set ${test_type} = 'retest' where commit_id = '${commit_id}'"
+		update_sql="update ${TASK_TABLENAME} set ${test_type} = 'OOMErr' where commit_id = '${commit_id}'"
 		mysql -h${MYSQLHOSTNAME} -P${PORT} -u${USERNAME} -p${PASSWORD} ${DBNAME} -e "${update_sql}"
 		exit 1
 	fi
